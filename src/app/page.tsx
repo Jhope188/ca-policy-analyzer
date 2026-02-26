@@ -4,13 +4,17 @@ import { useState, useCallback } from "react";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { loadTenantContext, TenantContext } from "@/lib/graph-client";
 import { analyzeAllPolicies, AnalysisResult } from "@/lib/analyzer";
+import { analyzeTemplates, TemplateAnalysisResult } from "@/lib/template-matcher";
+import { runCISAlignment, CISAlignmentResult } from "@/data/cis-benchmarks";
 import { Dashboard } from "@/components/dashboard";
 import { PolicyList } from "@/components/policy-list";
 import { FindingsList } from "@/components/findings-list";
+import { TemplatesView } from "@/components/templates-view";
+import { CISView } from "@/components/cis-view";
 import { Shield, Loader2, Play, Download, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ViewTab = "dashboard" | "policies" | "findings";
+type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "cis";
 
 export default function Home() {
   const isAuthenticated = useIsAuthenticated();
@@ -20,6 +24,8 @@ export default function Home() {
   const [progress, setProgress] = useState("");
   const [context, setContext] = useState<TenantContext | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [templateResult, setTemplateResult] = useState<TemplateAnalysisResult | null>(null);
+  const [cisResult, setCisResult] = useState<CISAlignmentResult | null>(null);
   const [activeTab, setActiveTab] = useState<ViewTab>("dashboard");
   const [error, setError] = useState<string | null>(null);
 
@@ -35,6 +41,15 @@ export default function Home() {
       setProgress("Analyzing policies…");
       const analysisResult = analyzeAllPolicies(ctx);
       setResult(analysisResult);
+
+      setProgress("Matching against policy templates…");
+      const templates = analyzeTemplates(ctx);
+      setTemplateResult(templates);
+
+      setProgress("Running CIS alignment checks…");
+      const cis = runCISAlignment(ctx);
+      setCisResult(cis);
+
       setActiveTab("dashboard");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error occurred";
@@ -146,6 +161,8 @@ export default function Home() {
               { key: "dashboard", label: "Dashboard" },
               { key: "policies", label: "Policies" },
               { key: "findings", label: "All Findings" },
+              { key: "templates", label: "Templates" },
+              { key: "cis", label: "CIS Alignment" },
             ] as const
           ).map((tab) => (
             <button
@@ -189,6 +206,12 @@ export default function Home() {
       )}
       {activeTab === "findings" && (
         <FindingsList findings={result.findings} title="All Findings" />
+      )}
+      {activeTab === "templates" && templateResult && (
+        <TemplatesView result={templateResult} />
+      )}
+      {activeTab === "cis" && cisResult && (
+        <CISView result={cisResult} />
       )}
     </div>
   );
