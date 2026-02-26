@@ -19,6 +19,56 @@
 
 The app runs **100% in your browser** — your data never leaves your machine. It connects directly to Microsoft Graph using your own credentials (delegated permissions).
 
+---
+
+## Screenshots
+
+### Dashboard — Security Posture at a Glance
+
+The dashboard shows your overall security score (0–100), policy counts by state, and a severity breakdown of all findings.
+
+<!-- Replace with actual screenshot: open the app → run analysis → Dashboard tab -->
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Policies — Visual Flow Cards
+
+Every CA policy is rendered as an expandable flow card showing Users → Conditions → Apps → Grant/Session Controls. Critical and high-severity policies are highlighted with coloured borders.
+
+<!-- Replace with actual screenshot: open the app → Policies tab → expand a policy -->
+![Policies](docs/screenshots/policies.png)
+
+### Findings — Severity-Ranked Issues
+
+All detected issues ranked Critical → Info. Expand any finding to see the full description, affected policy, and a remediation recommendation.
+
+<!-- Replace with actual screenshot: open the app → Findings tab → expand a finding -->
+![Findings](docs/screenshots/findings.png)
+
+### Templates — Gap Analysis
+
+23 best-practice templates compared against your tenant. Each template shows whether you have a matching policy, a partial match, or a gap.
+
+<!-- Replace with actual screenshot: open the app → Templates tab -->
+![Templates](docs/screenshots/templates.png)
+
+### CIS v6.0 — Benchmark Alignment
+
+18 controls from the CIS Microsoft 365 Foundations Benchmark v6.0.0 with an alignment score ring. Each control shows pass/fail status, matching policies, and remediation guidance.
+
+<!-- Replace with actual screenshot: open the app → CIS tab -->
+![CIS Benchmark](docs/screenshots/cis.png)
+
+### MS Learn — Documented Exclusion Checks
+
+12 checks sourced from Microsoft Learn flag policies that are missing required exclusions. Findings are grouped by severity and each card links to the relevant documentation.
+
+<!-- Replace with actual screenshot: open the app → MS Learn tab -->
+![MS Learn Exclusions](docs/screenshots/mslearn.png)
+
+> **Adding your own screenshots:** Capture each tab and save the images to `docs/screenshots/` with the filenames shown above (`dashboard.png`, `policies.png`, `findings.png`, `templates.png`, `cis.png`, `mslearn.png`).
+
+---
+
 ## What It Does
 
 CA Policy Analyzer connects to your Entra ID tenant via Microsoft Graph and:
@@ -107,6 +157,147 @@ Click the **Export JSON** button (visible when results are loaded) to download t
 | Sign-in frequency — Individual services | Medium | Targeting individual M365 services breaks Teams |
 | CAE disabled | High | Policies explicitly disabling continuous access evaluation |
 | Resilience disabled | Medium | Policies disabling resilience defaults |
+
+## Examples
+
+### Example: Finding — FOCI Token Sharing Risk
+
+When the analyzer detects a policy that excludes a FOCI app, it produces a finding like this:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 🔴 Critical  F-0003  FOCI Token Sharing                     │
+│                                                              │
+│ FOCI app excluded: Microsoft Teams (1fec8e78-bce4-...)       │
+│                                                              │
+│ Policy: "Block all except core apps"                         │
+│                                                              │
+│ This policy excludes Microsoft Teams, which belongs to FOCI  │
+│ family "Microsoft Office". Excluding one FOCI member means   │
+│ all 45+ apps in the family can share refresh tokens to       │
+│ bypass this policy entirely.                                 │
+│                                                              │
+│ 💡 Recommendation: Instead of excluding FOCI apps from a     │
+│    block/MFA policy, create a dedicated allow policy for     │
+│    the specific app.                                         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Example: CIS Control — Pass vs Fail
+
+The CIS tab shows each of the 18 v6.0 controls with a pass/fail badge, matched policies, and remediation if failing:
+
+```
+✅ 5.3.1 — Ensure multifactor authentication is required for all users    [L1]
+   Found 2 policy(ies) requiring MFA for all users and all apps.
+   Policies: "CA001 — Require MFA for all users", "Baseline — MFA"
+
+❌ 5.3.4 — Ensure phishing-resistant MFA for administrators               [L1]
+   No policy enforces phishing-resistant authentication strength for admin roles.
+   Remediation: Create a CA policy targeting admin roles with authentication
+   strength set to "Phishing-resistant MFA" (FIDO2, CBA, Windows Hello).
+
+✅ 5.3.10 — Ensure continuous access evaluation is not disabled            [L1]
+   No policy disables continuous access evaluation. CAE is active.
+```
+
+### Example: MS Learn Exclusion — Token Protection Misconfiguration
+
+If a token protection policy targets "All cloud apps" instead of only the supported services, the MS Learn tab flags it:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 🔴 Critical — Token Protection: Unsupported App Scope        │
+│                                                              │
+│ Policy: "Require token protection"                           │
+│                                                              │
+│ Assessment: Token protection only works with Exchange         │
+│ Online, SharePoint Online, and Teams. This policy targets    │
+│ "All cloud apps" which will cause sign-in failures for       │
+│ unsupported applications.                                    │
+│                                                              │
+│ 📖 MS Learn Requirement: Target only Exchange Online         │
+│    (00000002-0000-0ff1-ce00-000000000000), SharePoint        │
+│    Online (00000003-0000-0ff1-ce00-000000000000), and        │
+│    Microsoft Teams Services.                                 │
+│                                                              │
+│ Remediation: Change the policy to target only Exchange       │
+│ Online, SharePoint Online, Teams, Azure Virtual Desktop,     │
+│ and Windows 365.                                             │
+│                                                              │
+│ 🔗 https://learn.microsoft.com/en-us/entra/identity/...     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Example: Template Gap — Missing Policy
+
+The Templates tab highlights best-practice policies you haven't implemented yet:
+
+```
+❌ Missing — Block legacy authentication
+   Template: CA006-Global-BlockLegacyAuthentication
+   No matching policy found in your tenant.
+   Description: Block Exchange ActiveSync and other legacy
+   auth clients for all users.
+
+🟡 Partial match — Require compliant device for mobile
+   Template: CA012-Global-RequireCompliantDevice-Mobile
+   Your policy "Device compliance — iOS" covers iOS but
+   does not include Android. Match score: 62%
+```
+
+### Example: Exported JSON Structure
+
+The **Export JSON** button downloads the full analysis. The JSON follows this structure:
+
+```jsonc
+{
+  "tenantSummary": {
+    "totalPolicies": 24,
+    "enabledPolicies": 18,
+    "reportOnlyPolicies": 4,
+    "disabledPolicies": 2,
+    "totalFindings": 13,
+    "criticalFindings": 2,
+    "highFindings": 4,
+    "mediumFindings": 5,
+    "lowFindings": 1,
+    "infoFindings": 1
+  },
+  "overallScore": 72,
+  "findings": [
+    {
+      "id": "F-0001",
+      "policyId": "aaaa-bbbb-...",
+      "policyName": "Block all except core apps",
+      "severity": "critical",
+      "category": "FOCI Token Sharing",
+      "title": "FOCI app excluded — entire family can bypass this policy",
+      "description": "...",
+      "recommendation": "..."
+    }
+    // ... additional findings
+  ],
+  "exclusionFindings": [
+    {
+      "checkId": "token-prot-apps",
+      "severity": "critical",
+      "title": "Token Protection: Unsupported App Scope",
+      "policyName": "Require token protection",
+      "assessment": "...",
+      "requirement": "...",
+      "remediation": "...",
+      "docUrl": "https://learn.microsoft.com/..."
+    }
+    // ... additional exclusion findings
+  ],
+  "policyResults": [
+    // Full policy data + per-policy findings + flow visualization
+  ]
+}
+```
+
+---
 
 ## Privacy & Security
 
