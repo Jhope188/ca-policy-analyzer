@@ -5,7 +5,7 @@
  * Must be rendered as a Client Component.
  */
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   PublicClientApplication,
   EventType,
@@ -15,39 +15,52 @@ import {
 import { MsalProvider } from "@azure/msal-react";
 import { msalConfig } from "@/lib/msal-config";
 
-const msalInstance = new PublicClientApplication(msalConfig);
+// Lazily create the MSAL instance only in the browser (avoids SSR "window is not defined")
+let msalInstance: PublicClientApplication | null = null;
+function getMsalInstance(): PublicClientApplication {
+  if (!msalInstance) {
+    msalInstance = new PublicClientApplication(msalConfig);
+  }
+  return msalInstance;
+}
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
+  const initStarted = useRef(false);
 
   useEffect(() => {
+    // Prevent double-init in React Strict Mode
+    if (initStarted.current) return;
+    initStarted.current = true;
+
     const init = async () => {
-      await msalInstance.initialize();
+      const pca = getMsalInstance();
+      await pca.initialize();
 
       // Handle redirect response (comes back after loginRedirect)
       try {
-        const response = await msalInstance.handleRedirectPromise();
+        const response = await pca.handleRedirectPromise();
         if (response?.account) {
-          msalInstance.setActiveAccount(response.account);
+          pca.setActiveAccount(response.account);
         }
       } catch (e) {
         console.error("Redirect error:", e);
       }
 
       // Set active account from cache
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0 && !msalInstance.getActiveAccount()) {
-        msalInstance.setActiveAccount(accounts[0]);
+      const accounts = pca.getAllAccounts();
+      if (accounts.length > 0 && !pca.getActiveAccount()) {
+        pca.setActiveAccount(accounts[0]);
       }
 
       // Listen for login events
-      msalInstance.addEventCallback((event: EventMessage) => {
+      pca.addEventCallback((event: EventMessage) => {
         if (
           event.eventType === EventType.LOGIN_SUCCESS &&
           event.payload
         ) {
           const payload = event.payload as AuthenticationResult;
-          msalInstance.setActiveAccount(payload.account);
+          pca.setActiveAccount(payload.account);
         }
       });
 
@@ -68,5 +81,5 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <MsalProvider instance={msalInstance}>{children}</MsalProvider>;
+  return <MsalProvider instance={getMsalInstance()}>{children}</MsalProvider>;
 }
