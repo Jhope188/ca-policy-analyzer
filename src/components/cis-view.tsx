@@ -7,6 +7,8 @@ import {
   CISStatus,
   CISLevel,
   NearMissPolicy,
+  MSLearnReference,
+  Advisory,
 } from "@/data/cis-benchmarks";
 import { ScoreRing, Card } from "./ui-primitives";
 import {
@@ -19,6 +21,9 @@ import {
   Shield,
   ClipboardList,
   AlertTriangle,
+  BookOpen,
+  Info,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -218,6 +223,95 @@ function ControlCard({ controlResult }: { controlResult: CISControlResult }) {
               </h5>
               <div className="rounded bg-red-400/5 border border-red-800/30 p-3">
                 <p className="text-sm text-red-300">{result.remediation}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Advisories */}
+          {control.advisories && control.advisories.length > 0 && (
+            <div>
+              <h5 className="text-xs font-medium text-orange-400 uppercase mb-1 flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5" />
+                Active Advisories
+              </h5>
+              <div className="space-y-2">
+                {control.advisories.map((adv, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "rounded p-3 border space-y-1",
+                      adv.severity === "critical"
+                        ? "bg-red-400/5 border-red-800/30"
+                        : adv.severity === "warning"
+                          ? "bg-orange-400/5 border-orange-800/30"
+                          : "bg-blue-400/5 border-blue-800/30"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "text-[10px] px-1.5 py-0.5 rounded font-medium uppercase",
+                            adv.severity === "critical"
+                              ? "bg-red-900/50 text-red-300"
+                              : adv.severity === "warning"
+                                ? "bg-orange-900/50 text-orange-300"
+                                : "bg-blue-900/50 text-blue-300"
+                          )}
+                        >
+                          {adv.severity}
+                        </span>
+                        <span className="text-xs font-medium text-gray-300">
+                          {adv.id}
+                        </span>
+                      </div>
+                      {adv.effectiveDate && (
+                        <span className="text-[10px] text-gray-500 shrink-0">
+                          Effective: {adv.effectiveDate}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-200">
+                      {adv.title}
+                    </p>
+                    <p className="text-xs text-gray-400">{adv.summary}</p>
+                    {adv.url && (
+                      <a
+                        href={adv.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 mt-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View on DeltaPulse
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* MS Learn References */}
+          {control.msLearnLinks && control.msLearnLinks.length > 0 && (
+            <div>
+              <h5 className="text-xs font-medium text-blue-400 uppercase mb-1 flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" />
+                MS Learn References
+              </h5>
+              <div className="rounded bg-blue-400/5 border border-blue-800/30 p-3 space-y-1">
+                {control.msLearnLinks.map((link, i) => (
+                  <a
+                    key={i}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                    {link.label}
+                  </a>
+                ))}
               </div>
             </div>
           )}

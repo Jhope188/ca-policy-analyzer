@@ -28,6 +28,28 @@ import { ConditionalAccessPolicy, TenantContext, LicenseRequirement, isLicensed 
 
 export type CISLevel = "L1" | "L2";
 
+export interface MSLearnReference {
+  /** Short label for the link */
+  label: string;
+  /** Full MS Learn URL */
+  url: string;
+}
+
+export interface Advisory {
+  /** Advisory ID — M365 Message Center ID or custom */
+  id: string;
+  /** Short title */
+  title: string;
+  /** Plain-text summary of the impact */
+  summary: string;
+  /** Severity: info, warning, or critical */
+  severity: "info" | "warning" | "critical";
+  /** When the change takes effect (ISO date string or descriptive) */
+  effectiveDate?: string;
+  /** Link to full advisory details */
+  url?: string;
+}
+
 export interface CISControl {
   /** CIS control ID, e.g. "5.3.1" */
   id: string;
@@ -43,6 +65,10 @@ export interface CISControl {
   licenseRequirement?: LicenseRequirement;
   /** Step-by-step policy creation guidance when the check fails */
   policyGuidance?: PolicyGuidance;
+  /** MS Learn documentation references for this control */
+  msLearnLinks?: MSLearnReference[];
+  /** Active advisories from M365 Message Center / Roadmap that affect this control */
+  advisories?: Advisory[];
   /** The check function — returns pass/fail + detail */
   check: (policies: ConditionalAccessPolicy[], context: TenantContext) => CISCheckResult;
 }
@@ -226,6 +252,20 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require MFA for all users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-mfa-strength" },
+      { label: "MS Learn: Grant controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant" },
+    ],
+    advisories: [
+      {
+        id: "MC1223829",
+        title: "Improved enforcement for policies with resource exclusions",
+        summary: "Starting March 27 2026, CA policies targeting All resources will enforce even when resource exclusions exist. Custom apps requesting only OIDC scopes may now receive MFA/compliance challenges.",
+        severity: "warning",
+        effectiveDate: "2026-03-27",
+        url: "https://deltapulse.app/dashboard?message=MC1223829",
+      },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) =>
@@ -265,6 +305,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require MFA for admins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-old-require-mfa-admin" },
+      { label: "MS Learn: Authentication strengths", url: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) =>
@@ -303,6 +347,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Block legacy authentication", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication" },
+      { label: "MS Learn: Microsoft-managed CA policies", url: "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const users = p.conditions.users;
@@ -356,6 +404,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require phishing-resistant MFA for admins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-admin-phish-resistant-mfa" },
+      { label: "MS Learn: Authentication strengths", url: "https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) => hasAdminRoles(p) && hasPhishingResistantAuthStrength(p)
@@ -414,6 +466,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Sign-in risk-based CA policy", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+      { label: "MS Learn: Conditions — sign-in risk", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#sign-in-risk" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const actions = p.conditions.applications.includeUserActions;
@@ -457,6 +513,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation", "Requires Entra ID P2 license"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: User risk-based CA policy", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+      { label: "MS Learn: Require password change for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.signInRiskLevels ?? [];
@@ -512,6 +572,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation", "Requires Entra ID P2 license"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require MFA for Azure management", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-old-require-mfa-azure-mgmt" },
+      { label: "MS Learn: CA policy templates", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-common" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.userRiskLevels ?? [];
@@ -566,6 +630,9 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require MFA for admin portals", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-old-require-mfa-admin-portals" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const locs = p.conditions.locations;
@@ -610,6 +677,9 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require MFA for device registration", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-registration" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const types = p.conditions.clientAppTypes;
@@ -650,6 +720,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Save", instructions: ["Save the policy — CAE is enabled by default and should not be disabled"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Continuous access evaluation", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-continuous-access-evaluation" },
+      { label: "MS Learn: Session controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-session" },
+    ],
     check: (policies) => {
       const disablingPolicies = getEnabled(policies).filter((p) => {
         const cae = p.sessionControls?.continuousAccessEvaluation;
@@ -688,6 +762,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, review sign-in logs for unexpected blocks, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Block unknown device platforms", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-unknown-unsupported" },
+      { label: "MS Learn: Conditions — device platforms", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#device-platforms" },
+    ],
     check: (policies) => {
       const isBlockUnsupported = (p: ConditionalAccessPolicy) => {
         const platforms = p.conditions.platforms;
@@ -759,6 +837,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, verify Teams Rooms / phone devices still function, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require compliant or hybrid joined device for admins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-alt-admin-device-compliand-hybrid" },
+      { label: "MS Learn: Grant controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const authFlows = (p.conditions as Record<string, unknown>)
@@ -804,6 +886,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, confirm admin workflows are not disrupted, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Sign-in frequency", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime#user-sign-in-frequency" },
+      { label: "MS Learn: Session controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-session" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         return (
@@ -849,6 +935,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, review Identity Protection risk reports, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Block access for high-risk sign-ins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in" },
+      { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.userRiskLevels ?? [];
@@ -892,6 +982,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, review Identity Protection risk reports, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Block access for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
+      { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.signInRiskLevels ?? [];
@@ -934,6 +1028,11 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first — ensure Intune compliance policies are configured and devices have time to enroll, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require compliant device", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-compliance" },
+      { label: "MS Learn: Intune device compliance", url: "https://learn.microsoft.com/mem/intune/protect/device-compliance-get-started" },
+      { label: "MS Learn: Grant controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant#require-device-to-be-marked-as-compliant" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) =>
         hasGrantControl(p, "compliantDevice")
@@ -1010,6 +1109,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first — token protection is in preview and may affect non-Windows clients. Verify Windows SSO works, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Token protection", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-token-protection" },
+      { label: "MS Learn: Protecting tokens in Entra", url: "https://learn.microsoft.com/entra/identity/devices/protecting-tokens-microsoft-entra-id" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const session = p.sessionControls as Record<string, unknown> | undefined;
@@ -1057,6 +1160,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first — ensure Intune App Protection Policies are created for iOS and Android, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-compliance" },
+      { label: "MS Learn: Intune app protection", url: "https://learn.microsoft.com/mem/intune/apps/app-protection-policy" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const hasAppProtection =
@@ -1112,6 +1219,10 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Enable policy", instructions: ["Set to Report-only first, verify user experience is acceptable, then switch to On"] },
       ],
     },
+    msLearnLinks: [
+      { label: "MS Learn: Sign-in frequency & session lifetime", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime" },
+      { label: "MS Learn: M365 idle session timeout", url: "https://learn.microsoft.com/microsoft-365/admin/manage/idle-session-timeout-web-apps" },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const sif = p.sessionControls?.signInFrequency;
