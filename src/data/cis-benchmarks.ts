@@ -2,6 +2,7 @@
  * CIS Microsoft 365 Foundations Benchmark — Conditional Access Controls
  *
  * Based on CIS Microsoft 365 Foundations Benchmark v6.0.0
+ * Section 1.3: Session Timeout (idle session timeout CA policy)
  * Section 5.3: Conditional Access Policies
  * Section 5.4: Identity Protection & Device Controls
  *
@@ -975,6 +976,88 @@ export const CIS_CONTROLS: CISControl[] = [
           "Create a CA policy targeting iOS and Android platforms with grant control " +
           '"Require app protection policy" or "Require approved client app". ' +
           "This requires Intune app protection policies to be configured.",
+      };
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Section 1.3 — Session Timeout
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    id: "1.3.2",
+    title: "Ensure 'Idle session timeout' is set to '3 hours (or less)' for unmanaged devices",
+    level: "L2",
+    section: "1.3 - Session Timeout",
+    description:
+      "A Conditional Access policy should enforce a sign-in frequency of 3 hours or less for unmanaged " +
+      "(non-compliant, non-Hybrid Azure AD joined) devices. This limits the idle session window, reducing " +
+      "the risk of session hijacking on devices the organization does not manage. The CIS benchmark " +
+      "recommends configuring both the Global Idle Session Timeout in Microsoft 365 admin settings AND " +
+      "a CA policy to enforce session limits on unmanaged devices.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - SESSION - IdleTimeout-Unmanaged(3Hours)",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - SESSION - IdleTimeout-Unmanaged(3Hours)"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        {
+          tab: "Conditions",
+          instructions: [
+            "Filter for devices → Configure Yes → Exclude filtered devices from policy",
+            "Rule syntax: device.isCompliant -eq True -or device.trustType -eq \"ServerAD\"",
+            "(This scopes the policy to unmanaged devices by excluding compliant and Hybrid Azure AD joined devices)",
+          ],
+        },
+        { tab: "Session", instructions: ["Sign-in frequency → set to 3 hours", "Persistent browser session → set to 'Never persistent'"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, verify user experience is acceptable, then switch to On"] },
+      ],
+    },
+    check: (policies) => {
+      const matching = getEnabled(policies).filter((p) => {
+        const sif = p.sessionControls?.signInFrequency;
+        if (!sif?.isEnabled || sif.value == null) return false;
+
+        // Convert to minutes for comparison
+        const minutes =
+          sif.type === "hours"
+            ? sif.value * 60
+            : sif.type === "days"
+              ? sif.value * 24 * 60
+              : sif.value; // assume minutes if unrecognised type
+
+        // Must be ≤ 180 minutes (3 hours)
+        if (minutes > 180) return false;
+
+        // Should target broadly — not just admin roles (that's 5.3.13)
+        const broadTarget =
+          targetsAllUsers(p) ||
+          p.conditions.users.includeGroups.length > 0;
+
+        // Extra confidence if the policy scopes to unmanaged devices
+        const hasDeviceFilter = p.conditions.devices?.deviceFilter != null;
+        const hasAppRestrictions =
+          p.sessionControls?.applicationEnforcedRestrictions?.isEnabled === true;
+        const hasPersistentBrowserNever =
+          p.sessionControls?.persistentBrowser?.isEnabled === true &&
+          p.sessionControls?.persistentBrowser?.mode === "never";
+
+        // Accept if broad target or device-filtered
+        return broadTarget || hasDeviceFilter || hasAppRestrictions || hasPersistentBrowserNever;
+      });
+
+      return {
+        status: matching.length > 0 ? "pass" : "fail",
+        detail:
+          matching.length > 0
+            ? `Found ${matching.length} policy(ies) enforcing session timeout ≤ 3 hours for unmanaged devices.`
+            : "No CA policy enforces idle session timeout of 3 hours or less for unmanaged devices.",
+        matchingPolicies: matching.map((p) => p.displayName),
+        remediation:
+          "Create a CA policy targeting all users → all cloud apps with session control " +
+          "sign-in frequency set to 3 hours or less. Scope to unmanaged devices using a device filter " +
+          '(exclude devices where device.isCompliant -eq True -or device.trustType -eq "ServerAD") ' +
+          "and set persistent browser to 'Never persistent'. Also configure the Global Idle Session " +
+          "Timeout in Microsoft 365 admin center → Org settings → Security & privacy → Idle session timeout.",
       };
     },
   },
