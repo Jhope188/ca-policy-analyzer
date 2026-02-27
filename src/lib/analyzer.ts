@@ -420,7 +420,7 @@ function checkMissingMFA(policy: ConditionalAccessPolicy): Finding[] {
     grant?.builtInControls.includes("mfa") ||
     grant?.authenticationStrength != null;
 
-  if (!requiresMfa && grant && grant.builtInControls.length > 0) {
+  if (!requiresMfa && grant && grant.builtInControls.length > 0 && !grant.builtInControls.includes("block")) {
     findings.push({
       id: nextFindingId(),
       policyId: policy.id,

@@ -61,6 +61,9 @@ export interface ConditionalAccessPolicy {
       servicePrincipalFilter?: { mode: string; rule: string };
     };
     insiderRiskLevels?: string;
+    authenticationFlows?: {
+      transferMethods?: string;
+    };
   };
   grantControls?: {
     operator: "AND" | "OR";
@@ -411,6 +414,7 @@ function normalizePolicy(p: any): ConditionalAccessPolicy {
       devices: (cond as Record<string, unknown>).devices as ConditionalAccessPolicy["conditions"]["devices"],
       clientApplications: (cond as Record<string, unknown>).clientApplications as ConditionalAccessPolicy["conditions"]["clientApplications"],
       insiderRiskLevels: (cond as Record<string, unknown>).insiderRiskLevels as string | undefined,
+      authenticationFlows: (cond as Record<string, unknown>).authenticationFlows as ConditionalAccessPolicy["conditions"]["authenticationFlows"],
     },
     grantControls: raw.grantControls
       ? {
