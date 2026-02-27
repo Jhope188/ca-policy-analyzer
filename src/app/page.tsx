@@ -12,7 +12,7 @@ import { FindingsList } from "@/components/findings-list";
 import { TemplatesView } from "@/components/templates-view";
 import { CISView } from "@/components/cis-view";
 import { ExclusionsView } from "@/components/exclusions-view";
-import { exportToExcel, exportToPowerPoint } from "@/lib/export-utils";
+import { exportToExcel, exportToPowerPoint, loadDefaultLogo } from "@/lib/export-utils";
 import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,8 @@ export default function Home() {
   const [compositeScore, setCompositeScore] = useState<CompositeScoreResult | null>(null);
   const [activeTab, setActiveTab] = useState<ViewTab>("dashboard");
   const [error, setError] = useState<string | null>(null);
+  const [hideMicrosoft, setHideMicrosoft] = useState(false);
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async () => {
     if (!accounts[0]) return;
@@ -226,7 +228,7 @@ export default function Home() {
             <span className="hidden sm:inline">JSON</span>
           </button>
           <button
-            onClick={() => result && exportToExcel(result, cisResult, compositeScore)}
+            onClick={() => result && exportToExcel(result, cisResult, compositeScore, { hideMicrosoftPolicies: hideMicrosoft })}
             title="Export Excel"
             className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
           >
@@ -234,7 +236,19 @@ export default function Home() {
             <span className="hidden sm:inline">Excel</span>
           </button>
           <button
-            onClick={() => result && exportToPowerPoint(result, cisResult, compositeScore)}
+            onClick={async () => {
+              if (!result) return;
+              // Load default logo on first export if not already loaded
+              let logo = logoBase64;
+              if (logo === null) {
+                logo = await loadDefaultLogo();
+                setLogoBase64(logo);
+              }
+              await exportToPowerPoint(result, cisResult, compositeScore, {
+                hideMicrosoftPolicies: hideMicrosoft,
+                logoBase64: logo,
+              });
+            }}
             title="Export PowerPoint"
             className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
           >
@@ -247,7 +261,7 @@ export default function Home() {
       {/* Tab Content */}
       {activeTab === "dashboard" && <Dashboard result={result} compositeScore={compositeScore} />}
       {activeTab === "policies" && (
-        <PolicyList results={result.policyResults} />
+        <PolicyList results={result.policyResults} hideMicrosoft={hideMicrosoft} onToggleHideMicrosoft={setHideMicrosoft} />
       )}
       {activeTab === "findings" && (
         <FindingsList findings={result.findings} title="All Findings" />

@@ -372,9 +372,16 @@ function isMicrosoftManaged(result: PolicyResult): boolean {
   return name.startsWith("microsoft-managed") || name.startsWith("[microsoft");
 }
 
-export function PolicyList({ results }: { results: PolicyResult[] }) {
+export function PolicyList({
+  results,
+  hideMicrosoft,
+  onToggleHideMicrosoft,
+}: {
+  results: PolicyResult[];
+  hideMicrosoft: boolean;
+  onToggleHideMicrosoft: (val: boolean) => void;
+}) {
   const [sortBy, setSortBy] = useState<"findings" | "name" | "state">("findings");
-  const [hideMicrosoft, setHideMicrosoft] = useState(false);
   const [search, setSearch] = useState("");
 
   const microsoftCount = results.filter(isMicrosoftManaged).length;
@@ -424,7 +431,7 @@ export function PolicyList({ results }: { results: PolicyResult[] }) {
           {/* Hide Microsoft-managed toggle */}
           {microsoftCount > 0 && (
             <button
-              onClick={() => setHideMicrosoft(!hideMicrosoft)}
+              onClick={() => onToggleHideMicrosoft(!hideMicrosoft)}
               className={cn(
                 "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
                 hideMicrosoft

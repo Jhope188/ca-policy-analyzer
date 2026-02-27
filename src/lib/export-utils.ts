@@ -14,6 +14,47 @@ import {
 } from "./analyzer";
 import { CISAlignmentResult } from "@/data/cis-benchmarks";
 
+// ─── Export Options ──────────────────────────────────────────────────────────
+
+export interface ExportOptions {
+  /** When true, filter out Microsoft-managed policies from policy slides/rows */
+  hideMicrosoftPolicies?: boolean;
+  /** Base64-encoded logo image (data URI or raw base64) for the PPTX cover slide */
+  logoBase64?: string | null;
+}
+
+/** Detect Microsoft-managed / built-in policies */
+function isMicrosoftManaged(pr: PolicyResult): boolean {
+  const p = pr.policy;
+  if (p.templateId && p.templateId !== "00000000-0000-0000-0000-000000000000") return true;
+  const name = p.displayName.toLowerCase();
+  return name.startsWith("microsoft-managed") || name.startsWith("[microsoft");
+}
+
+/** Load the default logo from public/logo.png as a base64 data URI */
+export async function loadDefaultLogo(): Promise<string | null> {
+  try {
+    // Detect Next.js basePath for GitHub Pages deployment
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const basePath =
+      typeof window !== "undefined" && (window as any).__NEXT_DATA__?.basePath
+        ? String((window as any).__NEXT_DATA__.basePath)
+        : "";
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const resp = await fetch(`${basePath}/logo.png`);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function stateLabel(state: string): string {
@@ -43,8 +84,14 @@ export function exportToExcel(
   analysis: AnalysisResult,
   cisResult?: CISAlignmentResult | null,
   compositeScore?: CompositeScoreResult | null,
+  options?: ExportOptions,
 ) {
   const wb = XLSX.utils.book_new();
+
+  // Filter policies if Microsoft-managed are hidden
+  const policyResults = options?.hideMicrosoftPolicies
+    ? analysis.policyResults.filter((r) => !isMicrosoftManaged(r))
+    : analysis.policyResults;
 
   // ── Sheet 1: Summary ────────────────────────────────────────────────
   const s = analysis.tenantSummary;
@@ -84,7 +131,7 @@ export function exportToExcel(
   XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
 
   // ── Sheet 2: All Policies ───────────────────────────────────────────
-  const policyRows = analysis.policyResults.map((r) => ({
+  const policyRows = policyResults.map((r) => ({
     "Policy Name": r.policy.displayName,
     State: stateLabel(r.policy.state),
     "Target Users": r.visualization.targetUsers,
@@ -205,12 +252,18 @@ function stateColor(state: string): string {
   }
 }
 
-export function exportToPowerPoint(
+export async function exportToPowerPoint(
   analysis: AnalysisResult,
   cisResult?: CISAlignmentResult | null,
   compositeScore?: CompositeScoreResult | null,
+  options?: ExportOptions,
 ) {
   const pptx = new PptxGenJS();
+
+  // Filter policies if Microsoft-managed are hidden
+  const policyResults = options?.hideMicrosoftPolicies
+    ? analysis.policyResults.filter((r) => !isMicrosoftManaged(r))
+    : analysis.policyResults;
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "CA Policy Analyzer";
   pptx.title = "Conditional Access Policy Analysis";
@@ -218,10 +271,24 @@ export function exportToPowerPoint(
   // ── Slide 1: Title ──────────────────────────────────────────────────
   const titleSlide = pptx.addSlide();
   titleSlide.background = { color: COLORS.bg };
+
+  // Logo — top-right corner (customisable placeholder)
+  const logoData = options?.logoBase64;
+  if (logoData) {
+    titleSlide.addImage({
+      data: logoData,
+      x: 8.5,
+      y: 0.4,
+      w: 3.8,
+      h: 2.53,
+      rounding: true,
+    });
+  }
+
   titleSlide.addText("Conditional Access\nPolicy Analysis", {
     x: 0.8,
     y: 1.5,
-    w: 11,
+    w: logoData ? 7.5 : 11,
     h: 2.5,
     fontSize: 36,
     fontFace: "Arial",
@@ -238,6 +305,28 @@ export function exportToPowerPoint(
     fontFace: "Arial",
     color: COLORS.muted,
   });
+  if (!logoData) {
+    // Placeholder hint when no logo is provided
+    titleSlide.addShape("rect" as PptxGenJS.ShapeType, {
+      x: 9.2,
+      y: 0.5,
+      w: 3,
+      h: 2,
+      fill: { color: COLORS.card },
+      rectRadius: 0.1,
+      line: { color: COLORS.muted, dashType: "dash", width: 1 },
+    });
+    titleSlide.addText("Your Logo Here", {
+      x: 9.2,
+      y: 1.1,
+      w: 3,
+      h: 0.5,
+      fontSize: 12,
+      fontFace: "Arial",
+      color: COLORS.muted,
+      align: "center",
+    });
+  }
 
   // ── Slide 2: Executive Summary ──────────────────────────────────────
   const summarySlide = pptx.addSlide();
@@ -387,7 +476,7 @@ export function exportToPowerPoint(
   });
 
   // ── Slide 3+: Policy Detail Slides (one per policy) ────────────────
-  for (const pr of analysis.policyResults) {
+  for (const pr of policyResults) {
     addPolicySlide(pptx, pr);
   }
 
@@ -397,7 +486,7 @@ export function exportToPowerPoint(
   }
 
   // ── Download ────────────────────────────────────────────────────────
-  pptx.writeFile({ fileName: `ca-analysis-${datestamp()}.pptx` });
+  await pptx.writeFile({ fileName: `ca-analysis-${datestamp()}.pptx` });
 }
 
 function addPolicySlide(pptx: PptxGenJS, pr: PolicyResult) {
