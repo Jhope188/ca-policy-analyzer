@@ -104,8 +104,8 @@ function scorePolicyMatch(
     fingerprint.includeUserActions.length > 0
   ) {
     totalWeight += 25;
-    const fpActions = new Set(fingerprint.includeUserActions);
-    const policyActions = new Set(apps.includeUserActions ?? []);
+    const fpActions = new Set(fingerprint.includeUserActions.map((a) => a.toLowerCase()));
+    const policyActions = new Set((apps.includeUserActions ?? []).map((a) => a.toLowerCase()));
 
     if (setsOverlap(fpActions, policyActions)) {
       matchedWeight += 25;
@@ -119,8 +119,8 @@ function scorePolicyMatch(
   // ── Grant controls (weight: 25) ────────────────────────────────────
   if (fingerprint.grantControls && fingerprint.grantControls.length > 0) {
     totalWeight += 25;
-    const policyControls = new Set(grant?.builtInControls ?? []);
-    const templateControls = new Set(fingerprint.grantControls);
+    const policyControls = new Set((grant?.builtInControls ?? []).map((c) => c.toLowerCase()));
+    const templateControls = new Set(fingerprint.grantControls.map((c) => c.toLowerCase()));
     const overlap = [...templateControls].filter((c) => policyControls.has(c));
 
     if (overlap.length === templateControls.size) {
@@ -201,8 +201,8 @@ function scorePolicyMatch(
   // ── Client app types (weight: 10) ──────────────────────────────────
   if (fingerprint.clientAppTypes && fingerprint.clientAppTypes.length > 0) {
     totalWeight += 10;
-    const policyTypes = new Set(policy.conditions.clientAppTypes);
-    const templateTypes = new Set(fingerprint.clientAppTypes);
+    const policyTypes = new Set(policy.conditions.clientAppTypes.map((t) => t.toLowerCase()));
+    const templateTypes = new Set(fingerprint.clientAppTypes.map((t) => t.toLowerCase()));
     const overlap = [...templateTypes].filter((t) => policyTypes.has(t));
 
     if (overlap.length > 0) {
@@ -217,8 +217,8 @@ function scorePolicyMatch(
   // ── Risk levels (weight: 20) ───────────────────────────────────────
   if (fingerprint.signInRiskLevels && fingerprint.signInRiskLevels.length > 0) {
     totalWeight += 20;
-    const policyRisk = new Set(policy.conditions.signInRiskLevels ?? []);
-    const templateRisk = new Set(fingerprint.signInRiskLevels);
+    const policyRisk = new Set((policy.conditions.signInRiskLevels ?? []).map((r) => r.toLowerCase()));
+    const templateRisk = new Set(fingerprint.signInRiskLevels.map((r) => r.toLowerCase()));
     const overlap = [...templateRisk].filter((r) => policyRisk.has(r));
 
     if (overlap.length > 0) {
@@ -232,8 +232,8 @@ function scorePolicyMatch(
 
   if (fingerprint.userRiskLevels && fingerprint.userRiskLevels.length > 0) {
     totalWeight += 20;
-    const policyRisk = new Set(policy.conditions.userRiskLevels ?? []);
-    const templateRisk = new Set(fingerprint.userRiskLevels);
+    const policyRisk = new Set((policy.conditions.userRiskLevels ?? []).map((r) => r.toLowerCase()));
+    const templateRisk = new Set(fingerprint.userRiskLevels.map((r) => r.toLowerCase()));
     const overlap = [...templateRisk].filter((r) => policyRisk.has(r));
 
     if (overlap.length > 0) {
