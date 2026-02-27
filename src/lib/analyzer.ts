@@ -258,34 +258,12 @@ function checkResourceExclusion(
 }
 
 // ─── Check: CA-Immune Resources ──────────────────────────────────────────────
+// Moved to tenant-wide check — no longer fires per-policy
 
 function checkCAImmuneResources(
-  policy: ConditionalAccessPolicy
+  _policy: ConditionalAccessPolicy
 ): Finding[] {
-  const findings: Finding[] = [];
-  const apps = policy.conditions.applications;
-
-  if (apps.includeApplications.includes("All")) {
-    // If targeting All apps, warn about immune resources
-    findings.push({
-      id: nextFindingId(),
-      policyId: policy.id,
-      policyName: policy.displayName,
-      severity: "info",
-      category: "CA-Immune Resources",
-      title: "Some Microsoft resources are immune to Conditional Access",
-      description:
-        'Even when targeting "All cloud apps", 6 Microsoft resources are always excluded from CA: ' +
-        "Microsoft Intune Checkin, Windows Notification Service, Microsoft Mobile Application Management, " +
-        "Azure MFA Connector, OCaaS Client Interaction Service, and Authenticator App. " +
-        "These will show 'notApplied' in sign-in logs.",
-      recommendation:
-        "Be aware that these resources can be used for password verification without triggering CA failures. " +
-        "Monitor sign-in logs specifically for these resource IDs.",
-    });
-  }
-
-  return findings;
+  return [];
 }
 
 // ─── Check: Grant Control Operator (AND vs OR) ──────────────────────────────
@@ -712,6 +690,31 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
       recommendation:
         "Ensure you have 2 break-glass accounts excluded from ALL CA policies. " +
         "These should have complex passwords and be monitored for use.",
+    });
+  }
+
+  // CA-Immune resources — single tenant-wide awareness finding
+  const allAppsPolicies = context.policies.filter(
+    (p) =>
+      p.state !== "disabled" &&
+      p.conditions.applications.includeApplications.includes("All")
+  );
+  if (allAppsPolicies.length > 0) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "info",
+      category: "CA-Immune Resources",
+      title: `6 Microsoft resources are always immune to Conditional Access`,
+      description:
+        `${allAppsPolicies.length} of your policies target "All cloud apps", but 6 Microsoft resources ` +
+        `are always excluded from CA evaluation: Microsoft Intune Checkin, Windows Notification Service, ` +
+        `Microsoft Mobile Application Management, Azure MFA Connector, OCaaS Client Interaction Service, ` +
+        `and Authenticator App. These will show 'notApplied' in sign-in logs regardless of your policies.`,
+      recommendation:
+        "This is by-design and cannot be changed. Monitor sign-in logs for these resource IDs " +
+        "as they can be used for password verification without triggering CA.",
     });
   }
 
