@@ -12,7 +12,8 @@ import { FindingsList } from "@/components/findings-list";
 import { TemplatesView } from "@/components/templates-view";
 import { CISView } from "@/components/cis-view";
 import { ExclusionsView } from "@/components/exclusions-view";
-import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen } from "lucide-react";
+import { exportToExcel, exportToPowerPoint } from "@/lib/export-utils";
+import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "cis" | "ms-learn";
@@ -91,8 +92,16 @@ export default function Home() {
         </h2>
         <p className="max-w-lg text-gray-400 mb-2">
           Connect your Entra ID tenant to analyze Conditional Access policies
-          for best practices, FOCI token-sharing risks, and known bypasses
-          documented by Fabian Bader and the EntraScopes project.
+          for best practices, FOCI token-sharing risks, and known bypasses.
+          Built on research by{" "}
+          <a
+            href="https://www.entrascopes.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 underline hover:text-blue-300"
+          >
+            Fabian Bader / EntraScopes
+          </a>.
         </p>
         <p className="max-w-lg text-sm text-gray-600 mb-8">
           Requires <code className="text-gray-400">Policy.Read.All</code>,{" "}
@@ -214,7 +223,23 @@ export default function Home() {
             className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
+            <span className="hidden sm:inline">JSON</span>
+          </button>
+          <button
+            onClick={() => result && exportToExcel(result, cisResult, compositeScore)}
+            title="Export Excel"
+            className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span className="hidden sm:inline">Excel</span>
+          </button>
+          <button
+            onClick={() => result && exportToPowerPoint(result, cisResult, compositeScore)}
+            title="Export PowerPoint"
+            className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
+          >
+            <Presentation className="h-4 w-4" />
+            <span className="hidden sm:inline">PPTX</span>
           </button>
         </div>
       </div>
