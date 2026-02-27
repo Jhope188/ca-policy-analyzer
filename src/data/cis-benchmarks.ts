@@ -40,6 +40,8 @@ export interface CISControl {
   description: string;
   /** License required to evaluate this control (undefined = no special license needed) */
   licenseRequirement?: LicenseRequirement;
+  /** Step-by-step policy creation guidance when the check fails */
+  policyGuidance?: PolicyGuidance;
   /** The check function — returns pass/fail + detail */
   check: (policies: ConditionalAccessPolicy[], context: TenantContext) => CISCheckResult;
 }
@@ -54,6 +56,27 @@ export interface CISCheckResult {
   matchingPolicies: string[];
   /** Remediation guidance if failed */
   remediation?: string;
+}
+
+// ─── Policy Creation Guidance ────────────────────────────────────────────────
+
+/**
+ * Step-by-step guidance for creating a policy in the Entra admin center
+ * that satisfies a CIS control. The suggestedName follows the IAC naming
+ * convention from https://github.com/Jhope188/ConditionalAccessPolicies
+ */
+export interface PolicyGuidance {
+  /** Recommended policy name following IAC naming convention */
+  suggestedName: string;
+  /** Ordered portal steps — each step maps to a tab / blade in the Entra admin center */
+  portalSteps: PortalStep[];
+}
+
+export interface PortalStep {
+  /** Tab / blade name in the Entra admin center */
+  tab: string;
+  /** What to configure in that tab */
+  instructions: string[];
 }
 
 export interface CISAlignmentResult {
@@ -131,6 +154,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       'A CA policy must exist that targets "All users" and "All cloud apps" with MFA as a grant control ' +
       "(or authentication strength requiring MFA). The policy must be enabled or in report-only mode.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - GRANT - MFA - AllUsers",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - GRANT - MFA - AllUsers"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) =>
@@ -160,6 +193,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A dedicated CA policy must require MFA specifically for admin directory roles. Even if an all-users MFA policy " +
       "exists, a separate admin policy provides defense-in-depth and can enforce stronger authentication.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - GRANT - MFA - AllAdmins",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - GRANT - MFA - AllAdmins"] },
+        { tab: "Users", instructions: ["Include → Select Directory roles → choose Global Administrator, Exchange Administrator, Security Administrator, SharePoint Administrator, Conditional Access Administrator, Helpdesk Administrator, Billing Administrator, User Administrator, Authentication Administrator, Application Administrator, Cloud Application Administrator, Password Administrator, Privileged Authentication Administrator, Privileged Role Administrator", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication (or select Require authentication strength → Multifactor authentication)"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) =>
@@ -188,6 +231,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy must require MFA for guest, B2B collaboration, and external users to prevent unauthorized access " +
       "through external identities.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - GRANT - MFA - External-Guest-Users",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - GRANT - MFA - External-Guest-Users"] },
+        { tab: "Users", instructions: ["Include → Select Guest or external users → check all guest/external user types (B2B collaboration, B2B direct connect, local guest, service provider, other external)"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const users = p.conditions.users;
@@ -231,6 +284,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Administrative roles must be protected with phishing-resistant MFA (FIDO2, certificate-based, or Windows Hello). " +
       "Standard MFA (push notifications, OTP) is not sufficient for admin accounts due to MFA fatigue and social engineering risks.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - GRANT - PhishingResistantMFA - AllAdmins",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - GRANT - PhishingResistantMFA - AllAdmins"] },
+        { tab: "Users", instructions: ["Include → Select Directory roles → choose Global Administrator, Exchange Administrator, Security Administrator, SharePoint Administrator, Conditional Access Administrator, Privileged Authentication Administrator, Privileged Role Administrator", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Grant", instructions: ["Grant access → check Require authentication strength → select Phishing-resistant MFA (includes FIDO2, Certificate-based authentication, Windows Hello for Business)"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter(
         (p) => hasAdminRoles(p) && hasPhishingResistantAuthStrength(p)
@@ -279,6 +342,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy must require MFA for the user action 'Register or join devices' OR 'Register security information', " +
       "preventing unauthorized device registration.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - GRANT - MFA - RegisterSecurityInfo",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - GRANT - MFA - RegisterSecurityInfo"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Select User actions → check Register security information"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const actions = p.conditions.applications.includeUserActions;
@@ -311,6 +384,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A risk-based CA policy must require MFA or block access for medium and high-risk sign-ins " +
       "detected by Identity Protection. Promoted from L2 to L1 in v6.0.",
+    policyGuidance: {
+      suggestedName: "YOURORG - P2 - GLOBAL - GRANT - SignInRisk-MediumHigh",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - P2 - GLOBAL - GRANT - SignInRisk-MediumHigh"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Sign-in risk → Configure Yes → check High and Medium"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation", "Requires Entra ID P2 license"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.signInRiskLevels ?? [];
@@ -355,6 +439,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A risk-based CA policy must require password change and MFA for medium and high-risk users " +
       "detected by Identity Protection. Promoted from L2 to L1 in v6.0.",
+    policyGuidance: {
+      suggestedName: "YOURORG - P2 - GLOBAL - GRANT - UserRisk-MediumHigh",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - P2 - GLOBAL - GRANT - UserRisk-MediumHigh"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["User risk → Configure Yes → check High and Medium"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication AND Require password change"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation", "Requires Entra ID P2 license"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.userRiskLevels ?? [];
@@ -397,6 +492,18 @@ export const CIS_CONTROLS: CISControl[] = [
     section: "5.3 - Conditional Access",
     description:
       "A CA policy must block access from countries where the organization does not operate using named locations.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - BLOCK - Countries-NotAllowed",
+      portalSteps: [
+        { tab: "Prerequisites", instructions: ["Navigate to Protection → Conditional Access → Named locations", "Create a new Countries location with your allowed countries (e.g., 'Allowed Countries')"] },
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - BLOCK - Countries-NotAllowed"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Locations → Configure Yes → Include: Any location → Exclude: select your Allowed Countries named location"] },
+        { tab: "Grant", instructions: ["Block access"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const locs = p.conditions.locations;
@@ -430,6 +537,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Legacy authentication protocols (IMAP, POP3, SMTP, Exchange ActiveSync) must be blocked " +
       "because they cannot enforce MFA and are a primary attack vector for password spray and credential stuffing.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - BLOCK - LegacyAuthentication",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - BLOCK - LegacyAuthentication"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Client apps → Configure Yes → check Exchange ActiveSync clients and Other clients", "Uncheck Browser and Mobile apps and desktop clients"] },
+        { tab: "Grant", instructions: ["Block access"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const types = p.conditions.clientAppTypes;
@@ -462,6 +580,14 @@ export const CIS_CONTROLS: CISControl[] = [
       "Continuous access evaluation (CAE) enables real-time revocation of access tokens when security events occur. " +
       "No CA policy should explicitly disable CAE, as this creates a vulnerability window up to 1 hour after a " +
       "security event (user disabled, password change, location change).",
+    policyGuidance: {
+      suggestedName: "(No new policy needed — remove CAE disable from offending policies)",
+      portalSteps: [
+        { tab: "Identify", instructions: ["Open each failing policy listed above in Protection → Conditional Access → Policies"] },
+        { tab: "Session", instructions: ["Click Session → find Customize continuous access evaluation → set to Do not disable (or remove the setting entirely)"] },
+        { tab: "Save", instructions: ["Save the policy — CAE is enabled by default and should not be disabled"] },
+      ],
+    },
     check: (policies) => {
       const disablingPolicies = getEnabled(policies).filter((p) => {
         const cae = p.sessionControls?.continuousAccessEvaluation;
@@ -489,6 +615,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Users should be blocked from accessing resources when the device type is unknown or unsupported. " +
       "This prevents attackers from spoofing user-agent strings to bypass platform-specific controls.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - BLOCK - UnsupportedDevicePlatforms",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - BLOCK - UnsupportedDevicePlatforms"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Select All platforms → Exclude: check Android, iOS, Windows, macOS (leave Linux and other unchecked)"] },
+        { tab: "Grant", instructions: ["Block access"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, review sign-in logs for unexpected blocks, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const isBlockUnsupported = (p: ConditionalAccessPolicy) => {
         const platforms = p.conditions.platforms;
@@ -549,6 +686,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Device code flow should be blocked to prevent device code phishing attacks where attackers trick users " +
       "into authenticating on their behalf. Exclude Teams Rooms / phone resource accounts if needed.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - BLOCK - DeviceCodeAuthFlow",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - BLOCK - DeviceCodeAuthFlow"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass accounts and Teams Rooms / phone resource accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Authentication flows → Configure Yes → check 'Device code flow'"] },
+        { tab: "Grant", instructions: ["Block access"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, verify Teams Rooms / phone devices still function, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const authFlows = (p.conditions as Record<string, unknown>)
@@ -584,6 +732,16 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Admin sessions should have a limited sign-in frequency (e.g., 4 hours or less) to reduce the window " +
       "of opportunity if an admin session token is compromised.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - SESSION - AdminPortal-SIF(4Hours)",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - SESSION - AdminPortal-SIF(4Hours)"] },
+        { tab: "Users", instructions: ["Include → Directory roles → select all privileged admin roles (Global Administrator, Security Administrator, Exchange Administrator, SharePoint Administrator, etc.)"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → Select apps → Microsoft Admin Portals (includes Azure portal, Microsoft 365 admin center, Exchange admin center, etc.)"] },
+        { tab: "Session", instructions: ["Sign-in frequency → set to 4 hours", "Persistent browser session → optionally set to 'Never persistent'"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, confirm admin workflows are not disrupted, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         return (
@@ -618,6 +776,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy should block access for users with high user risk level. This ensures compromised accounts " +
       "are immediately locked out until remediated.",
+    policyGuidance: {
+      suggestedName: "YOURORG - P2 - GLOBAL - BLOCK - HighRiskUsers",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - P2 - GLOBAL - BLOCK - HighRiskUsers"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["User risk → Configure Yes → select 'High'"] },
+        { tab: "Grant", instructions: ["Block access (or Grant access → Require password change + Require multifactor authentication)"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, review Identity Protection risk reports, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.userRiskLevels ?? [];
@@ -650,6 +819,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy should block access for sign-ins with high risk level. High-risk sign-ins indicate " +
       "strong likelihood of compromised credentials or anomalous behavior.",
+    policyGuidance: {
+      suggestedName: "YOURORG - P2 - GLOBAL - BLOCK - HighRiskSignIns",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - P2 - GLOBAL - BLOCK - HighRiskSignIns"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass / emergency access accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
+        { tab: "Conditions", instructions: ["Sign-in risk → Configure Yes → select 'High'"] },
+        { tab: "Grant", instructions: ["Block access (or Grant access → Require multifactor authentication)"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first, review Identity Protection risk reports, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.signInRiskLevels ?? [];
@@ -681,6 +861,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy should require device compliance for accessing corporate resources, ensuring only healthy " +
       "managed devices enrolled in Intune can connect.",
+    policyGuidance: {
+      suggestedName: "YOURORG - INTUNE - GRANT - RequireCompliantDevice",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - INTUNE - GRANT - RequireCompliantDevice"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass accounts, guest users, and service accounts that don't use devices"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps (or select specific apps like Office 365)"] },
+        { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Windows, macOS, iOS, Android (select platforms managed by Intune)"] },
+        { tab: "Grant", instructions: ["Grant access → Require device to be marked as compliant"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first — ensure Intune compliance policies are configured and devices have time to enroll, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) =>
         hasGrantControl(p, "compliantDevice")
@@ -707,6 +898,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "Token protection (token binding) should be configured for Exchange Online, SharePoint Online, and Teams " +
       "to prevent token replay attacks. Only supported on Windows 10+ with supported applications.",
+    policyGuidance: {
+      suggestedName: "YOURORG - GLOBAL - SESSION - Windows - TokenProtection",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - GLOBAL - SESSION - Windows - TokenProtection"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass accounts, Surface Hub device accounts, Teams Rooms accounts"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → Select apps → Office 365 Exchange Online, Office 365 SharePoint Online, Microsoft Teams"] },
+        { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Windows only", "Client apps → Browser, Mobile apps and desktop clients"] },
+        { tab: "Session", instructions: ["Require token protection for sign-in sessions → Enabled"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first — token protection is in preview and may affect non-Windows clients. Verify Windows SSO works, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const session = p.sessionControls as Record<string, unknown> | undefined;
@@ -743,6 +945,17 @@ export const CIS_CONTROLS: CISControl[] = [
     description:
       "A CA policy should require an Intune app protection policy for mobile device access, ensuring " +
       "corporate data is protected within managed apps even on unmanaged (BYOD) devices.",
+    policyGuidance: {
+      suggestedName: "YOURORG - INTUNE - GRANT - AppProtection-Mobile",
+      portalSteps: [
+        { tab: "Name", instructions: ["Enter policy name: YOURORG - INTUNE - GRANT - AppProtection-Mobile"] },
+        { tab: "Users", instructions: ["Include → All users", "Exclude → break-glass accounts and users with fully managed (compliant) devices"] },
+        { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps (or select Office 365)"] },
+        { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Android, iOS only"] },
+        { tab: "Grant", instructions: ["Grant access → Require app protection policy (and/or Require approved client app)"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first — ensure Intune App Protection Policies are created for iOS and Android, then switch to On"] },
+      ],
+    },
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const hasAppProtection =

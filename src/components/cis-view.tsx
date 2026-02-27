@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Filter,
   Shield,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +166,56 @@ function ControlCard({ controlResult }: { controlResult: CISControlResult }) {
               </h5>
               <div className="rounded bg-red-400/5 border border-red-800/30 p-3">
                 <p className="text-sm text-red-300">{result.remediation}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Policy Creation Guidance */}
+          {result.status === "fail" && control.policyGuidance && (
+            <div>
+              <h5 className="text-xs font-medium text-teal-400 uppercase mb-2 flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5" />
+                Recommended Policy
+              </h5>
+              <div className="rounded-lg bg-teal-400/5 border border-teal-800/30 p-4 space-y-3">
+                {/* Suggested name */}
+                <div>
+                  <span className="text-xs text-gray-400">Suggested Name:</span>
+                  <div className="mt-1 rounded bg-gray-800 px-3 py-2 font-mono text-sm text-teal-300">
+                    {control.policyGuidance.suggestedName}
+                  </div>
+                </div>
+
+                {/* Portal steps */}
+                <div>
+                  <span className="text-xs text-gray-400">
+                    Entra Admin Center → Protection → Conditional Access → + New policy:
+                  </span>
+                  <ol className="mt-2 space-y-2">
+                    {control.policyGuidance.portalSteps.map((step, i) => (
+                      <li key={i} className="flex gap-3">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-400/10 text-xs font-bold text-teal-400">
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-sm font-semibold text-white">
+                            {step.tab}
+                          </span>
+                          <ul className="mt-0.5 space-y-0.5">
+                            {step.instructions.map((inst, j) => (
+                              <li
+                                key={j}
+                                className="text-sm text-gray-300 before:content-['→_'] before:text-teal-600"
+                              >
+                                {inst}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
               </div>
             </div>
           )}
