@@ -14,6 +14,8 @@ import {
   AlertCircle,
   Info,
   ShieldAlert,
+  Search,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -373,12 +375,28 @@ function isMicrosoftManaged(result: PolicyResult): boolean {
 export function PolicyList({ results }: { results: PolicyResult[] }) {
   const [sortBy, setSortBy] = useState<"findings" | "name" | "state">("findings");
   const [hideMicrosoft, setHideMicrosoft] = useState(false);
+  const [search, setSearch] = useState("");
 
   const microsoftCount = results.filter(isMicrosoftManaged).length;
 
-  const filtered = hideMicrosoft
-    ? results.filter((r) => !isMicrosoftManaged(r))
-    : results;
+  const filtered = results.filter((r) => {
+    if (hideMicrosoft && isMicrosoftManaged(r)) return false;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const p = r.policy;
+      const v = r.visualization;
+      return (
+        p.displayName.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        v.targetUsers.toLowerCase().includes(q) ||
+        v.targetApps.toLowerCase().includes(q) ||
+        v.grantControls.some((c) => c.toLowerCase().includes(q)) ||
+        v.conditions.some((c) => c.toLowerCase().includes(q)) ||
+        p.state.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     switch (sortBy) {
@@ -399,7 +417,7 @@ export function PolicyList({ results }: { results: PolicyResult[] }) {
         <h3 className="text-lg font-semibold text-white">
           Policies{" "}
           <span className="text-gray-500 font-normal">
-            ({filtered.length}{hideMicrosoft ? ` of ${results.length}` : ""})
+            ({filtered.length}{hideMicrosoft || search ? ` of ${results.length}` : ""})
           </span>
         </h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -436,6 +454,26 @@ export function PolicyList({ results }: { results: PolicyResult[] }) {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search policies by name, state, users, apps, controls…"
+          className="w-full rounded-lg border border-gray-800 bg-gray-950 py-2 pl-9 pr-9 text-sm text-gray-300 placeholder:text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="space-y-2">
