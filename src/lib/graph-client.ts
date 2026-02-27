@@ -17,6 +17,7 @@ import { loginRequest } from "./msal-config";
 
 export interface ConditionalAccessPolicy {
   id: string;
+  templateId?: string | null;
   displayName: string;
   state: "enabled" | "disabled" | "enabledForReportingButNotEnforced";
   createdDateTime: string;

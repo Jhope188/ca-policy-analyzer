@@ -194,10 +194,27 @@ function PolicyCard({ result }: { result: PolicyResult }) {
   );
 }
 
+/** Detect Microsoft-managed / built-in policies */
+function isMicrosoftManaged(result: PolicyResult): boolean {
+  const p = result.policy;
+  // Graph sets templateId on Microsoft-managed policies
+  if (p.templateId && p.templateId !== "00000000-0000-0000-0000-000000000000") return true;
+  // Fallback: naming convention
+  const name = p.displayName.toLowerCase();
+  return name.startsWith("microsoft-managed") || name.startsWith("[microsoft");
+}
+
 export function PolicyList({ results }: { results: PolicyResult[] }) {
   const [sortBy, setSortBy] = useState<"findings" | "name" | "state">("findings");
+  const [hideMicrosoft, setHideMicrosoft] = useState(false);
 
-  const sorted = [...results].sort((a, b) => {
+  const microsoftCount = results.filter(isMicrosoftManaged).length;
+
+  const filtered = hideMicrosoft
+    ? results.filter((r) => !isMicrosoftManaged(r))
+    : results;
+
+  const sorted = [...filtered].sort((a, b) => {
     switch (sortBy) {
       case "findings":
         return b.findings.length - a.findings.length;
@@ -215,23 +232,43 @@ export function PolicyList({ results }: { results: PolicyResult[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h3 className="text-lg font-semibold text-white">
           Policies{" "}
-          <span className="text-gray-500 font-normal">({results.length})</span>
+          <span className="text-gray-500 font-normal">
+            ({filtered.length}{hideMicrosoft ? ` of ${results.length}` : ""})
+          </span>
         </h3>
-        <div className="flex gap-1">
-          {(["findings", "name", "state"] as const).map((s) => (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Hide Microsoft-managed toggle */}
+          {microsoftCount > 0 && (
             <button
-              key={s}
-              onClick={() => setSortBy(s)}
+              onClick={() => setHideMicrosoft(!hideMicrosoft)}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                sortBy === s
-                  ? "bg-blue-600 text-white"
+                "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                hideMicrosoft
+                  ? "bg-purple-600 text-white"
                   : "bg-gray-800 text-gray-400 hover:text-white"
               )}
             >
-              {s === "findings" ? "Most Findings" : s}
+              {hideMicrosoft ? `Show Microsoft (${microsoftCount})` : "Hide Microsoft"}
             </button>
-          ))}
+          )}
+
+          {/* Sort buttons */}
+          <div className="flex gap-1">
+            {(["findings", "name", "state"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setSortBy(s)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                  sortBy === s
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-800 text-gray-400 hover:text-white"
+                )}
+              >
+                {s === "findings" ? "Most Findings" : s}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -239,6 +276,11 @@ export function PolicyList({ results }: { results: PolicyResult[] }) {
         {sorted.map((result) => (
           <PolicyCard key={result.policy.id} result={result} />
         ))}
+        {sorted.length === 0 && (
+          <p className="py-8 text-center text-sm text-gray-500">
+            No policies to display.
+          </p>
+        )}
       </div>
     </Card>
   );
