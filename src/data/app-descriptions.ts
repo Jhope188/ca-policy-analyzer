@@ -85,6 +85,17 @@ const APP_DESCRIPTIONS: AppDescription[] = [
       "Rarely excluded. Excluding it allows unauthenticated Azure portal access. Note: Azure Portal actually points to ARM, so CA on ARM covers the portal.",
     exclusionRisk: "critical",
   },
+  {
+    appId: "372140e0-b3b7-4226-8ef9-d57986796201",
+    displayName: "Azure Windows VM Sign-In",
+    purpose:
+      "Enables Entra ID-based sign-in to Azure Windows VMs. Used when 'Login with Azure AD' extension is installed on VMs, allowing RDP sessions authenticated via Entra ID instead of local credentials.",
+    commonExclusionReason:
+      "Excluded from MFA policies because Azure VM RDP sign-in does not support interactive MFA prompts. " +
+      "If MFA is required, users cannot complete the RDP login flow. Microsoft documents this as a known " +
+      "limitation — exclude this app from MFA CA policies and rely on VM-level controls (NSG, Bastion, JIT) instead.",
+    exclusionRisk: "medium",
+  },
   // ─── Productivity & Office ─────────────────────────────────────────────────
   {
     appId: "00000002-0000-0ff1-ce00-000000000000",
