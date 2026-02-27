@@ -49,6 +49,17 @@ export interface CISControl {
 
 export type CISStatus = "pass" | "fail" | "manual" | "not-applicable";
 
+export interface NearMissPolicy {
+  /** Policy display name */
+  policyName: string;
+  /** Current policy state */
+  state: "enabled" | "enabledForReportingButNotEnforced" | "disabled";
+  /** Criteria the policy satisfies */
+  met: string[];
+  /** Criteria the policy is missing — these need to be fixed */
+  gaps: string[];
+}
+
 export interface CISCheckResult {
   status: CISStatus;
   /** Short result description */
@@ -57,6 +68,8 @@ export interface CISCheckResult {
   matchingPolicies: string[];
   /** Remediation guidance if failed */
   remediation?: string;
+  /** Policies that are close but need modifications to satisfy this control */
+  nearMissPolicies?: NearMissPolicy[];
 }
 
 // ─── Policy Creation Guidance ────────────────────────────────────────────────
@@ -139,6 +152,54 @@ function hasPhishingResistantAuthStrength(
     name.includes("fido") ||
     name.includes("certificate")
   );
+}
+
+// ─── Near-Miss Detection ─────────────────────────────────────────────────────
+
+/**
+ * Generic near-miss detector — tests each policy individually against a CIS check
+ * by pretending it is enabled. Catches disabled policies that would otherwise
+ * satisfy the check, and report-only policies missed by cross-referencing checks.
+ */
+function detectNearMissPolicies(
+  control: CISControl,
+  context: TenantContext
+): NearMissPolicy[] {
+  const nearMisses: NearMissPolicy[] = [];
+
+  for (const p of context.policies) {
+    const enabledCopy: ConditionalAccessPolicy = { ...p, state: "enabled" };
+
+    try {
+      const testResult = control.check([enabledCopy], context);
+      if (testResult.status === "pass" || testResult.matchingPolicies.length > 0) {
+        const met: string[] = [];
+        const gaps: string[] = [];
+
+        if (p.state === "disabled") {
+          met.push("Satisfies all check criteria");
+          gaps.push("Policy is disabled — enable it or set to report-only");
+        } else if (p.state === "enabledForReportingButNotEnforced") {
+          met.push("Satisfies all check criteria");
+          gaps.push("Policy is in report-only mode (not enforced)");
+        } else {
+          met.push("Partially satisfies check criteria");
+          gaps.push("Review policy configuration — may need adjustments");
+        }
+
+        nearMisses.push({
+          policyName: p.displayName,
+          state: p.state as NearMissPolicy["state"],
+          met,
+          gaps,
+        });
+      }
+    } catch {
+      // Skip policies that cause errors in individual testing
+    }
+  }
+
+  return nearMisses;
 }
 
 // ─── CIS Controls ────────────────────────────────────────────────────────────
@@ -878,13 +939,52 @@ export const CIS_CONTROLS: CISControl[] = [
         hasGrantControl(p, "compliantDevice")
       );
 
+      if (matching.length > 0) {
+        return {
+          status: "pass",
+          detail: `Found ${matching.length} policy(ies) requiring compliant devices.`,
+          matchingPolicies: matching.map((p) => p.displayName),
+        };
+      }
+
+      // Near-miss: find policies with related device grant controls
+      const nearMissPolicies: NearMissPolicy[] = [];
+      for (const p of policies) {
+        const met: string[] = [];
+        const gaps: string[] = [];
+
+        const isActive = p.state === "enabled" || p.state === "enabledForReportingButNotEnforced";
+        const hasCompliant = hasGrantControl(p, "compliantDevice");
+        const hasDomainJoined = hasGrantControl(p, "domainJoinedDevice");
+
+        if (!hasCompliant && !hasDomainJoined) continue;
+
+        if (isActive) met.push("Policy is " + (p.state === "enabledForReportingButNotEnforced" ? "report-only" : "enabled"));
+        else gaps.push("Policy is disabled — enable it or set to report-only");
+
+        if (hasCompliant) met.push("Has 'Require compliant device' grant control");
+        else gaps.push("Missing 'Require compliant device' grant control");
+
+        if (hasDomainJoined && !hasCompliant) {
+          met.push("Has 'Require Hybrid Azure AD joined device'");
+          gaps.push("Hybrid join alone does not satisfy CIS — add 'Require device to be marked as compliant'");
+        }
+
+        if (gaps.length > 0) {
+          nearMissPolicies.push({
+            policyName: p.displayName,
+            state: p.state as NearMissPolicy["state"],
+            met,
+            gaps,
+          });
+        }
+      }
+
       return {
-        status: matching.length > 0 ? "pass" : "fail",
-        detail:
-          matching.length > 0
-            ? `Found ${matching.length} policy(ies) requiring compliant devices.`
-            : "No policy requires device compliance.",
-        matchingPolicies: matching.map((p) => p.displayName),
+        status: "fail",
+        detail: "No policy requires device compliance.",
+        matchingPolicies: [],
+        nearMissPolicies: nearMissPolicies.length > 0 ? nearMissPolicies : undefined,
         remediation:
           'Create a CA policy with grant control "Require device to be marked as compliant". ' +
           "This requires Intune enrollment and device compliance policies.",
@@ -1118,6 +1218,16 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
               ".",
           },
         };
+      }
+    }
+
+    // Generic near-miss detection for failed checks — if the check
+    // didn't already provide check-specific near-misses, scan all
+    // policies individually to find disabled/partial matches.
+    if (result.status === "fail" && !result.nearMissPolicies?.length) {
+      const nearMisses = detectNearMissPolicies(control, context);
+      if (nearMisses.length > 0) {
+        result.nearMissPolicies = nearMisses;
       }
     }
 

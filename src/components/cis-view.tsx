@@ -6,6 +6,7 @@ import {
   CISControlResult,
   CISStatus,
   CISLevel,
+  NearMissPolicy,
 } from "@/data/cis-benchmarks";
 import { ScoreRing, Card } from "./ui-primitives";
 import {
@@ -17,6 +18,7 @@ import {
   Filter,
   Shield,
   ClipboardList,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -152,6 +154,106 @@ function ControlCard({ controlResult }: { controlResult: CISControlResult }) {
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                     {name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Near-Miss Policies */}
+          {result.nearMissPolicies && result.nearMissPolicies.length > 0 && (
+            <div>
+              <h5 className="text-xs font-medium text-amber-400 uppercase mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Near-Miss Policies
+              </h5>
+              <p className="text-xs text-gray-500 mb-2">
+                These policies are close to satisfying this control but need modifications:
+              </p>
+              <div className="space-y-2">
+                {result.nearMissPolicies.map((nm, i) => (
+                  <div
+                    key={i}
+                    className="rounded bg-amber-400/5 border border-amber-800/30 p-3 space-y-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-amber-300">
+                      {nm.policyName}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-normal">
+                        {nm.state === "disabled"
+                          ? "Disabled"
+                          : nm.state === "enabledForReportingButNotEnforced"
+                            ? "Report-only"
+                            : "Enabled"}
+                      </span>
+                    </div>
+                    {nm.met.map((m, j) => (
+                      <div
+                        key={`met-${j}`}
+                        className="flex items-start gap-2 text-xs text-emerald-400"
+                      >
+                        <CheckCircle2 className="h-3 w-3 mt-0.5 shrink-0" />
+                        {m}
+                      </div>
+                    ))}
+                    {nm.gaps.map((g, j) => (
+                      <div
+                        key={`gap-${j}`}
+                        className="flex items-start gap-2 text-xs text-red-400"
+                      >
+                        <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                        {g}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Near-Miss Policies */}
+          {result.nearMissPolicies && result.nearMissPolicies.length > 0 && (
+            <div>
+              <h5 className="text-xs font-medium text-amber-400 uppercase mb-1 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Near-Miss Policies
+              </h5>
+              <p className="text-xs text-gray-500 mb-2">
+                These policies are close to satisfying this control but need modifications:
+              </p>
+              <div className="space-y-2">
+                {result.nearMissPolicies.map((nm, i) => (
+                  <div
+                    key={i}
+                    className="rounded bg-amber-400/5 border border-amber-800/30 p-3 space-y-1.5"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-amber-300">
+                      {nm.policyName}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-normal">
+                        {nm.state === "disabled"
+                          ? "Disabled"
+                          : nm.state === "enabledForReportingButNotEnforced"
+                            ? "Report-only"
+                            : "Enabled"}
+                      </span>
+                    </div>
+                    {nm.met.map((m, j) => (
+                      <div
+                        key={`met-${j}`}
+                        className="flex items-start gap-2 text-xs text-emerald-400"
+                      >
+                        <CheckCircle2 className="h-3 w-3 mt-0.5 shrink-0" />
+                        {m}
+                      </div>
+                    ))}
+                    {nm.gaps.map((g, j) => (
+                      <div
+                        key={`gap-${j}`}
+                        className="flex items-start gap-2 text-xs text-red-400"
+                      >
+                        <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                        {g}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
