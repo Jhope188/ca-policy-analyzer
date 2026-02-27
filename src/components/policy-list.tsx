@@ -1,6 +1,6 @@
 "use client";
 
-import { PolicyResult } from "@/lib/analyzer";
+import { PolicyResult, Finding, ExcludedAppDetail } from "@/lib/analyzer";
 import { SeverityBadge, Card } from "./ui-primitives";
 import { cn } from "@/lib/utils";
 import {
@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronRight,
   AlertCircle,
+  Info,
+  ShieldAlert,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -43,6 +45,183 @@ function PolicyFlowSection({
           <p className="text-sm text-gray-600">{emptyText}</p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Risk badge for excluded app details ─────────────────────────────────────
+
+function RiskBadge({ risk }: { risk: string }) {
+  const colors: Record<string, string> = {
+    critical: "bg-red-500/10 text-red-400",
+    high: "bg-orange-500/10 text-orange-400",
+    medium: "bg-yellow-500/10 text-yellow-400",
+    low: "bg-gray-800 text-gray-400",
+  };
+  return (
+    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5 uppercase", colors[risk] ?? colors.low)}>
+      {risk} risk
+    </span>
+  );
+}
+
+// ─── Single excluded app detail card ─────────────────────────────────────────
+
+function ExcludedAppCard({ app }: { app: ExcludedAppDetail }) {
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-900/50 p-3 space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-white">{app.displayName}</span>
+        <RiskBadge risk={app.risk} />
+      </div>
+      <div className="space-y-1">
+        <div>
+          <span className="text-[10px] font-medium uppercase text-gray-600">What it does</span>
+          <p className="text-xs text-gray-400">{app.purpose}</p>
+        </div>
+        <div>
+          <span className="text-[10px] font-medium uppercase text-gray-600">Why it&apos;s excluded</span>
+          <p className="text-xs text-gray-400">{app.exclusionReason}</p>
+        </div>
+      </div>
+      <p className="text-[10px] text-gray-700 font-mono">{app.appId}</p>
+    </div>
+  );
+}
+
+// ─── Collapsible finding row ─────────────────────────────────────────────────
+
+function FindingRow({ finding }: { finding: Finding }) {
+  const [open, setOpen] = useState(false);
+  const hasDetails = finding.excludedApps && finding.excludedApps.length > 0;
+
+  return (
+    <div className="rounded-lg bg-gray-950/50 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-start gap-2 p-3 text-left hover:bg-gray-950/80 transition-colors"
+      >
+        <SeverityBadge severity={finding.severity} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-300">{finding.title}</p>
+          {!open && (
+            <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">
+              {finding.description}
+            </p>
+          )}
+        </div>
+        <div className="shrink-0 mt-0.5">
+          {open ? (
+            <ChevronDown className="h-4 w-4 text-gray-600" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-gray-600" />
+          )}
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-gray-800/50 p-3 space-y-3">
+          <p className="text-xs text-gray-400">{finding.description}</p>
+
+          {/* Recommendation */}
+          <div className="flex items-start gap-2 rounded-md bg-blue-500/5 border border-blue-500/10 p-2">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
+            <p className="text-xs text-blue-300">{finding.recommendation}</p>
+          </div>
+
+          {/* Excluded app details with per-app descriptions */}
+          {hasDetails && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 text-gray-500" />
+                <span className="text-[10px] font-medium uppercase text-gray-500">
+                  Excluded apps ({finding.excludedApps!.length})
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {finding.excludedApps!.map((app) => (
+                  <ExcludedAppCard key={app.appId} app={app} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Group findings by severity ──────────────────────────────────────────────
+
+type SeverityGroup = { severity: string; label: string; findings: Finding[]; color: string };
+
+function FindingsGrouped({ findings }: { findings: Finding[] }) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(["critical", "high"]));
+
+  const groups: SeverityGroup[] = [
+    { severity: "critical", label: "Critical", findings: [], color: "text-red-400" },
+    { severity: "high", label: "High", findings: [], color: "text-orange-400" },
+    { severity: "medium", label: "Medium", findings: [], color: "text-yellow-400" },
+    { severity: "low", label: "Low", findings: [], color: "text-gray-400" },
+    { severity: "info", label: "Info", findings: [], color: "text-blue-400" },
+  ];
+
+  for (const f of findings) {
+    const g = groups.find((g) => g.severity === f.severity);
+    if (g) g.findings.push(f);
+  }
+
+  const nonEmpty = groups.filter((g) => g.findings.length > 0);
+
+  // If 3 or fewer total findings, just show them flat (no grouping needed)
+  if (findings.length <= 3) {
+    return (
+      <div className="space-y-2">
+        {findings.map((f) => (
+          <FindingRow key={f.id} finding={f} />
+        ))}
+      </div>
+    );
+  }
+
+  const toggle = (sev: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(sev)) next.delete(sev);
+      else next.add(sev);
+      return next;
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {nonEmpty.map((g) => (
+        <div key={g.severity}>
+          <button
+            onClick={() => toggle(g.severity)}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-gray-950/50 transition-colors"
+          >
+            {openGroups.has(g.severity) ? (
+              <ChevronDown className="h-3.5 w-3.5 text-gray-600" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 text-gray-600" />
+            )}
+            <span className={cn("text-xs font-medium", g.color)}>
+              {g.label}
+            </span>
+            <span className="text-xs text-gray-600">
+              ({g.findings.length})
+            </span>
+          </button>
+          {openGroups.has(g.severity) && (
+            <div className="ml-2 space-y-1.5 mt-1">
+              {g.findings.map((f) => (
+                <FindingRow key={f.id} finding={f} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -161,26 +340,13 @@ function PolicyCard({ result }: { result: PolicyResult }) {
             />
           </div>
 
-          {/* Policy Findings */}
-          {findings.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Findings for this policy
-              </h4>
-              {findings.map((f) => (
-                <div
-                  key={f.id}
-                  className="flex items-start gap-2 rounded-lg bg-gray-950/50 p-3"
-                >
-                  <SeverityBadge severity={f.severity} />
-                  <div className="min-w-0">
-                    <p className="text-sm text-gray-300">{f.title}</p>
-                    <p className="mt-0.5 text-xs text-gray-500 line-clamp-2">
-                      {f.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
+{/* Policy Findings — grouped by severity with dropdowns */}
+            {findings.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Findings for this policy
+                </h4>
+                <FindingsGrouped findings={findings} />
             </div>
           )}
 

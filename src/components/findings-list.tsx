@@ -1,10 +1,57 @@
 "use client";
 
-import { Finding } from "@/lib/analyzer";
+import { Finding, ExcludedAppDetail } from "@/lib/analyzer";
 import { SeverityBadge, Card } from "./ui-primitives";
-import { ChevronDown, ChevronRight, Lightbulb } from "lucide-react";
+import { ChevronDown, ChevronRight, Lightbulb, ShieldAlert } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+
+function ExcludedAppBadge({ risk }: { risk: string }) {
+  const colors: Record<string, string> = {
+    critical: "bg-red-500/10 text-red-400",
+    high: "bg-orange-500/10 text-orange-400",
+    medium: "bg-yellow-500/10 text-yellow-400",
+    low: "bg-gray-800 text-gray-400",
+  };
+  return (
+    <span className={cn("text-[10px] font-medium rounded px-1.5 py-0.5 uppercase", colors[risk] ?? colors.low)}>
+      {risk}
+    </span>
+  );
+}
+
+function ExcludedAppRow({ app }: { app: ExcludedAppDetail }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-md border border-gray-800 bg-gray-900/60">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 p-2.5 text-left hover:bg-gray-800/30 transition-colors"
+      >
+        {open ? (
+          <ChevronDown className="h-3 w-3 text-gray-600 shrink-0" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-gray-600 shrink-0" />
+        )}
+        <span className="text-xs font-medium text-gray-300 flex-1 truncate">{app.displayName}</span>
+        <ExcludedAppBadge risk={app.risk} />
+      </button>
+      {open && (
+        <div className="border-t border-gray-800/50 p-2.5 space-y-1.5">
+          <div>
+            <span className="text-[10px] font-medium uppercase text-gray-600">What it does</span>
+            <p className="text-xs text-gray-400">{app.purpose}</p>
+          </div>
+          <div>
+            <span className="text-[10px] font-medium uppercase text-gray-600">Why it&apos;s excluded</span>
+            <p className="text-xs text-gray-400">{app.exclusionReason}</p>
+          </div>
+          <p className="text-[10px] text-gray-700 font-mono">{app.appId}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function FindingCard({ finding }: { finding: Finding }) {
   const [expanded, setExpanded] = useState(false);
@@ -54,6 +101,22 @@ export function FindingCard({ finding }: { finding: Finding }) {
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
             <p className="text-sm text-blue-300">{finding.recommendation}</p>
           </div>
+          {/* Excluded app details */}
+          {finding.excludedApps && finding.excludedApps.length > 0 && (
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 text-gray-500" />
+                <span className="text-xs font-medium text-gray-500 uppercase">
+                  Excluded apps ({finding.excludedApps.length})
+                </span>
+              </div>
+              <div className="space-y-1">
+                {finding.excludedApps.map((app) => (
+                  <ExcludedAppRow key={app.appId} app={app} />
+                ))}
+              </div>
+            </div>
+          )}
           {finding.policyName !== "Tenant-Wide Analysis" && (
             <p className="mt-2 text-xs text-gray-600">
               Policy: {finding.policyName}

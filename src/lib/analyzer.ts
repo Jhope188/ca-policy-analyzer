@@ -24,6 +24,7 @@ import {
   WELL_KNOWN_APP_MAP,
   CA_BYPASS_APPS,
 } from "@/data/ca-bypass-database";
+import { APP_DESCRIPTION_MAP } from "@/data/app-descriptions";
 import {
   checkPolicyExclusions,
   ExclusionFinding,
@@ -32,6 +33,14 @@ import {
 // ─── Finding Types ───────────────────────────────────────────────────────────
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";
+
+export interface ExcludedAppDetail {
+  appId: string;
+  displayName: string;
+  purpose: string;
+  exclusionReason: string;
+  risk: string;
+}
 
 export interface Finding {
   id: string;
@@ -44,6 +53,8 @@ export interface Finding {
   recommendation: string;
   /** Optional list of related app/resource IDs for cross-referencing */
   relatedIds?: string[];
+  /** Detailed per-app info for consolidated exclusion findings */
+  excludedApps?: ExcludedAppDetail[];
 }
 
 export interface AnalysisResult {
@@ -217,42 +228,33 @@ function checkResourceExclusion(
   policy: ConditionalAccessPolicy,
   _context: TenantContext
 ): Finding[] {
-  const findings: Finding[] = [];
   const apps = policy.conditions.applications;
-
   const includesAll = apps.includeApplications.includes("All");
   const hasExclusions = apps.excludeApplications.length > 0;
 
-  if (includesAll && hasExclusions) {
-    const excludedNames = apps.excludeApplications
-      .map((id) => {
-        const known = WELL_KNOWN_APP_MAP.get(id.toLowerCase());
-        return known ? known.displayName : id;
-      })
-      .join(", ");
+  if (!includesAll || !hasExclusions) return [];
 
-    for (const bypass of RESOURCE_EXCLUSION_BYPASSES) {
-      findings.push({
-        id: nextFindingId(),
-        policyId: policy.id,
-        policyName: policy.displayName,
-        severity: "high",
-        category: "Resource Exclusion Bypass",
-        title: `Excluding apps from "All cloud apps" leaks ${bypass.resourceName} scopes`,
-        description:
-          `This policy targets "All cloud apps" but excludes: ${excludedNames}. ` +
-          `When ANY resource is excluded, the following scopes for ${bypass.resourceName} become unprotected: ` +
-          `${bypass.bypassedScopes.join(", ")}. ${bypass.description}`,
-        recommendation:
-          "Avoid excluding resources from 'All cloud apps' policies. " +
-          "Instead, create a separate less-restrictive policy for the apps that need exemption " +
-          "while keeping the base policy without exclusions.",
-        relatedIds: [bypass.resourceId],
-      });
-    }
-  }
+  const scopeLeaks = RESOURCE_EXCLUSION_BYPASSES.map((b) =>
+    `${b.resourceName}: ${b.bypassedScopes.join(", ")}`
+  ).join(" • ");
 
-  return findings;
+  return [{
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity: "high",
+    category: "Resource Exclusion Bypass",
+    title: `Excluding apps from "All cloud apps" leaks Graph & Azure AD scopes`,
+    description:
+      `This policy targets "All cloud apps" but has ${apps.excludeApplications.length} excluded app(s). ` +
+      `When ANY resource is excluded, these scopes become unprotected — ${scopeLeaks}. ` +
+      `This allows reading basic user profile data without the policy's controls.`,
+    recommendation:
+      "Avoid excluding resources from 'All cloud apps' policies. " +
+      "Instead, create a separate less-restrictive policy for the apps that need exemption " +
+      "while keeping the base policy without exclusions.",
+    relatedIds: RESOURCE_EXCLUSION_BYPASSES.map((b) => b.resourceId),
+  }];
 }
 
 // ─── Check: CA-Immune Resources ──────────────────────────────────────────────
@@ -372,8 +374,9 @@ function checkServicePrincipalExclusions(
   policy: ConditionalAccessPolicy,
   context: TenantContext
 ): Finding[] {
-  const findings: Finding[] = [];
   const excluded = policy.conditions.applications.excludeApplications;
+  const appDetails: ExcludedAppDetail[] = [];
+  let hasHighRisk = false;
 
   for (const appId of excluded) {
     if (isFociApp(appId)) continue; // Already handled in FOCI check
@@ -382,32 +385,50 @@ function checkServicePrincipalExclusions(
     const bypassApp = CA_BYPASS_APPS.find(
       (a) => a.appId.toLowerCase() === appId.toLowerCase()
     );
+    const appDesc = APP_DESCRIPTION_MAP.get(appId.toLowerCase());
 
-    if (sp || bypassApp) {
-      const name = sp?.displayName ?? bypassApp?.displayName ?? appId;
-      const desc = bypassApp?.description ?? `Service principal: ${sp?.servicePrincipalType}`;
+    if (sp || bypassApp || appDesc) {
+      const name = appDesc?.displayName ?? sp?.displayName ?? bypassApp?.displayName ?? appId;
+      const purpose = appDesc?.purpose ?? bypassApp?.description ?? `Service principal: ${sp?.servicePrincipalType ?? "Application"}`;
+      const reason = appDesc?.commonExclusionReason ?? "No documented exclusion reason. Review whether this exclusion is necessary.";
+      const risk = appDesc?.exclusionRisk ?? (bypassApp ? "high" : "medium");
 
-      findings.push({
-        id: nextFindingId(),
-        policyId: policy.id,
-        policyName: policy.displayName,
-        severity: bypassApp ? "high" : "medium",
-        category: "App Exclusion",
-        title: `Excluded app: "${name}"`,
-        description:
-          `"${name}" (${appId}) is excluded from this policy. ${desc}` +
-          (bypassApp?.caBypassCount
-            ? ` This app has ${bypassApp.caBypassCount} known CA bypass(es).`
-            : ""),
-        recommendation:
-          "Review whether this exclusion is necessary. Excluded apps bypass the policy's controls. " +
-          "Consider using a separate targeted policy with reduced controls instead of excluding.",
-        relatedIds: [appId],
+      if (risk === "critical" || risk === "high" || bypassApp) hasHighRisk = true;
+
+      appDetails.push({
+        appId,
+        displayName: name,
+        purpose,
+        exclusionReason: reason,
+        risk,
       });
     }
   }
 
-  return findings;
+  if (appDetails.length === 0) return [];
+
+  const highRiskApps = appDetails.filter((a) => a.risk === "critical" || a.risk === "high");
+  const appNames = appDetails.map((a) => a.displayName).join(", ");
+
+  return [{
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity: hasHighRisk ? "high" : "medium",
+    category: "App Exclusion",
+    title: `${appDetails.length} app(s) excluded from this policy${highRiskApps.length > 0 ? ` (${highRiskApps.length} high-risk)` : ""}`,
+    description:
+      `This policy excludes: ${appNames}. ` +
+      `Each excluded app bypasses the policy's controls. ` +
+      (highRiskApps.length > 0
+        ? `High-risk exclusions: ${highRiskApps.map((a) => a.displayName).join(", ")}.`
+        : "All exclusions are low/medium risk — expand for details on each app."),
+    recommendation:
+      "Review each exclusion and ensure it has a documented business justification. " +
+      "Consider using separate targeted policies with reduced controls instead of excluding apps.",
+    relatedIds: appDetails.map((a) => a.appId),
+    excludedApps: appDetails,
+  }];
 }
 
 // ─── Check: Missing MFA ─────────────────────────────────────────────────────
@@ -601,34 +622,12 @@ function checkLegacyAuth(policy: ConditionalAccessPolicy): Finding[] {
 
 // ─── Check: Known CA Bypass Apps ─────────────────────────────────────────────
 
+// checkCABypassApps is now consolidated into checkServicePrincipalExclusions
 function checkCABypassApps(
-  policy: ConditionalAccessPolicy,
+  _policy: ConditionalAccessPolicy,
   _context: TenantContext
 ): Finding[] {
-  const findings: Finding[] = [];
-  const excluded = policy.conditions.applications.excludeApplications;
-
-  for (const appId of excluded) {
-    const bypassApp = CA_BYPASS_APPS.find(
-      (a) => a.appId.toLowerCase() === appId.toLowerCase()
-    );
-    if (bypassApp && bypassApp.caBypassCount > 0 && !isFociApp(appId)) {
-      findings.push({
-        id: nextFindingId(),
-        policyId: policy.id,
-        policyName: policy.displayName,
-        severity: "high",
-        category: "Known CA Bypass App",
-        title: `Excluded "${bypassApp.displayName}" has ${bypassApp.caBypassCount} known CA bypass(es)`,
-        description: `${bypassApp.description}`,
-        recommendation:
-          "Avoid excluding apps with known CA bypass capabilities. These are commonly used in attack chains.",
-        relatedIds: [appId],
-      });
-    }
-  }
-
-  return findings;
+  return []; // Bypass app info is now included in the consolidated App Exclusion finding
 }
 
 // ─── Tenant-Wide Gap Analysis ────────────────────────────────────────────────
