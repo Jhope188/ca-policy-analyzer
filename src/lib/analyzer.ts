@@ -760,7 +760,11 @@ function buildVisualization(
     conditions.push(`Locations: ${locations.includeLocations.length} included`);
   }
   if (platforms && platforms.includePlatforms.length > 0) {
-    conditions.push(`Platforms: ${platforms.includePlatforms.join(", ")}`);
+    let platText = `Platforms: ${platforms.includePlatforms.join(", ")}`;
+    if (platforms.excludePlatforms.length > 0) {
+      platText += ` (exclude: ${platforms.excludePlatforms.join(", ")})`;
+    }
+    conditions.push(platText);
   }
   if (policy.conditions.userRiskLevels.length > 0) {
     conditions.push(`User risk: ${policy.conditions.userRiskLevels.join(", ")}`);

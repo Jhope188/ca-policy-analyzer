@@ -485,7 +485,7 @@ export const CIS_CONTROLS: CISControl[] = [
       "Users should be blocked from accessing resources when the device type is unknown or unsupported. " +
       "This prevents attackers from spoofing user-agent strings to bypass platform-specific controls.",
     check: (policies) => {
-      const matching = getEnabled(policies).filter((p) => {
+      const isBlockUnsupported = (p: ConditionalAccessPolicy) => {
         const platforms = p.conditions.platforms;
         if (!platforms) return false;
         const targetsUnknown =
@@ -496,17 +496,40 @@ export const CIS_CONTROLS: CISControl[] = [
           platforms.includePlatforms.some((plat) =>
             ["unknownFutureValue", "linux"].includes(plat)
           ) && hasGrantControl(p, "block");
-
         return targetsUnknown || explicitBlock;
-      });
+      };
+
+      const enabled = getEnabled(policies).filter(isBlockUnsupported);
+      const disabled = policies
+        .filter((p) => p.state === "disabled")
+        .filter(isBlockUnsupported);
+
+      if (enabled.length > 0) {
+        return {
+          status: "pass",
+          detail: `Found ${enabled.length} enabled policy(ies) blocking unknown/unsupported device platforms.`,
+          matchingPolicies: enabled.map((p) => p.displayName),
+        };
+      }
+
+      if (disabled.length > 0) {
+        return {
+          status: "manual",
+          detail:
+            `Found ${disabled.length} matching policy(ies) but currently disabled: ` +
+            disabled.map((p) => p.displayName).join(", ") +
+            ". Enable the policy to pass this control.",
+          matchingPolicies: disabled.map((p) => p.displayName),
+          remediation:
+            "A policy that blocks unsupported device platforms exists but is disabled. " +
+            "Review and enable it to satisfy this CIS control.",
+        };
+      }
 
       return {
-        status: matching.length > 0 ? "pass" : "fail",
-        detail:
-          matching.length > 0
-            ? `Found ${matching.length} policy(ies) blocking unknown/unsupported device platforms.`
-            : "No policy blocks unknown or unsupported device platforms.",
-        matchingPolicies: matching.map((p) => p.displayName),
+        status: "fail",
+        detail: "No policy blocks unknown or unsupported device platforms.",
+        matchingPolicies: [],
         remediation:
           "Create a CA policy that blocks access from unsupported device platforms. Target all platforms, " +
           "exclude known platforms (Windows, macOS, iOS, Android), and set grant control to Block.",
