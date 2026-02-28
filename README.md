@@ -81,6 +81,75 @@ CA Policy Analyzer connects to your Entra ID tenant via Microsoft Graph and:
 4. **Flags known CA bypasses** including CA-immune resources, Device Registration Service bypass, resource exclusion scope leaks, and more
 5. **Generates a Security Posture Score** (0-100) with severity-ranked findings and actionable recommendations
 6. **Visualizes each policy** showing the flow: Users → Conditions → Apps → Grant Controls
+
+## Security Posture Scoring
+
+The Security Posture Score is a **composite 0–100 score** built from three weighted pillars. This ensures the score reflects CIS compliance, best-practice coverage, and real configuration quality — not just one dimension.
+
+### Three-Pillar Model
+
+| Pillar | Max Points | What It Measures |
+|---|---|---|
+| **CIS Alignment** | 50 | Weighted pass rate of CIS L1/L2 benchmark controls |
+| **Template Coverage** | 25 | How well your policies match the 37 best-practice templates |
+| **Configuration Quality** | 25 | Deductions based on severity of detected findings |
+
+### Pillar 1: CIS Alignment (50 points)
+
+The CIS component is the dominant factor. Each of the 19 CIS v6.0.0 controls is weighted by level:
+
+- **L1 (Essential) controls** carry **3× weight** — these are baseline controls every tenant must have
+- **L2 (Defense-in-depth) controls** carry **1× weight** — hardening measures for advanced security
+- Controls marked **N/A** (missing license) are excluded from the calculation
+
+| CIS Result | Points Earned |
+|---|---|
+| Pass | Full weight (3× for L1, 1× for L2) |
+| Manual | 50% of weight |
+| Fail | 0 |
+
+The formula: `cisScore = (weightEarned / weightTotal) × 50`
+
+### Pillar 2: Template Coverage (25 points)
+
+Uses a priority-weighted coverage score across the 37 best-practice policy templates. High-priority templates (MFA, legacy auth block, device compliance) contribute more to this score than optional hardening templates.
+
+The formula: `templateScore = (coverageScore / 100) × 25`
+
+### Pillar 3: Configuration Quality (25 points)
+
+Starts at 25 and deducts points for each security finding. Per-severity caps prevent a single category from consuming the entire budget:
+
+| Severity | Deduction per Finding | Cap |
+|---|---|---|
+| Critical | 5 pts | 15 pts max |
+| High | 1.5 pts | 10 pts max |
+| Medium | 0.5 pts | 8 pts max |
+| Low | 0.25 pts | 3 pts max |
+
+Total deductions are also capped at 25 (the full budget).
+
+### Letter Grades
+
+| Grade | Score Range |
+|---|---|
+| **A** | 90 – 100 |
+| **B** | 80 – 89 |
+| **C** | 65 – 79 |
+| **D** | 50 – 64 |
+| **F** | 0 – 49 |
+
+### Example Score Breakdown
+
+```
+CIS Alignment:        42 / 50  (all L1 passing, 2 L2 failing)
+Template Coverage:    19 / 25  (76% weighted coverage)
+Configuration Quality: 18 / 25  (2 critical, 1 high finding)
+───────────────────────────────
+Overall Score:         79 / 100  → Grade: C
+```
+
+---
 7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 37 best-practice templates matched against your existing policies
 8. **Measures CIS v6.0 alignment** — 18 controls from CIS Microsoft 365 Foundations Benchmark v6.0.0 with pass/fail scoring
 9. **Flags MS Learn documented exclusions** — 14 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, etc.)
