@@ -1254,16 +1254,16 @@ export const CIS_CONTROLS: CISControl[] = [
       });
 
       return {
-        status: matching.length > 0 ? "pass" : "manual",
+        status: matching.length > 0 ? "pass" : "fail",
         detail:
           matching.length > 0
             ? `Found ${matching.length} policy(ies) requiring app protection or approved apps.`
-            : "No policy requires app protection or approved client apps. Manual review needed if BYOD is not in scope.",
+            : "No policy requires app protection or approved client apps for mobile devices.",
         matchingPolicies: matching.map((p) => p.displayName),
         remediation:
           "Create a CA policy targeting iOS and Android platforms with grant control " +
           '"Require app protection policy" or "Require approved client app". ' +
-          "This requires Intune app protection policies to be configured.",
+          "This requires Intune app protection policies to be configured first.",
       };
     },
   },
