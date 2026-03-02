@@ -816,6 +816,123 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "Review all policies targeting 'All cloud apps' with exclusions. Test the impact using report-only mode. " +
       "Consider removing app exclusions from the policy and creating separate targeted policies instead.",
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // DIRECTORY SYNC ACCOUNT / ENTRA CONNECT
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    id: "dirsync-account-mfa",
+    title: "Directory Sync Account: Entra Connect v2.5.79+ supports app-based auth",
+    appliesWhen:
+      "MFA policy targeting All Users excludes a Directory Synchronization Accounts role or service account",
+    requirement:
+      "Prior to Entra Connect v2.5.79, organizations excluded Directory Synchronization Accounts " +
+      "from MFA policies because the sync engine used a service account that could not perform MFA. " +
+      "Starting with Entra Connect v2.5.79 (released 2025), application-based authentication is supported, " +
+      "eliminating the need for this exclusion. If your organization has upgraded to v2.5.79+, the " +
+      "Directory Sync account exclusion should be reviewed and potentially removed to close this gap.",
+    detect: (policy) => {
+      if (!isActivePolicy(policy)) return null;
+      if (!targetsAllUsers(policy)) return null;
+      if (!hasMfaGrant(policy)) return null;
+
+      // Directory Synchronization Accounts role ID
+      const DIRSYNC_ROLE = "d29b2b05-8046-44ba-8758-1e26182fcf32";
+
+      const excludedRoles = policy.conditions.users.excludeRoles ?? [];
+      const hasDirSyncExclusion = excludedRoles.includes(DIRSYNC_ROLE);
+
+      // Also check for excluded users/groups that might be sync accounts
+      // by looking at the display name pattern (we can't resolve names here,
+      // but we flag if there are role exclusions matching the DirSync role)
+      if (!hasDirSyncExclusion) return null;
+
+      return {
+        detail:
+          "This MFA policy excludes the Directory Synchronization Accounts role. " +
+          "If your organization is running Entra Connect v2.5.79 or later, this exclusion " +
+          "may no longer be necessary — v2.5.79 introduced application-based authentication " +
+          "for the sync engine, meaning the sync service principal can authenticate without " +
+          "a traditional user account. Review your Entra Connect version and migrate to " +
+          "app-based auth to eliminate this MFA gap.",
+        impactedResources: [
+          "Directory Synchronization Accounts role",
+          "Entra Connect sync service account",
+          "Hybrid identity sync pipeline",
+        ],
+      };
+    },
+    severity: "medium",
+    docUrl:
+      "https://learn.microsoft.com/entra/identity/hybrid/connect/how-to-connect-install-roadmap",
+    remediation:
+      "Check your Entra Connect version (Azure Portal → Entra Connect → Version). " +
+      "If running v2.5.79+, configure application-based authentication for the sync engine " +
+      "and remove the Directory Synchronization Accounts role exclusion from your MFA policies. " +
+      "If still on an older version, upgrade to v2.5.79+ and then migrate to app-based auth.",
+  },
+  // ═══════════════════════════════════════════════════════════════════════
+  // EXTERNAL AUTHENTICATION METHOD (EAM) — DUO, THIRD-PARTY MFA
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    id: "eam-external-user-impact",
+    title: "External Authentication Method (EAM): May block guests and external vendors",
+    appliesWhen:
+      "MFA policy uses custom authentication factors (e.g. DUO EAM) and targets All Users or includes guests",
+    requirement:
+      "When a Conditional Access policy requires an External Authentication Method (EAM) like Cisco DUO, " +
+      "RSA SecurID, or another third-party MFA provider, guest users, B2B collaborators, and external " +
+      "service providers will be unable to fulfill the EAM claim because they are not enrolled in the " +
+      "organization's third-party MFA solution. This effectively blocks external access even though " +
+      "standard Entra ID MFA would have been sufficient. Microsoft recommends using authentication " +
+      "strength policies with Entra ID native methods for broad user scopes, and scoping EAM " +
+      "requirements only to internal users who are enrolled in the third-party provider.",
+    detect: (policy) => {
+      if (!isActivePolicy(policy)) return null;
+      if (!targetsAllUsers(policy) && !hasAdminRoles(policy)) return null;
+
+      // Check for custom authentication factors (EAM like DUO)
+      const customFactors = policy.grantControls?.customAuthenticationFactors ?? [];
+      if (customFactors.length === 0) return null;
+
+      // Check if guests/external users are NOT excluded
+      const users = policy.conditions.users;
+      const excludesGuests = users.excludeGuestsOrExternalUsers != null &&
+        Object.keys(users.excludeGuestsOrExternalUsers as Record<string, unknown>).length > 0;
+
+      const detail = excludesGuests
+        ? "This policy requires an External Authentication Method (EAM) for MFA. While guest users " +
+          "appear to be excluded, verify that ALL external identities are covered by the exclusion — " +
+          "B2B direct connect users, service provider accounts, and cross-tenant sync accounts may " +
+          "still be impacted if not explicitly excluded."
+        : "This policy requires an External Authentication Method (EAM) such as DUO for MFA and targets " +
+          "All Users without excluding guest or external users. External users (B2B guests, service " +
+          "providers, managed service accounts) cannot enroll in your organization's third-party MFA " +
+          "provider and will be blocked from accessing resources. Consider excluding external user " +
+          "types or creating a separate policy for guests that uses Entra ID native MFA.";
+
+      return {
+        detail,
+        impactedResources: [
+          "B2B guest users",
+          "External service providers and vendors",
+          "Cross-tenant collaboration partners",
+          "Managed service provider (MSP) accounts",
+          ...(excludesGuests ? ["Verify: B2B direct connect and cross-tenant sync accounts"] : []),
+        ],
+      };
+    },
+    severity: "high",
+    docUrl:
+      "https://learn.microsoft.com/entra/identity/authentication/how-to-authentication-external-method-manage",
+    remediation:
+      "Option 1: Exclude guest and external user types from the EAM policy and create a separate " +
+      "CA policy for external users that requires standard Entra ID MFA. " +
+      "Option 2: Use an authentication strength policy that accepts both the EAM and Entra ID " +
+      "native MFA methods, allowing external users to satisfy the requirement with Microsoft MFA. " +
+      "Option 3: Scope the EAM requirement to a security group containing only internal users " +
+      "enrolled in the third-party MFA provider.",
+  },
 ];
 
 // ─── Run all exclusion checks against a single policy ────────────────────────

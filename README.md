@@ -64,7 +64,7 @@ All detected issues ranked Critical → Info. Expand any finding to see the full
 
 ### MS Learn — Documented Exclusion Checks
 
-14 checks sourced from Microsoft Learn flag policies that are missing required exclusions. Findings are grouped by check type — similar policies are consolidated under a single card showing all affected policies.
+16 checks sourced from Microsoft Learn flag policies that are missing required exclusions. Findings are grouped by check type — similar policies are consolidated under a single card showing all affected policies.
 
 <!-- Replace with actual screenshot: open the app → MS Learn tab -->
 ![MS Learn Exclusions](docs/screenshots/mslearn.png)
@@ -152,7 +152,7 @@ Overall Score:         79 / 100  → Grade: C
 ---
 7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 37 best-practice templates matched against your existing policies
 8. **Measures CIS v6.0 alignment** — 18 controls from CIS Microsoft 365 Foundations Benchmark v6.0.0 with pass/fail scoring
-9. **Flags MS Learn documented exclusions** — 14 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, etc.)
+9. **Flags MS Learn documented exclusions** — 16 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, Directory Sync accounts, External Authentication Methods, etc.)
 10. **Exports full analysis as JSON** — download your results for offline review or integration with other tools
 11. **License-aware scoring** — detects your tenant's Entra ID P1, P2, and Intune Plan 1 licenses via the `/subscribedSkus` endpoint and adjusts scoring accordingly. Templates and CIS controls that require licenses you don't have are marked N/A and excluded from gap/pass-fail calculations, so your score reflects only what is achievable with your current licensing.
 
@@ -213,7 +213,7 @@ Click the **Export JSON** button (visible when results are loaded) to download t
 
 ## MS Learn Documented Exclusion Checks
 
-14 checks sourced from Microsoft Learn documentation:
+16 checks sourced from Microsoft Learn documentation:
 
 | Check | Severity | What It Flags |
 |---|---|---|
@@ -231,6 +231,8 @@ Click the **Export JSON** button (visible when results are loaded) to download t
 | Sign-in frequency — Individual services | Medium | Targeting individual M365 services breaks Teams |
 | Resilience disabled | Medium | Policies disabling resilience defaults |
 | All Resources scope change | High | Low-privilege scope exemption ending March 2026 |
+| Directory Sync Account | Medium | MFA policy excluding DirSync role — Entra Connect v2.5.79+ supports app-based auth |
+| External Auth Method (EAM) | High | EAM (DUO, RSA) on All Users policy blocks guests and external vendors who can't enroll |
 
 ## Examples
 
@@ -431,7 +433,7 @@ src/
 │                   #   templates view, CIS view, exclusions view, UI primitives
 ├── data/           # FOCI database (45 apps), CA bypass database (13 apps),
 │                   #   CIS v6.0 benchmarks (18 controls), policy templates (37),
-│                   #   MS Learn documented exclusions (14 checks)
+│                   #   MS Learn documented exclusions (16 checks)
 └── lib/            # MSAL config, Graph client, analyzer engine (13 checks),
                     #   template matcher
 ```
