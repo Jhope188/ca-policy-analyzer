@@ -9,7 +9,7 @@
  * exclusion or misconfigured, the analyzer flags it as a potential impact.
  */
 
-import { ConditionalAccessPolicy } from "@/lib/graph-client";
+import { ConditionalAccessPolicy, AuthenticationStrengthPolicy } from "@/lib/graph-client";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ export interface DocumentedExclusion {
   /** What is documented as required */
   requirement: string;
   /** How to detect the issue */
-  detect: (policy: ConditionalAccessPolicy) => ExclusionCheckResult | null;
+  detect: (policy: ConditionalAccessPolicy, authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>) => ExclusionCheckResult | null;
   /** Severity when the exclusion is missing */
   severity: ImpactSeverity;
   /** Official MS Learn documentation URL */
@@ -878,7 +878,8 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
     id: "eam-external-user-impact",
     title: "External Authentication Method (EAM): May block guests and external vendors",
     appliesWhen:
-      "MFA policy uses custom authentication factors (e.g. DUO EAM) and targets All Users or includes guests",
+      "MFA policy uses External Authentication Methods via custom auth factors or Authentication Strength " +
+      "policies containing external method combinations (e.g. Cisco DUO EAM) and targets All Users or admin roles",
     requirement:
       "When a Conditional Access policy requires an External Authentication Method (EAM) like Cisco DUO, " +
       "RSA SecurID, or another third-party MFA provider, guest users, B2B collaborators, and external " +
@@ -887,25 +888,53 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "standard Entra ID MFA would have been sufficient. Microsoft recommends using authentication " +
       "strength policies with Entra ID native methods for broad user scopes, and scoping EAM " +
       "requirements only to internal users who are enrolled in the third-party provider.",
-    detect: (policy) => {
+    detect: (policy, authStrengthPolicies) => {
       if (!isActivePolicy(policy)) return null;
       if (!targetsAllUsers(policy) && !hasAdminRoles(policy)) return null;
 
-      // Check for custom authentication factors (EAM like DUO)
+      // --- Detection path 1: Legacy custom authentication factors (old Custom Controls) ---
       const customFactors = policy.grantControls?.customAuthenticationFactors ?? [];
-      if (customFactors.length === 0) return null;
+      const hasCustomFactors = customFactors.length > 0;
+
+      // --- Detection path 2: Authentication Strength containing external methods ---
+      let hasEamViaAuthStrength = false;
+      let authStrengthName = "";
+      let externalMethods: string[] = [];
+
+      const authStrengthRef = policy.grantControls?.authenticationStrength;
+      if (authStrengthRef?.id && authStrengthPolicies) {
+        const asp = authStrengthPolicies.get(authStrengthRef.id);
+        if (asp) {
+          // External Authentication Methods appear in allowedCombinations as entries
+          // containing "externalAuthenticationMethodConfiguration" (EAM identifier)
+          externalMethods = (asp.allowedCombinations ?? []).filter((combo) =>
+            combo.toLowerCase().includes("externalauthenticationmethod")
+          );
+          if (externalMethods.length > 0) {
+            hasEamViaAuthStrength = true;
+            authStrengthName = asp.displayName || authStrengthRef.displayName || "Unknown";
+          }
+        }
+      }
+
+      if (!hasCustomFactors && !hasEamViaAuthStrength) return null;
 
       // Check if guests/external users are NOT excluded
       const users = policy.conditions.users;
       const excludesGuests = users.excludeGuestsOrExternalUsers != null &&
         Object.keys(users.excludeGuestsOrExternalUsers as Record<string, unknown>).length > 0;
 
+      // Build detail message based on detection path
+      const eamSource = hasEamViaAuthStrength
+        ? `an Authentication Strength policy ("${authStrengthName}") that includes External Authentication Method combinations: ${externalMethods.join(", ")}`
+        : "custom authentication factors (legacy Custom Controls)";
+
       const detail = excludesGuests
-        ? "This policy requires an External Authentication Method (EAM) for MFA. While guest users " +
+        ? `This policy requires ${eamSource} for MFA. While guest users ` +
           "appear to be excluded, verify that ALL external identities are covered by the exclusion — " +
           "B2B direct connect users, service provider accounts, and cross-tenant sync accounts may " +
           "still be impacted if not explicitly excluded."
-        : "This policy requires an External Authentication Method (EAM) such as DUO for MFA and targets " +
+        : `This policy requires ${eamSource} for MFA and targets ` +
           "All Users without excluding guest or external users. External users (B2B guests, service " +
           "providers, managed service accounts) cannot enroll in your organization's third-party MFA " +
           "provider and will be blocked from accessing resources. Consider excluding external user " +
@@ -919,6 +948,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
           "Cross-tenant collaboration partners",
           "Managed service provider (MSP) accounts",
           ...(excludesGuests ? ["Verify: B2B direct connect and cross-tenant sync accounts"] : []),
+          ...(hasEamViaAuthStrength ? [`Auth Strength: "${authStrengthName}" — ${externalMethods.length} external method combination(s)`] : []),
         ],
       };
     },
@@ -945,12 +975,13 @@ export interface ExclusionFinding {
 }
 
 export function checkPolicyExclusions(
-  policy: ConditionalAccessPolicy
+  policy: ConditionalAccessPolicy,
+  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>
 ): ExclusionFinding[] {
   const findings: ExclusionFinding[] = [];
 
   for (const exclusion of DOCUMENTED_EXCLUSIONS) {
-    const result = exclusion.detect(policy);
+    const result = exclusion.detect(policy, authStrengthPolicies);
     if (result) {
       findings.push({
         exclusion,
@@ -965,7 +996,8 @@ export function checkPolicyExclusions(
 }
 
 export function checkAllPoliciesExclusions(
-  policies: ConditionalAccessPolicy[]
+  policies: ConditionalAccessPolicy[],
+  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>
 ): ExclusionFinding[] {
-  return policies.flatMap((p) => checkPolicyExclusions(p));
+  return policies.flatMap((p) => checkPolicyExclusions(p, authStrengthPolicies));
 }

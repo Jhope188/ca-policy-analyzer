@@ -117,6 +117,16 @@ export interface DirectoryObject {
   "@odata.type": string;
 }
 
+export interface AuthenticationStrengthPolicy {
+  id: string;
+  displayName: string;
+  description: string;
+  policyType: "builtIn" | "custom" | "unknownFutureValue";
+  /** Authentication method mode combinations, e.g. "password,sms", "fido2", "externalAuthenticationMethodConfiguration,…" */
+  allowedCombinations: string[];
+  requirementsSatisfied: "none" | "mfa" | "unknownFutureValue";
+}
+
 // ─── Tenant Context ──────────────────────────────────────────────────────────
 
 export type LicenseRequirement = "entraIdP1" | "entraIdP2" | "intunePlan1";
@@ -144,6 +154,8 @@ export interface TenantContext {
   servicePrincipals: Map<string, ServicePrincipal>;
   directoryObjects: Map<string, DirectoryObject>;
   licenses: TenantLicenses;
+  /** Authentication strength policies (built-in + custom) — used to detect EAM usage */
+  authStrengthPolicies: Map<string, AuthenticationStrengthPolicy>;
 }
 
 // ─── Graph Client Factory ────────────────────────────────────────────────────
@@ -232,6 +244,16 @@ export async function fetchServicePrincipals(
   return fetchAllPages<ServicePrincipal>(
     client,
     "/servicePrincipals?$select=id,appId,displayName,servicePrincipalType,appOwnerOrganizationId,tags&$top=999"
+  );
+}
+
+export async function fetchAuthenticationStrengthPolicies(
+  client: Client
+): Promise<AuthenticationStrengthPolicy[]> {
+  return fetchAllPages<AuthenticationStrengthPolicy>(
+    client,
+    "/policies/authenticationStrengthPolicies?$select=id,displayName,description,policyType,allowedCombinations,requirementsSatisfied",
+    "beta"
   );
 }
 
@@ -461,6 +483,15 @@ export async function loadTenantContext(
     spList.map((sp) => [sp.appId.toLowerCase(), sp])
   );
 
+  onProgress?.("Loading authentication strength policies…");
+  let authStrengthPolicies = new Map<string, AuthenticationStrengthPolicy>();
+  try {
+    const aspList = await fetchAuthenticationStrengthPolicies(client);
+    authStrengthPolicies = new Map(aspList.map((asp) => [asp.id, asp]));
+  } catch {
+    // Permission may not be granted — degrade gracefully
+  }
+
   onProgress?.("Resolving directory objects…");
   const directoryObjects = await resolveDirectoryObjects(client, policies);
 
@@ -489,5 +520,5 @@ export async function loadTenantContext(
     if (domain) tenantDisplayName = domain;
   }
 
-  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses };
+  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies };
 }
