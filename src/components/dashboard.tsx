@@ -153,8 +153,9 @@ export function Dashboard({
             <LicenseBadge label="Entra ID P1" detected={licenses.hasEntraIdP1} />
             <LicenseBadge label="Entra ID P2" detected={licenses.hasEntraIdP2} />
             <LicenseBadge label="Intune Plan 1" detected={licenses.hasIntunePlan1} />
+            <LicenseBadge label="Workload ID Premium" detected={licenses.hasWorkloadIdPremium} />
           </div>
-          {(!licenses.hasEntraIdP2 || !licenses.hasIntunePlan1) && (
+          {(!licenses.hasEntraIdP2 || !licenses.hasIntunePlan1 || !licenses.hasWorkloadIdPremium) && (
             <p className="mt-2 text-xs text-gray-600">
               Controls requiring undetected licenses are excluded from scoring and marked &ldquo;N/A&rdquo;.
             </p>

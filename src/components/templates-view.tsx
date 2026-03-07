@@ -361,6 +361,7 @@ export function TemplatesView({ result }: TemplatesViewProps) {
     "app-specific",
     "intune",
     "p2",
+    "workload",
     "ztca",
     "agent",
   ];
