@@ -49,7 +49,7 @@ All detected issues ranked Critical → Info. Expand any finding to see the full
 
 ### Templates — Gap Analysis
 
-37 best-practice templates compared against your tenant. Each template shows whether you have a matching policy, a partial match, or a gap.
+39 best-practice templates (including Workload Identity) compared against your tenant. Each template shows whether you have a matching policy, a partial match, or a gap.
 
 <!-- Replace with actual screenshot: open the app → Templates tab -->
 ![Templates](docs/screenshots/templates.png)
@@ -150,11 +150,13 @@ Overall Score:         79 / 100  → Grade: C
 ```
 
 ---
-7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 37 best-practice templates matched against your existing policies
+7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 39 best-practice templates matched against your existing policies
 8. **Measures CIS v6.0 alignment** — 18 controls from CIS Microsoft 365 Foundations Benchmark v6.0.0 with pass/fail scoring
 9. **Flags MS Learn documented exclusions** — 16 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, Directory Sync accounts, External Authentication Methods, etc.)
 10. **Exports full analysis as JSON** — download your results for offline review or integration with other tools
-11. **License-aware scoring** — detects your tenant's Entra ID P1, P2, and Intune Plan 1 licenses via the `/subscribedSkus` endpoint and adjusts scoring accordingly. Templates and CIS controls that require licenses you don't have are marked N/A and excluded from gap/pass-fail calculations, so your score reflects only what is achievable with your current licensing.
+11. **License-aware scoring** — detects your tenant's Entra ID P1, P2, Intune Plan 1, and Workload Identities Premium licenses via the `/subscribedSkus` endpoint and adjusts scoring accordingly. Templates and CIS controls that require licenses you don't have are marked N/A and excluded from gap/pass-fail calculations, so your score reflects only what is achievable with your current licensing.
+12. **Workload Identity policy templates** — recommends CA policies for service principals (Entra Connect sync, risky workload identities) that require Workload Identities Premium
+13. **Entra ID sync attack database** — 8 attack vectors sourced from [Cloud-Architekt/AzureAD-Attack-Defense](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense) covering credential extraction, certificate backdoors, token replay, and soft/hard match takeover with MITRE ATT&CK TTP mappings
 
 ## Interface
 
@@ -165,7 +167,7 @@ The app has six tabs accessible after running an analysis:
 | **Dashboard** | Security posture score (0–100), severity breakdown, risk category distribution, and at-a-glance stats |
 | **Policies** | Every CA policy visualized as a flow card: Users → Conditions → Apps → Grant/Session Controls |
 | **Findings** | All detected issues ranked by severity (Critical → Info) with affected policies and remediation guidance |
-| **Templates** | 37 best-practice policy templates compared against your tenant — shows matched, partial, and missing policies |
+| **Templates** | 39 best-practice policy templates compared against your tenant — shows matched, partial, and missing policies including Workload Identity policies |
 | **CIS** | CIS Microsoft 365 Foundations Benchmark v6.0.0 alignment — 18 controls across sections 5.3 (Conditional Access) and 5.4 (Identity Protection & Device Controls) |
 | **MS Learn** | Documented exclusion checks sourced from Microsoft Learn — flags policies missing required exclusions for token protection, Surface Hub, Teams Rooms, break-glass, CAE, and more |
 
@@ -392,7 +394,36 @@ The app requests these Microsoft Graph **delegated** permissions when you sign i
 | `Application.Read.All` | Resolve service principal names referenced in policies |
 | `Directory.Read.All` | Resolve groups, roles, and users referenced in policies |
 
-Your tenant admin must grant consent for these permissions. The app uses a multi-tenant app registration — no per-tenant setup needed.
+All three permissions require **admin consent** — regular users cannot self-consent.
+
+#### Admin Consent
+
+Before non-admin users can sign in, an admin must grant tenant-wide consent to the app. The minimum Entra ID role required to consent depends on the permission type:
+
+| Role | Can Consent? | Notes |
+|---|---|---|
+| **Cloud Application Administrator** | ✅ Yes | Least-privileged role that can consent to delegated permissions for any app. **Recommended.** |
+| **Application Administrator** | ✅ Yes | Can also consent to delegated permissions; slightly broader than Cloud App Admin |
+| **Global Administrator** | ✅ Yes | Can always consent, but overprivileged for this task |
+| **Privileged Role Administrator** | ❌ No | Cannot consent to app permissions |
+| **Security Administrator** | ❌ No | Cannot consent to app permissions |
+
+> **How to consent:** A Cloud Application Administrator (or above) should navigate to the app URL, sign in, and approve the permissions on the consent screen. This grants tenant-wide consent so all other users can use the app without seeing the "Need admin approval" prompt.
+>
+> Alternatively, an admin can pre-consent via **Entra Admin Center → Enterprise Applications → ca-policy-analyzer → Permissions → Grant admin consent**.
+
+#### Minimum Role to Run the Tool
+
+Once admin consent has been granted, the minimum Entra ID role a user needs to sign in and run the analysis is:
+
+| Role | Works? | Notes |
+|---|---|---|
+| **Security Reader** | ✅ Yes | **Least-privileged.** Read-only access to CA policies, directory objects, and apps. **Recommended.** |
+| **Global Reader** | ✅ Yes | Works but broader than necessary |
+| **Conditional Access Administrator** | ✅ Yes | Overprivileged — has write access the tool doesn't need |
+| **Regular user (no role)** | ⚠️ Partial | Can read basic directory objects but may not read all CA policy details |
+
+The app uses a multi-tenant app registration — no per-tenant setup needed.
 
 ## For Developers
 
@@ -432,8 +463,8 @@ src/
 ├── components/     # Auth provider, header, dashboard, policy list, findings,
 │                   #   templates view, CIS view, exclusions view, UI primitives
 ├── data/           # FOCI database (45 apps), CA bypass database (13 apps),
-│                   #   CIS v6.0 benchmarks (18 controls), policy templates (37),
-│                   #   MS Learn documented exclusions (16 checks)
+│                   #   Entra sync attack vectors (8), CIS v6.0 benchmarks (18 controls),
+│                   #   policy templates (39), MS Learn documented exclusions (16 checks)
 └── lib/            # MSAL config, Graph client, analyzer engine (13 checks),
                     #   template matcher
 ```
@@ -451,6 +482,7 @@ src/
 - **Fabian Bader** — Conditional Access bypasses (TROOPERS25)
 - **Dirk-jan Mollema & Fabian Bader** — EntraScopes.com
 - **Secureworks** — Family of Client IDs Research
+- **Cloud-Architekt (Thomas Naunheim)** — [AzureAD-Attack-Defense](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense) playbook — Entra Connect sync attack vectors and mitigations
 - **Center for Internet Security (CIS)** — Microsoft 365 Foundations Benchmark v6.0.0
 - **Microsoft Learn** — Conditional Access documented exclusions, token protection, Teams Rooms & Surface Hub compatibility
 
