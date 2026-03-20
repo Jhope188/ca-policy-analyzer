@@ -850,6 +850,64 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     });
   }
 
+  // Microsoft-managed CA policies awareness
+  // Detect if tenant has policies matching known Microsoft-managed policy patterns
+  const MANAGED_POLICY_PATTERNS = [
+    { keyword: "block legacy authentication", category: "Legacy Auth Blocking" },
+    { keyword: "block device code flow", category: "Device Code Flow" },
+    { keyword: "multifactor authentication for admins", category: "Admin MFA" },
+    { keyword: "multifactor authentication for all users", category: "MFA for All" },
+    { keyword: "multifactor authentication for per-user", category: "Per-User MFA Migration" },
+    { keyword: "reauthentication for risky sign-ins", category: "Risky Sign-In MFA" },
+    { keyword: "block access for high-risk users", category: "High-Risk User Blocking" },
+    { keyword: "block all high risk agents", category: "Agent Risk Blocking" },
+  ];
+
+  const managedPolicies = context.policies.filter((p) => {
+    const name = p.displayName.toLowerCase();
+    return MANAGED_POLICY_PATTERNS.some((pattern) =>
+      name.includes(pattern.keyword)
+    );
+  });
+
+  if (managedPolicies.length > 0) {
+    const managedNames = managedPolicies.map((p) => p.displayName);
+    const reportOnly = managedPolicies.filter(
+      (p) => p.state === "enabledForReportingButNotEnforced"
+    );
+    const disabled = managedPolicies.filter((p) => p.state === "disabled");
+
+    let detail =
+      `Detected ${managedPolicies.length} Microsoft-managed Conditional Access policy(ies): ` +
+      `${managedNames.join(", ")}. `;
+
+    if (reportOnly.length > 0) {
+      detail += `${reportOnly.length} are in report-only mode. `;
+    }
+    if (disabled.length > 0) {
+      detail += `${disabled.length} are disabled. `;
+    }
+
+    detail +=
+      "Microsoft-managed policies auto-adapt to tenant changes and cannot be renamed or deleted. " +
+      "They may overlap with your custom policies — review for redundancy or conflicts.";
+
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "info",
+      category: "Microsoft-Managed Policies",
+      title: `${managedPolicies.length} Microsoft-managed CA policy(ies) detected`,
+      description: detail,
+      recommendation:
+        "Review Microsoft-managed policies alongside your custom policies for overlap. " +
+        "Consider enabling managed policies that are in report-only mode for defense-in-depth. " +
+        "You can exclude users from managed policies but cannot rename or delete them. " +
+        "See: https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+    });
+  }
+
   return findings;
 }
 

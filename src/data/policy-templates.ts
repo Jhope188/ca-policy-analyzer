@@ -1929,7 +1929,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "optional",
     summary: "Block high-risk AI agents and service principals",
     rationale:
-      "As organizations adopt AI agents, controlling their access is critical. Block agents flagged as high-risk by Identity Protection.",
+      "As organizations adopt AI agents, controlling their access is critical. Block agents flagged as high-risk by Identity Protection. " +
+      "Microsoft now supports Conditional Access for Agent Identities (Preview) with agent risk conditions and scoping by agent blueprints or custom security attributes. " +
+      "See: https://learn.microsoft.com/entra/identity/conditional-access/agent-id",
     licenseRequirement: "entraIdP2",
     fingerprint: {
       includeApps: ["All"],
@@ -1970,7 +1972,10 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "recommended",
     summary: "Block agent identities that are not explicitly approved via security attributes",
     rationale:
-      "Enforces an allowlist model for agent identities. Only agents with the SecurityAttribute AgentApproved=true are permitted to authenticate. Blocks rogue, misconfigured, or unapproved agents from accessing resources.",
+      "Enforces an allowlist model for agent identities. Only agents with the SecurityAttribute AgentApproved=true are permitted to authenticate. " +
+      "Blocks rogue, misconfigured, or unapproved agents from accessing resources. " +
+      "Leverage the enhanced object picker in Conditional Access to scope by agent blueprints and individual agent identities. " +
+      "See: https://learn.microsoft.com/entra/identity/conditional-access/policy-agent-block-high-risk",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],

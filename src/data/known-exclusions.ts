@@ -963,6 +963,64 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "Option 3: Scope the EAM requirement to a security group containing only internal users " +
       "enrolled in the third-party MFA provider.",
   },
+
+  // ─── Approved Client App Grant Retirement ─────────────────────────────────
+
+  {
+    id: "approved-client-app-retirement",
+    title:
+      "Approved Client App grant retiring — migrate to App Protection Policy",
+    appliesWhen:
+      "Policy uses the 'Require approved client app' grant control without the 'Require app protection policy' control",
+    requirement:
+      "Microsoft is retiring the 'Require approved client app' grant control in early March 2026. " +
+      "Policies must transition to 'Require application protection policy' or use both controls with an OR operator.",
+    detect: (policy) => {
+      const grants = policy.grantControls?.builtInControls ?? [];
+      const hasApprovedApp = grants.includes("approvedApplication");
+      const hasAppProtection = grants.includes("compliantApplication");
+
+      if (!hasApprovedApp) return null;
+
+      // Only flag if using approved app without app protection policy
+      if (hasAppProtection && policy.grantControls?.operator === "OR") {
+        return null; // Already using both with OR — compliant migration path
+      }
+
+      if (hasAppProtection && policy.grantControls?.operator === "AND") {
+        return {
+          detail:
+            `Policy "${policy.displayName}" uses both 'Require approved client app' AND 'Require app protection policy' ` +
+            `with the AND operator. After the retirement, change the operator to OR so that app protection policy alone ` +
+            `is sufficient, as approved client app will stop being enforced.`,
+          impactedResources: [
+            "Mobile device users on iOS and Android",
+            "Users accessing M365 apps from mobile devices",
+          ],
+        };
+      }
+
+      return {
+        detail:
+          `Policy "${policy.displayName}" uses only the 'Require approved client app' grant control, ` +
+          `which is being retired in early March 2026. After retirement, this policy will no longer enforce ` +
+          `app-level controls on mobile devices, leaving them unprotected. Migrate to 'Require application ` +
+          `protection policy' before the deadline.`,
+        impactedResources: [
+          "Mobile device users on iOS and Android",
+          "Users accessing M365 apps from mobile devices",
+          "Unmanaged BYOD devices",
+        ],
+      };
+    },
+    severity: "critical",
+    docUrl:
+      "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app",
+    remediation:
+      "Replace 'Require approved client app' with 'Require application protection policy' in the grant controls. " +
+      "If you need a transition period, use both controls with the OR operator so either grant satisfies the requirement. " +
+      "For new policies, only use 'Require application protection policy'.",
+  },
 ];
 
 // ─── Run all exclusion checks against a single policy ────────────────────────

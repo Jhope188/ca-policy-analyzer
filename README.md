@@ -64,7 +64,7 @@ All detected issues ranked Critical → Info. Expand any finding to see the full
 
 ### MS Learn — Documented Exclusion Checks
 
-16 checks sourced from Microsoft Learn flag policies that are missing required exclusions. Findings are grouped by check type — similar policies are consolidated under a single card showing all affected policies.
+17 checks sourced from Microsoft Learn flag policies that are missing required exclusions or using deprecated grant controls. Findings are grouped by check type — similar policies are consolidated under a single card showing all affected policies.
 
 <!-- Replace with actual screenshot: open the app → MS Learn tab -->
 ![MS Learn Exclusions](docs/screenshots/mslearn.png)
@@ -81,6 +81,8 @@ CA Policy Analyzer connects to your Entra ID tenant via Microsoft Graph and:
 4. **Flags known CA bypasses** including CA-immune resources, Device Registration Service bypass, resource exclusion scope leaks, and more
 5. **Generates a Security Posture Score** (0-100) with severity-ranked findings and actionable recommendations
 6. **Visualizes each policy** showing the flow: Users → Conditions → Apps → Grant Controls
+7. **Detects Microsoft-managed CA policies** — identifies Microsoft-managed policies in your tenant (legacy auth block, device code flow block, admin MFA, etc.) and flags potential overlap with custom policies
+8. **Surfaces active advisories** — CIS controls display relevant M365 Message Center and MS Learn advisories including the approved client app retirement (March 2026), legacy ID Protection risk policy retirement (October 2026), SPO OTP → Entra B2B migration, and Baseline Security Mode policy drafts
 
 ## Security Posture Scoring
 
@@ -150,9 +152,9 @@ Overall Score:         79 / 100  → Grade: C
 ```
 
 ---
-7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 39 best-practice templates matched against your existing policies
-8. **Measures CIS v6.0 alignment** — 18 controls from CIS Microsoft 365 Foundations Benchmark v6.0.0 with pass/fail scoring
-9. **Flags MS Learn documented exclusions** — 16 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, Directory Sync accounts, External Authentication Methods, etc.)
+7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 40 best-practice templates matched against your existing policies
+8. **Measures CIS v6.0 alignment** — 18 controls from CIS Microsoft 365 Foundations Benchmark v6.0.0 with pass/fail scoring and active advisories from M365 Message Center
+9. **Flags MS Learn documented exclusions** — 17 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, Directory Sync accounts, External Authentication Methods, approved client app retirement, etc.)
 10. **Exports full analysis as JSON** — download your results for offline review or integration with other tools
 11. **License-aware scoring** — detects your tenant's Entra ID P1, P2, Intune Plan 1, and Workload Identities Premium licenses via the `/subscribedSkus` endpoint and adjusts scoring accordingly. Templates and CIS controls that require licenses you don't have are marked N/A and excluded from gap/pass-fail calculations, so your score reflects only what is achievable with your current licensing.
 12. **Workload Identity policy templates** — recommends CA policies for service principals (Entra Connect sync, risky workload identities) that require Workload Identities Premium

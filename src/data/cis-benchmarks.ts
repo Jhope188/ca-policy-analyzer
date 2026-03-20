@@ -294,6 +294,14 @@ export const CIS_CONTROLS: CISControl[] = [
         effectiveDate: "2026-03-27",
         url: "https://deltapulse.app/dashboard?message=MC1223829",
       },
+      {
+        id: "MC1246002",
+        title: "Baseline Security Mode auto-created disabled CA policy drafts",
+        summary: "Between Nov 2025 and Feb 2026, Microsoft Baseline Security Mode accidentally created two disabled draft CA policies in some tenants. These are not a security risk and Microsoft is removing unintended drafts automatically.",
+        severity: "info",
+        effectiveDate: "2026-02-28",
+        url: "https://deltapulse.app/dashboard?message=MC1246002",
+      },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter(
@@ -379,6 +387,16 @@ export const CIS_CONTROLS: CISControl[] = [
     msLearnLinks: [
       { label: "MS Learn: Block legacy authentication", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication" },
       { label: "MS Learn: Microsoft-managed CA policies", url: "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies" },
+    ],
+    advisories: [
+      {
+        id: "MC1243549",
+        title: "SharePoint OTP retirement — all external users move to Entra B2B",
+        summary: "SPO OTP authentication retires by Aug 31, 2026. After retirement all external users authenticate through Entra B2B and become fully subject to CA policies, Identity Protection, and guest governance. Ensure guest MFA policies are in place.",
+        severity: "warning",
+        effectiveDate: "2026-07-01",
+        url: "https://deltapulse.app/dashboard?message=MC1243549",
+      },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -546,6 +564,16 @@ export const CIS_CONTROLS: CISControl[] = [
       { label: "MS Learn: User risk-based CA policy", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
       { label: "MS Learn: Require password change for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
     ],
+    advisories: [
+      {
+        id: "ID-PROTECTION-RISK-RETIREMENT",
+        title: "Legacy ID Protection sign-in risk policies retiring October 2026",
+        summary: "The legacy sign-in risk policy configured in Microsoft Entra ID Protection (formerly Identity Protection) is retiring on October 1, 2026. Migrate to Conditional Access sign-in risk policies for unified management, report-only mode, Graph API support, and backup authentication system compatibility.",
+        severity: "warning",
+        effectiveDate: "2026-10-01",
+        url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies#migrate-risk-policies-to-conditional-access",
+      },
+    ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
         const riskLevels = p.conditions.signInRiskLevels ?? [];
@@ -605,6 +633,16 @@ export const CIS_CONTROLS: CISControl[] = [
       { label: "MS Learn: Require password change for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
       { label: "MS Learn: Require risk remediation (preview)", url: "https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies#require-risk-remediation-with-microsoft-managed-remediation-preview" },
       { label: "MS Learn: Configure risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+    ],
+    advisories: [
+      {
+        id: "ID-PROTECTION-RISK-RETIREMENT",
+        title: "Legacy ID Protection user risk policies retiring October 2026",
+        summary: "The legacy user risk policy configured in Microsoft Entra ID Protection is retiring on October 1, 2026. Migrate to Conditional Access user risk policies for unified management, report-only mode, Graph API support, granular access control, and backup authentication system compatibility.",
+        severity: "warning",
+        effectiveDate: "2026-10-01",
+        url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies#migrate-risk-policies-to-conditional-access",
+      },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -1331,6 +1369,17 @@ export const CIS_CONTROLS: CISControl[] = [
     msLearnLinks: [
       { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-compliance" },
       { label: "MS Learn: Intune app protection", url: "https://learn.microsoft.com/mem/intune/apps/app-protection-policy" },
+      { label: "MS Learn: Migrate approved client app to app protection", url: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app" },
+    ],
+    advisories: [
+      {
+        id: "APPROVED-CLIENT-APP-RETIREMENT",
+        title: "Approved client app grant control retiring March 2026",
+        summary: "The 'Require approved client app' grant control is retiring in early March 2026. Policies using only this control must transition to 'Require application protection policy' (or use both with OR). New policies should only use the application protection policy grant.",
+        severity: "critical",
+        effectiveDate: "2026-03-01",
+        url: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app",
+      },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
