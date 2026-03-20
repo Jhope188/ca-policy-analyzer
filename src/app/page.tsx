@@ -12,11 +12,13 @@ import { FindingsList } from "@/components/findings-list";
 import { TemplatesView } from "@/components/templates-view";
 import { CISView } from "@/components/cis-view";
 import { ExclusionsView } from "@/components/exclusions-view";
+import { LocationsView } from "@/components/locations-view";
+import { analyzeNamedLocations, LocationAnalysisResult } from "@/lib/location-analyzer";
 import { exportToExcel, exportToPowerPoint, loadDefaultLogo } from "@/lib/export-utils";
-import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation } from "lucide-react";
+import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "cis" | "ms-learn";
+type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "cis" | "locations" | "ms-learn";
 
 export default function Home() {
   const isAuthenticated = useIsAuthenticated();
@@ -29,6 +31,7 @@ export default function Home() {
   const [templateResult, setTemplateResult] = useState<TemplateAnalysisResult | null>(null);
   const [cisResult, setCisResult] = useState<CISAlignmentResult | null>(null);
   const [compositeScore, setCompositeScore] = useState<CompositeScoreResult | null>(null);
+  const [locationResult, setLocationResult] = useState<LocationAnalysisResult | null>(null);
   const [activeTab, setActiveTab] = useState<ViewTab>("dashboard");
   const [error, setError] = useState<string | null>(null);
   const [hideMicrosoft, setHideMicrosoft] = useState(false);
@@ -54,6 +57,10 @@ export default function Home() {
       setProgress("Running CIS alignment checks…");
       const cis = runCISAlignment(ctx);
       setCisResult(cis);
+
+      setProgress("Analyzing named locations…");
+      const locResult = analyzeNamedLocations(ctx);
+      setLocationResult(locResult);
 
       setProgress("Computing security posture score…");
       const composite = calculateCompositeScore(analysisResult, cis, templates);
@@ -175,6 +182,7 @@ export default function Home() {
     { key: "findings" as const, label: "Findings", icon: AlertTriangle },
     { key: "templates" as const, label: "Templates", icon: Layers },
     { key: "cis" as const, label: "CIS", icon: CheckSquare },
+    { key: "locations" as const, label: "Locations", icon: MapPin },
     { key: "ms-learn" as const, label: "MS Learn", icon: BookOpen },
   ];
 
@@ -292,6 +300,9 @@ export default function Home() {
       )}
       {activeTab === "cis" && cisResult && (
         <CISView result={cisResult} />
+      )}
+      {activeTab === "locations" && locationResult && (
+        <LocationsView result={locationResult} />
       )}
       {activeTab === "ms-learn" && result && (
         <ExclusionsView findings={result.exclusionFindings} />

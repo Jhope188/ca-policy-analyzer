@@ -544,20 +544,104 @@ function checkLocationConditions(
   const locations = policy.conditions.locations;
   if (!locations || policy.state === "disabled") return findings;
 
-  // Check for untrusted named locations
-  for (const locId of locations.includeLocations) {
+  const allInclude = locations.includeLocations;
+  const allExclude = locations.excludeLocations;
+  const usesAllTrusted = allInclude.includes("AllTrusted") || allExclude.includes("AllTrusted");
+
+  // 1) Check for untrusted named locations directly referenced
+  for (const locId of [...allInclude, ...allExclude]) {
+    if (locId === "AllTrusted" || locId === "All") continue;
     const loc = context.namedLocations.find((l) => l.id === locId);
     if (loc && loc.isTrusted === false) {
       findings.push({
         id: nextFindingId(),
         policyId: policy.id,
         policyName: policy.displayName,
-        severity: "low",
+        severity: "medium",
         category: "Location Configuration",
         title: `Named location "${loc.displayName}" is not marked as trusted`,
         description:
-          `The named location "${loc.displayName}" used in this policy is not marked as trusted.`,
-        recommendation: "Review whether this location should be marked as trusted.",
+          `The named location "${loc.displayName}" used in this policy is not marked as trusted. ` +
+          `If this policy also references "All trusted locations", this location will NOT be included ` +
+          `in the trusted set and users from this location may be unexpectedly blocked or challenged.`,
+        recommendation:
+          `Mark "${loc.displayName}" as trusted in Entra ID if it represents a known-good network, ` +
+          `or ensure the policy logic handles untrusted locations as intended.`,
+      });
+    }
+  }
+
+  // 2) Policy uses "AllTrustedLocations" but some named locations are not trusted
+  if (usesAllTrusted) {
+    const untrusted = context.namedLocations.filter((l) => !l.isTrusted);
+    if (untrusted.length > 0) {
+      const names = untrusted.map((l) => l.displayName).join(", ");
+      findings.push({
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity: "high",
+        category: "Location Configuration",
+        title: `Policy uses "All trusted locations" but ${untrusted.length} location(s) are NOT trusted`,
+        description:
+          `This policy conditions on "All trusted locations" but the following named location(s) ` +
+          `are not marked as trusted and will be EXCLUDED from the trusted set: ${names}. ` +
+          `Users signing in from these locations will not be recognized as coming from a trusted ` +
+          `location, which may cause accidental lockouts or unexpected MFA prompts.`,
+        recommendation:
+          "Review each untrusted named location in Entra ID → Protection → Conditional Access → Named locations. " +
+          "Mark locations as trusted if they represent corporate offices, VPNs, or other known-good networks. " +
+          "If a location should not be trusted, ensure this policy's behavior is correct for non-trusted traffic.",
+      });
+    }
+  }
+
+  // 3) Orphaned location reference — policy references a location ID that doesn't exist
+  for (const locId of [...allInclude, ...allExclude]) {
+    if (locId === "AllTrusted" || locId === "All") continue;
+    const exists = context.namedLocations.some((l) => l.id === locId);
+    if (!exists) {
+      findings.push({
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity: "medium",
+        category: "Location Configuration",
+        title: `Policy references a deleted or missing named location`,
+        description:
+          `This policy references named location ID "${locId}" which does not exist. ` +
+          `The location may have been deleted. This stale reference will never match any traffic, ` +
+          `which could silently change the policy's effective behavior — potentially blocking or ` +
+          `allowing access unintentionally.`,
+        recommendation:
+          "Remove the stale location reference from this policy and replace it with a valid named location if needed.",
+      });
+    }
+  }
+
+  // 4) Country-based location with no countries — will never match
+  for (const locId of [...allInclude, ...allExclude]) {
+    if (locId === "AllTrusted" || locId === "All") continue;
+    const loc = context.namedLocations.find((l) => l.id === locId);
+    if (
+      loc &&
+      loc["@odata.type"] === "#microsoft.graph.countryNamedLocation" &&
+      (!loc.countriesAndRegions || loc.countriesAndRegions.length === 0)
+    ) {
+      findings.push({
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity: "high",
+        category: "Location Configuration",
+        title: `Country location "${loc.displayName}" has no countries defined`,
+        description:
+          `This policy references the country-based named location "${loc.displayName}" which has ` +
+          `zero countries configured. The location condition will never match any traffic, which ` +
+          `could create a security gap (if used as an include condition) or make the exclude ` +
+          `condition meaningless.`,
+        recommendation:
+          "Add the intended countries to this named location, or remove it from this policy.",
       });
     }
   }
@@ -953,7 +1037,22 @@ function buildVisualization(
   // Conditions
   const conditions: string[] = [];
   if (locations && locations.includeLocations.length > 0) {
-    conditions.push(`Locations: ${locations.includeLocations.length} included`);
+    const locNames = locations.includeLocations.map((id) => {
+      if (id === "AllTrusted") return "All trusted locations";
+      if (id === "All") return "All locations";
+      const loc = context.namedLocations.find((l) => l.id === id);
+      return loc ? loc.displayName : id;
+    });
+    conditions.push(`Locations: ${locNames.join(", ")}`);
+    if (locations.excludeLocations.length > 0) {
+      const exclNames = locations.excludeLocations.map((id) => {
+        if (id === "AllTrusted") return "All trusted locations";
+        if (id === "All") return "All locations";
+        const loc = context.namedLocations.find((l) => l.id === id);
+        return loc ? loc.displayName : id;
+      });
+      conditions.push(`Exclude locations: ${exclNames.join(", ")}`);
+    }
   }
   if (platforms && platforms.includePlatforms.length > 0) {
     let platText = `Platforms: ${platforms.includePlatforms.join(", ")}`;
