@@ -143,7 +143,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkLocationConditions(policy, context),
       ...checkLegacyAuth(policy),
       ...checkCABypassApps(policy, context),
-      ...checkUserAgentBypass(policy)
+      ...checkUserAgentBypass(policy),
+      ...checkMicrosoftManagedPolicy(policy)
     );
 
     findings.push(...policyFindings);
@@ -779,6 +780,50 @@ function checkUserAgentBypass(
   return findings;
 }
 
+// ─── Microsoft-Managed Policy Check (per-policy) ─────────────────────────────
+
+const MANAGED_POLICY_KEYWORDS = [
+  "block legacy authentication",
+  "block device code flow",
+  "multifactor authentication for admins",
+  "multifactor authentication for all users",
+  "multifactor authentication for per-user",
+  "reauthentication for risky sign-ins",
+  "block access for high-risk users",
+  "block all high risk agents",
+];
+
+function checkMicrosoftManagedPolicy(
+  policy: ConditionalAccessPolicy
+): Finding[] {
+  const findings: Finding[] = [];
+  const name = policy.displayName.toLowerCase();
+
+  const isManaged = MANAGED_POLICY_KEYWORDS.some((kw) => name.includes(kw));
+  if (!isManaged || policy.state !== "disabled") return findings;
+
+  findings.push({
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity: "info",
+    category: "Microsoft-Managed Policies",
+    title: "MC1246002: Disabled managed policy — possible Baseline Security Mode phantom draft",
+    description:
+      "Between Nov 2025 and Feb 2026, Baseline Security Mode accidentally created " +
+      "disabled draft CA policies in some tenants (MC1246002). These phantom policies are not a " +
+      "security risk — Microsoft is removing unintended drafts automatically. If you did not " +
+      "intentionally disable this managed policy, this is likely the cause.",
+    recommendation:
+      "No action required if this was created by Baseline Security Mode. Microsoft will clean up " +
+      "phantom drafts. If you intentionally disabled this managed policy, consider enabling it in " +
+      "report-only mode to evaluate its impact. " +
+      "See: https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+  });
+
+  return findings;
+}
+
 // ─── Tenant-Wide Gap Analysis ────────────────────────────────────────────────
 
 function checkTenantWideGaps(context: TenantContext): Finding[] {
@@ -975,21 +1020,6 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     detail +=
       "Microsoft-managed policies auto-adapt to tenant changes and cannot be renamed or deleted. " +
       "They may overlap with your custom policies — review for redundancy or conflicts. ";
-
-    // MC1246002: Baseline Security Mode phantom policy drafts
-    const hasBaselineSecurityDrafts = context.policies.some((p) =>
-      p.state === "disabled" &&
-      p.displayName.toLowerCase().includes("baseline security") ||
-      (p.displayName.toLowerCase().includes("multifactor authentication") && p.state === "disabled" &&
-       managedPolicies.some((mp) => mp.id === p.id))
-    );
-    if (hasBaselineSecurityDrafts) {
-      detail +=
-        "⚠️ MC1246002: Between Nov 2025 and Feb 2026, Baseline Security Mode accidentally created " +
-        "disabled draft CA policies in some tenants. These are not a security risk — Microsoft is " +
-        "removing unintended drafts automatically. If you see unexpected disabled managed policies, " +
-        "this is likely the cause.";
-    }
 
     findings.push({
       id: nextFindingId(),
