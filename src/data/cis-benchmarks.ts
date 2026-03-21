@@ -294,14 +294,6 @@ export const CIS_CONTROLS: CISControl[] = [
         effectiveDate: "2026-03-27",
         url: "https://deltapulse.app/dashboard?message=MC1223829",
       },
-      {
-        id: "MC1246002",
-        title: "Baseline Security Mode auto-created disabled CA policy drafts",
-        summary: "Between Nov 2025 and Feb 2026, Microsoft Baseline Security Mode accidentally created two disabled draft CA policies in some tenants. These are not a security risk and Microsoft is removing unintended drafts automatically.",
-        severity: "info",
-        effectiveDate: "2026-02-28",
-        url: "https://deltapulse.app/dashboard?message=MC1246002",
-      },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter(

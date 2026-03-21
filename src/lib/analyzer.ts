@@ -974,7 +974,22 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
 
     detail +=
       "Microsoft-managed policies auto-adapt to tenant changes and cannot be renamed or deleted. " +
-      "They may overlap with your custom policies — review for redundancy or conflicts.";
+      "They may overlap with your custom policies — review for redundancy or conflicts. ";
+
+    // MC1246002: Baseline Security Mode phantom policy drafts
+    const hasBaselineSecurityDrafts = context.policies.some((p) =>
+      p.state === "disabled" &&
+      p.displayName.toLowerCase().includes("baseline security") ||
+      (p.displayName.toLowerCase().includes("multifactor authentication") && p.state === "disabled" &&
+       managedPolicies.some((mp) => mp.id === p.id))
+    );
+    if (hasBaselineSecurityDrafts) {
+      detail +=
+        "⚠️ MC1246002: Between Nov 2025 and Feb 2026, Baseline Security Mode accidentally created " +
+        "disabled draft CA policies in some tenants. These are not a security risk — Microsoft is " +
+        "removing unintended drafts automatically. If you see unexpected disabled managed policies, " +
+        "this is likely the cause.";
+    }
 
     findings.push({
       id: nextFindingId(),
