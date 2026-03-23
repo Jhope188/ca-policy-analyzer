@@ -109,19 +109,29 @@ function scorePolicyMatch(
     totalWeight += 25;
     const policyControls = new Set((grant?.builtInControls ?? []).map((c) => c.toLowerCase()));
     const templateControls = new Set(fingerprint.grantControls.map((c) => c.toLowerCase()));
-    const overlap = [...templateControls].filter((c) => policyControls.has(c));
 
-    if (overlap.length === templateControls.size) {
+    // Authentication strengths satisfy (and exceed) an "mfa" grant control requirement
+    const hasAuthStrength = grant?.authenticationStrength != null;
+    const templateRequiresMfa = templateControls.has("mfa");
+
+    if (hasAuthStrength && templateRequiresMfa) {
+      // Auth strengths are a superset of MFA — full credit
       matchedWeight += 25;
-    } else if (overlap.length > 0) {
-      matchedWeight += 12;
-      differences.push(
-        `Grant controls: template requires [${fingerprint.grantControls.join(", ")}], policy has [${[...policyControls].join(", ")}]`
-      );
     } else {
-      differences.push(
-        `Grant controls: template requires [${fingerprint.grantControls.join(", ")}], policy has [${[...policyControls].join(", ")}]`
-      );
+      const overlap = [...templateControls].filter((c) => policyControls.has(c));
+
+      if (overlap.length === templateControls.size) {
+        matchedWeight += 25;
+      } else if (overlap.length > 0) {
+        matchedWeight += 12;
+        differences.push(
+          `Grant controls: template requires [${fingerprint.grantControls.join(", ")}], policy has [${[...policyControls].join(", ")}]`
+        );
+      } else {
+        differences.push(
+          `Grant controls: template requires [${fingerprint.grantControls.join(", ")}], policy has [${[...policyControls].join(", ")}]`
+        );
+      }
     }
   }
 
@@ -359,12 +369,17 @@ export function analyzeTemplates(
       return { policy, similarity: score, differences };
     });
 
-    // Sort by similarity descending
-    scored.sort((a, b) => b.similarity - a.similarity);
+    // Sort by similarity descending, then prefer active (enabled/report-only) over disabled
+    scored.sort((a, b) => {
+      if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+      const aActive = a.policy.state !== "disabled" ? 1 : 0;
+      const bActive = b.policy.state !== "disabled" ? 1 : 0;
+      return bActive - aActive;
+    });
 
     const topMatches = scored
       .filter((s) => s.similarity >= 40)
-      .slice(0, 3);
+      .slice(0, 5);
 
     // Separate active vs disabled/report-only best matches
     const bestActiveMatch = scored.find((s) =>
