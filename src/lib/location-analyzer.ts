@@ -185,7 +185,12 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
 
     // 3) Location is directly referenced in a policy that EXCLUDES trusted locations
     //    (i.e., policy says "block except trusted") but this location isn't trusted
-    if (!loc.isTrusted && analysis.directReferences.length > 0) {
+    //    Country locations don't have a trusted toggle, so skip them here.
+    if (
+      !loc.isTrusted &&
+      analysis.directReferences.length > 0 &&
+      loc["@odata.type"] !== "#microsoft.graph.countryNamedLocation"
+    ) {
       // Find policies that both reference this location AND use AllTrustedLocations
       const policyIdsReferencingThis = new Set(
         analysis.directReferences.map((r) => r.policyId)
@@ -210,7 +215,13 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
     }
 
     // 4) Named location is not trusted — general awareness
-    if (!loc.isTrusted && allRefs.length > 0) {
+    //    Country locations do NOT have a trusted toggle (only IP-range locations do),
+    //    so we skip this warning for country-based locations.
+    if (
+      !loc.isTrusted &&
+      allRefs.length > 0 &&
+      loc["@odata.type"] !== "#microsoft.graph.countryNamedLocation"
+    ) {
       const enabledRefs = allRefs.filter((r) => r.policyState === "enabled");
       if (enabledRefs.length > 0) {
         analysis.warnings.push({
@@ -219,10 +230,46 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
           detail:
             `"${loc.displayName}" is referenced by ${enabledRefs.length} enabled policy(ies) but is not marked ` +
             `as trusted. If any of these policies condition on "All trusted locations", ` +
-            `this location's IP ranges or countries will not be included in the trusted set.`,
+            `this location's IP ranges will not be included in the trusted set.`,
           recommendation:
             `Review whether "${loc.displayName}" should be marked as trusted. If it represents ` +
             `corporate offices, VPN exit points, or other known-good networks, mark it as trusted.`,
+        });
+      }
+    }
+
+    // 4b) Country location: check lookup method and unknown countries setting
+    if (loc["@odata.type"] === "#microsoft.graph.countryNamedLocation") {
+      // GPS lookup method warning
+      if (loc.countryLookupMethod === "clientIpAddress") {
+        // IP-based lookup is the default and most common — no warning needed
+      } else if (loc.countryLookupMethod === "authenticatorAppGps") {
+        analysis.warnings.push({
+          level: "info",
+          title: "Country lookup uses GPS coordinates (Authenticator app)",
+          detail:
+            `"${loc.displayName}" determines country by GPS coordinates from the Microsoft Authenticator app ` +
+            `rather than IP address geolocation. GPS-based lookup requires users to have the Authenticator app ` +
+            `installed with location sharing enabled. Users without the app or with GPS disabled will not ` +
+            `match this location.`,
+          recommendation:
+            "Ensure all users in scope have the Microsoft Authenticator app installed with GPS location " +
+            "sharing enabled. Consider whether IP-based lookup would provide broader coverage.",
+        });
+      }
+
+      // Include unknown countries/regions
+      if (loc.includeUnknownCountriesAndRegions) {
+        analysis.warnings.push({
+          level: "medium",
+          title: "Include unknown countries/regions is enabled",
+          detail:
+            `"${loc.displayName}" includes unknown countries and regions. Traffic from IP addresses that ` +
+            `cannot be mapped to a country (e.g., VPNs, Tor exit nodes, or new IP allocations) will match ` +
+            `this location. This broadens the scope and may include traffic from unexpected sources.`,
+          recommendation:
+            "Unless you specifically need to capture unresolvable traffic, consider disabling " +
+            "\"Include unknown countries/regions\" to tighten the location scope.",
         });
       }
     }

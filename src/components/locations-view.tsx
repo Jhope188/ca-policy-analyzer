@@ -233,16 +233,20 @@ function LocationCard({ analysis }: { analysis: LocationAnalysis }) {
             <span className="text-[10px] font-medium rounded px-1.5 py-0.5 bg-gray-800 text-gray-400">
               {locType}
             </span>
-            {loc.isTrusted ? (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-green-500/10 text-green-400">
-                <ShieldCheck className="h-3 w-3" />
-                Trusted
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-gray-800 text-gray-500">
-                <ShieldAlert className="h-3 w-3" />
-                Not trusted
-              </span>
+            {/* Trust badges: only show for IP-range and compliant-network locations.
+                Country locations don't have a trusted toggle in Entra ID. */}
+            {loc["@odata.type"] !== "#microsoft.graph.countryNamedLocation" && (
+              loc.isTrusted ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-green-500/10 text-green-400">
+                  <ShieldCheck className="h-3 w-3" />
+                  Trusted
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 bg-gray-800 text-gray-500">
+                  <ShieldAlert className="h-3 w-3" />
+                  Not trusted
+                </span>
+              )
             )}
           </div>
           <p className="mt-0.5 text-xs text-gray-500">{summary}</p>
@@ -300,14 +304,17 @@ function LocationCard({ analysis }: { analysis: LocationAnalysis }) {
                     </td>
                     <td className="px-3 py-1.5 text-gray-300">{locType}</td>
                   </tr>
-                  <tr className="border-b border-gray-800">
-                    <td className="px-3 py-1.5 text-gray-500 font-medium whitespace-nowrap w-36 bg-gray-900/50">
-                      Trusted
-                    </td>
-                    <td className="px-3 py-1.5 text-gray-300">
-                      {loc.isTrusted ? "Yes" : "No"}
-                    </td>
-                  </tr>
+                  {/* Trust row — only meaningful for IP-range locations */}
+                  {loc["@odata.type"] !== "#microsoft.graph.countryNamedLocation" && (
+                    <tr className="border-b border-gray-800">
+                      <td className="px-3 py-1.5 text-gray-500 font-medium whitespace-nowrap w-36 bg-gray-900/50">
+                        Trusted
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-300">
+                        {loc.isTrusted ? "Yes" : "No"}
+                      </td>
+                    </tr>
+                  )}
                   {loc["@odata.type"] ===
                     "#microsoft.graph.countryNamedLocation" && (
                     <>
@@ -324,19 +331,24 @@ function LocationCard({ analysis }: { analysis: LocationAnalysis }) {
                           Lookup method
                         </td>
                         <td className="px-3 py-1.5 text-gray-300">
-                          {loc.countryLookupMethod ?? "—"}
+                          {loc.countryLookupMethod === "authenticatorAppGps"
+                            ? "GPS coordinates (Authenticator app)"
+                            : loc.countryLookupMethod === "clientIpAddress"
+                            ? "IP address (IPv4 and IPv6)"
+                            : loc.countryLookupMethod ?? "—"}
                         </td>
                       </tr>
-                      {loc.includeUnknownCountriesAndRegions !== undefined && (
-                        <tr className="border-b border-gray-800">
-                          <td className="px-3 py-1.5 text-gray-500 font-medium whitespace-nowrap w-36 bg-gray-900/50">
-                            Include unknown
-                          </td>
-                          <td className="px-3 py-1.5 text-gray-300">
-                            {loc.includeUnknownCountriesAndRegions ? "Yes" : "No"}
-                          </td>
-                        </tr>
-                      )}
+                      <tr className="border-b border-gray-800">
+                        <td className="px-3 py-1.5 text-gray-500 font-medium whitespace-nowrap w-36 bg-gray-900/50">
+                          Include unknown
+                        </td>
+                        <td className={cn(
+                          "px-3 py-1.5",
+                          loc.includeUnknownCountriesAndRegions ? "text-yellow-400" : "text-gray-300"
+                        )}>
+                          {loc.includeUnknownCountriesAndRegions ? "Yes" : "No"}
+                        </td>
+                      </tr>
                     </>
                   )}
                   {loc["@odata.type"] ===
@@ -545,10 +557,15 @@ export function LocationsView({ result }: { result: LocationAnalysisResult }) {
     (sum, a) => sum + a.warnings.length,
     0
   );
-  const trustedCount = result.locations.filter(
+  // Only count trust for location types that support it (IP-range, compliant network — NOT country)
+  const trustableLocations = result.locations.filter(
+    (a) => a.location["@odata.type"] !== "#microsoft.graph.countryNamedLocation"
+  );
+  const trustedCount = trustableLocations.filter(
     (a) => a.location.isTrusted
   ).length;
-  const untrustedCount = result.locations.length - trustedCount;
+  const untrustedCount = trustableLocations.length - trustedCount;
+  const countryCount = result.locations.length - trustableLocations.length;
 
   return (
     <div className="space-y-4">
@@ -573,7 +590,8 @@ export function LocationsView({ result }: { result: LocationAnalysisResult }) {
               </span>
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              {trustedCount} trusted · {untrustedCount} untrusted ·{" "}
+              {trustedCount} trusted · {untrustedCount} untrusted
+              {countryCount > 0 && ` · ${countryCount} country`} ·{" "}
               {result.policiesUsingLocations} policies using locations ·{" "}
               {totalWarnings} warning{totalWarnings !== 1 ? "s" : ""}
             </p>
