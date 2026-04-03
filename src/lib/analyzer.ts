@@ -818,7 +818,6 @@ function checkPrivilegedRoleExclusions(
   policy: ConditionalAccessPolicy
 ): Finding[] {
   const findings: Finding[] = [];
-  if (policy.state === "disabled") return findings;
 
   const excludedRoles = policy.conditions.users.excludeRoles;
   if (excludedRoles.length === 0) return findings;
@@ -925,7 +924,6 @@ function checkGuestExternalUserExclusions(
   context: TenantContext
 ): Finding[] {
   const findings: Finding[] = [];
-  if (policy.state === "disabled") return findings;
 
   const users = policy.conditions.users;
   const targetsAllUsers = users.includeUsers.includes("All");
