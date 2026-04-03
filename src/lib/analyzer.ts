@@ -29,6 +29,7 @@ import {
   checkPolicyExclusions,
   ExclusionFinding,
 } from "@/data/known-exclusions";
+import { ADMIN_ROLE_IDS } from "@/data/policy-templates";
 
 // ─── Finding Types ───────────────────────────────────────────────────────────
 
@@ -144,7 +145,9 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkLegacyAuth(policy),
       ...checkCABypassApps(policy, context),
       ...checkUserAgentBypass(policy),
-      ...checkMicrosoftManagedPolicy(policy)
+      ...checkMicrosoftManagedPolicy(policy),
+      ...checkPrivilegedRoleExclusions(policy),
+      ...checkGuestExternalUserExclusions(policy, context)
     );
 
     findings.push(...policyFindings);
@@ -780,6 +783,294 @@ function checkUserAgentBypass(
   return findings;
 }
 
+// ─── Check: Privileged Role Exclusions ────────────────────────────────────────
+// Flags when highly privileged Entra ID roles (Global Admin, Privileged Role
+// Admin, etc.) are excluded from CA policies, creating a gap that attackers
+// can exploit after compromising a privileged account.
+
+/** Roles considered high-privilege — excluding these from CA is a critical gap */
+const HIGH_PRIVILEGE_ROLE_IDS: Record<string, string> = {
+  [ADMIN_ROLE_IDS.globalAdmin]: "Global Administrator",
+  [ADMIN_ROLE_IDS.privilegedRoleAdmin]: "Privileged Role Administrator",
+  [ADMIN_ROLE_IDS.privilegedAuthAdmin]: "Privileged Authentication Administrator",
+  [ADMIN_ROLE_IDS.securityAdmin]: "Security Administrator",
+  [ADMIN_ROLE_IDS.conditionalAccessAdmin]: "Conditional Access Administrator",
+  [ADMIN_ROLE_IDS.applicationAdmin]: "Application Administrator",
+  [ADMIN_ROLE_IDS.cloudAppAdmin]: "Cloud Application Administrator",
+  [ADMIN_ROLE_IDS.exchangeAdmin]: "Exchange Administrator",
+  [ADMIN_ROLE_IDS.sharePointAdmin]: "SharePoint Administrator",
+  [ADMIN_ROLE_IDS.userAdmin]: "User Administrator",
+  [ADMIN_ROLE_IDS.authenticationAdmin]: "Authentication Administrator",
+  [ADMIN_ROLE_IDS.authenticationPolicyAdmin]: "Authentication Policy Administrator",
+  [ADMIN_ROLE_IDS.hybridIdentityAdmin]: "Hybrid Identity Administrator",
+  [ADMIN_ROLE_IDS.intunAdmin]: "Intune Administrator",
+};
+
+/** Subset that is ultra-critical — Global Admin + Privileged Role Admin */
+const CRITICAL_ROLE_IDS = new Set([
+  ADMIN_ROLE_IDS.globalAdmin.toLowerCase(),
+  ADMIN_ROLE_IDS.privilegedRoleAdmin.toLowerCase(),
+  ADMIN_ROLE_IDS.privilegedAuthAdmin.toLowerCase(),
+  ADMIN_ROLE_IDS.conditionalAccessAdmin.toLowerCase(),
+]);
+
+function checkPrivilegedRoleExclusions(
+  policy: ConditionalAccessPolicy
+): Finding[] {
+  const findings: Finding[] = [];
+  if (policy.state === "disabled") return findings;
+
+  const excludedRoles = policy.conditions.users.excludeRoles;
+  if (excludedRoles.length === 0) return findings;
+
+  const excludedHighPriv: { id: string; name: string; critical: boolean }[] = [];
+
+  for (const roleId of excludedRoles) {
+    const lower = roleId.toLowerCase();
+    const name = HIGH_PRIVILEGE_ROLE_IDS[roleId] ?? HIGH_PRIVILEGE_ROLE_IDS[lower];
+    if (name) {
+      excludedHighPriv.push({
+        id: roleId,
+        name,
+        critical: CRITICAL_ROLE_IDS.has(lower),
+      });
+    }
+  }
+
+  if (excludedHighPriv.length === 0) return findings;
+
+  const hasCritical = excludedHighPriv.some((r) => r.critical);
+  const criticalNames = excludedHighPriv.filter((r) => r.critical).map((r) => r.name);
+  const allNames = excludedHighPriv.map((r) => r.name);
+
+  // Determine what grant controls the policy enforces
+  const grant = policy.grantControls;
+  const requiresMfa =
+    grant?.builtInControls.includes("mfa") ||
+    grant?.authenticationStrength != null;
+  const requiresCompliance =
+    grant?.builtInControls.includes("compliantDevice") ||
+    grant?.builtInControls.includes("domainJoinedDevice");
+  const blocks = grant?.builtInControls.includes("block");
+
+  // Targeting security info registration is especially dangerous
+  const targetsSecurityRegistration = policy.conditions.applications
+    .includeUserActions?.includes("urn:user:registersecurityinfo");
+  const targetsAllApps = policy.conditions.applications.includeApplications.includes("All");
+
+  let severity: Severity = hasCritical ? "critical" : "high";
+  let attackScenario = "";
+
+  if (targetsSecurityRegistration) {
+    attackScenario =
+      `This policy protects security info registration but excludes ${criticalNames.length > 0 ? criticalNames.join(", ") : allNames.join(", ")}. ` +
+      `An attacker who compromises one of these admin accounts can register their own MFA methods ` +
+      `(phone, authenticator app) from ANY location or device with NO controls. This gives them ` +
+      `persistent access that survives a password reset.`;
+    severity = "critical";
+  } else if (blocks) {
+    attackScenario =
+      `This policy blocks access but excludes privileged role(s): ${allNames.join(", ")}. ` +
+      `These admin accounts bypass the block entirely, creating a privileged access path.`;
+  } else if (requiresMfa && targetsAllApps) {
+    attackScenario =
+      `This policy requires MFA for all apps but excludes: ${allNames.join(", ")}. ` +
+      `These admins can access all cloud apps without MFA — the highest-value accounts ` +
+      `have the weakest protection.`;
+  } else {
+    attackScenario =
+      `This policy excludes ${excludedHighPriv.length} privileged role(s): ${allNames.join(", ")}. ` +
+      `Privileged accounts should have EQUAL or STRICTER controls, not exemptions.`;
+  }
+
+  findings.push({
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity,
+    category: "Privileged Role Exclusion",
+    title: `${excludedHighPriv.length} privileged role(s) excluded${hasCritical ? " — includes critical admin roles" : ""}`,
+    description:
+      attackScenario +
+      ` Per Microsoft Zero Trust and CIS benchmarks, privileged roles should be the FIRST ` +
+      `users subject to strong controls, not excluded from them. Break-glass accounts should ` +
+      `be excluded by specific user ID, never by role.`,
+    recommendation:
+      `Remove ${allNames.join(", ")} from the excluded roles. ` +
+      `If you need emergency access, exclude 1-2 dedicated break-glass accounts by user ID ` +
+      `(in excludeUsers) instead of excluding an entire admin role. ` +
+      `Break-glass accounts should have complex passwords, be cloud-only, and be monitored with alerts.`,
+    relatedIds: excludedHighPriv.map((r) => r.id),
+  });
+
+  return findings;
+}
+
+// ─── Check: Guest / External User Exclusions ─────────────────────────────────
+// Flags when policies broadly exclude guests or external users, creating a
+// gap unless a separate dedicated policy covers those user types.
+
+/** Guest/external user type flags from MS Graph */
+const GUEST_TYPE_LABELS: Record<string, string> = {
+  internalGuest: "Internal guest users",
+  b2bCollaborationGuest: "B2B collaboration guest users",
+  b2bCollaborationMember: "B2B collaboration member users",
+  b2bDirectConnectUser: "B2B direct connect users",
+  otherExternalUser: "Other external users",
+  serviceProvider: "Service provider users",
+};
+
+function checkGuestExternalUserExclusions(
+  policy: ConditionalAccessPolicy,
+  context: TenantContext
+): Finding[] {
+  const findings: Finding[] = [];
+  if (policy.state === "disabled") return findings;
+
+  const users = policy.conditions.users;
+  const targetsAllUsers = users.includeUsers.includes("All");
+  if (!targetsAllUsers) return findings;
+
+  // Check 1: Simple "GuestsOrExternalUsers" in excludeUsers
+  const excludesGuestsSimple = users.excludeUsers.includes("GuestsOrExternalUsers");
+
+  // Check 2: Structured excludeGuestsOrExternalUsers object
+  const excludeGuestsObj = users.excludeGuestsOrExternalUsers as {
+    guestOrExternalUserTypes?: string;
+    externalTenants?: {
+      "@odata.type"?: string;
+      membershipKind?: string;
+    };
+  } | null | undefined;
+
+  const hasStructuredGuestExclusion = excludeGuestsObj?.guestOrExternalUserTypes != null;
+  const hasAnyGuestExclusion = excludesGuestsSimple || hasStructuredGuestExclusion;
+
+  if (!hasAnyGuestExclusion) return findings;
+
+  // Parse structured guest exclusion details
+  let excludedGuestTypes: string[] = [];
+  let externalTenantScope = "";
+
+  if (hasStructuredGuestExclusion && excludeGuestsObj) {
+    excludedGuestTypes = (excludeGuestsObj.guestOrExternalUserTypes ?? "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const tenants = excludeGuestsObj.externalTenants;
+    if (tenants?.["@odata.type"]?.includes("AllExternalTenants") || tenants?.membershipKind === "all") {
+      externalTenantScope = "all external organizations";
+    } else if (tenants?.membershipKind === "enumerated") {
+      externalTenantScope = "specific external organizations";
+    }
+  }
+
+  const allKnownTypes = Object.keys(GUEST_TYPE_LABELS);
+  const excludesAllTypes = excludesGuestsSimple ||
+    allKnownTypes.every((t) => excludedGuestTypes.includes(t));
+
+  // Determine what grant controls are bypassed
+  const grant = policy.grantControls;
+  const requiresMfa =
+    grant?.builtInControls.includes("mfa") || grant?.authenticationStrength != null;
+  const requiresCompliance =
+    grant?.builtInControls.includes("compliantDevice") ||
+    grant?.builtInControls.includes("domainJoinedDevice");
+  const blocks = grant?.builtInControls.includes("block");
+
+  const targetsSecurityRegistration = policy.conditions.applications
+    .includeUserActions?.includes("urn:user:registersecurityinfo");
+  const targetsAllApps = policy.conditions.applications.includeApplications.includes("All");
+
+  // Check if there's a separate policy covering guests
+  const hasGuestCoveragePolicy = context.policies.some((p) => {
+    if (p.id === policy.id || p.state === "disabled") return false;
+    const pu = p.conditions.users;
+    // Policy that includes guests explicitly
+    const includesGuests =
+      pu.includeUsers.includes("GuestsOrExternalUsers") ||
+      (pu.includeGuestsOrExternalUsers != null);
+    // Or policy that targets All Users without guest exclusions
+    const allWithoutGuestExcl =
+      pu.includeUsers.includes("All") &&
+      !pu.excludeUsers.includes("GuestsOrExternalUsers") &&
+      pu.excludeGuestsOrExternalUsers == null;
+    return includesGuests || allWithoutGuestExcl;
+  });
+
+  // Build human-readable description of excluded types
+  let guestDescription = "";
+  if (excludesGuestsSimple) {
+    guestDescription = "all guest and external users";
+  } else {
+    const typeLabels = excludedGuestTypes
+      .map((t) => GUEST_TYPE_LABELS[t] ?? t)
+      .join(", ");
+    guestDescription = typeLabels + (externalTenantScope ? ` from ${externalTenantScope}` : "");
+  }
+
+  // Severity depends on scope and whether compensating policy exists
+  let severity: Severity;
+  let context_detail = "";
+
+  if (targetsSecurityRegistration) {
+    severity = hasGuestCoveragePolicy ? "medium" : "high";
+    context_detail =
+      `This policy protects security info registration but excludes ${guestDescription}. ` +
+      `A compromised B2B guest account could register attacker-controlled MFA methods from ` +
+      `any location without any controls.`;
+  } else if (blocks && targetsAllApps) {
+    severity = hasGuestCoveragePolicy ? "medium" : "high";
+    context_detail =
+      `This policy blocks access for all apps but excludes ${guestDescription}. ` +
+      `These external users bypass the block entirely.`;
+  } else if (requiresMfa && targetsAllApps) {
+    severity = hasGuestCoveragePolicy ? "medium" : "high";
+    context_detail =
+      `This policy requires MFA for all apps but excludes ${guestDescription}. ` +
+      `These external users can access resources without MFA.`;
+  } else {
+    severity = hasGuestCoveragePolicy ? "low" : "medium";
+    context_detail =
+      `This policy targets all users but excludes ${guestDescription}. ` +
+      `External users bypass this policy's controls.`;
+  }
+
+  if (!hasGuestCoveragePolicy) {
+    context_detail += ` No separate policy was found covering guest/external users for ` +
+      `comparable controls — this creates an unprotected gap.`;
+  }
+
+  findings.push({
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity,
+    category: "Guest/External User Exclusion",
+    title: `${excludesAllTypes ? "All" : excludedGuestTypes.length} guest/external user type(s) excluded${!hasGuestCoveragePolicy ? " — no compensating policy found" : ""}`,
+    description:
+      context_detail +
+      (excludedGuestTypes.length > 0 && !excludesGuestsSimple
+        ? ` Excluded types: ${excludedGuestTypes.map((t) => GUEST_TYPE_LABELS[t] ?? t).join(", ")}.`
+        : "") +
+      (externalTenantScope
+        ? ` Tenant scope: ${externalTenantScope}.`
+        : ""),
+    recommendation:
+      hasGuestCoveragePolicy
+        ? `A compensating policy was found, but verify it enforces equivalent controls for guest/external users. ` +
+          `Ensure the guest policy covers the same apps and actions as this policy.`
+        : `Create a dedicated CA policy for guest/external users with appropriate controls, or ` +
+          `remove the guest exclusion from this policy. Per CIS and Microsoft Zero Trust guidance, ` +
+          `guest accounts should be subject to at least MFA and ideally session time restrictions. ` +
+          `If guests must be excluded from this specific policy, create a companion policy like ` +
+          `"GLOBAL - GRANT - MFA - GuestsExternal" to ensure coverage.`,
+  });
+
+  return findings;
+}
+
 // ─── Microsoft-Managed Policy Check (per-policy) ─────────────────────────────
 
 const MANAGED_POLICY_KEYWORDS = [
@@ -951,6 +1242,86 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         "Either change all MFA policies to target 'All platforms' (recommended), or create a " +
         "companion policy that blocks access from unknown/unsupported device platforms per CIS 5.3.11. " +
         "This closes the user-agent spoofing bypass path that MFASweep exploits.",
+    });
+  }
+
+  // Check for guest/external user coverage gaps at the tenant level
+  const guestExcludingPolicies = enabled.filter((p) => {
+    const users = p.conditions.users;
+    if (!users.includeUsers.includes("All")) return false;
+    const excludesGuestsSimple = users.excludeUsers.includes("GuestsOrExternalUsers");
+    const excludeGuestsObj = users.excludeGuestsOrExternalUsers as {
+      guestOrExternalUserTypes?: string;
+    } | null | undefined;
+    return excludesGuestsSimple || excludeGuestsObj?.guestOrExternalUserTypes != null;
+  });
+
+  const hasGuestSpecificMfa = enabled.some((p) => {
+    const users = p.conditions.users;
+    const includesGuests =
+      users.includeUsers.includes("GuestsOrExternalUsers") ||
+      users.includeGuestsOrExternalUsers != null;
+    const requiresMfa =
+      p.grantControls?.builtInControls.includes("mfa") ||
+      p.grantControls?.authenticationStrength != null;
+    return includesGuests && requiresMfa;
+  });
+
+  if (guestExcludingPolicies.length > 0 && !hasGuestSpecificMfa && !hasMfaForAll) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "high",
+      category: "Guest/External User Coverage",
+      title: `${guestExcludingPolicies.length} policy(ies) exclude guests but no guest-specific MFA policy exists`,
+      description:
+        `${guestExcludingPolicies.length} enabled policy(ies) exclude guest/external users, and no dedicated ` +
+        `policy was found requiring MFA specifically for guests. Guest accounts are a common lateral ` +
+        `movement target — B2B collaboration accounts, external partners, and service providers should ` +
+        `all be subject to at least MFA controls. Policies excluding guests: ` +
+        `${guestExcludingPolicies.map((p) => p.displayName).join(", ")}.`,
+      recommendation:
+        "Create a dedicated CA policy requiring MFA for all guest/external users across all cloud apps. " +
+        "Include session controls like sign-in frequency (e.g., 1 hour) for guests. " +
+        "Consider requiring compliant devices or approved apps for guest access to sensitive resources.",
+    });
+  }
+
+  // Check for privileged role exclusions across the tenant
+  const critRoleIds = new Set([
+    ADMIN_ROLE_IDS.globalAdmin.toLowerCase(),
+    ADMIN_ROLE_IDS.privilegedRoleAdmin.toLowerCase(),
+    ADMIN_ROLE_IDS.privilegedAuthAdmin.toLowerCase(),
+    ADMIN_ROLE_IDS.conditionalAccessAdmin.toLowerCase(),
+  ]);
+
+  const policiesExcludingCritRoles = enabled.filter((p) => {
+    return p.conditions.users.excludeRoles.some((r) => critRoleIds.has(r.toLowerCase()));
+  });
+
+  if (policiesExcludingCritRoles.length > 0) {
+    const affectedNames = policiesExcludingCritRoles.map((p) => p.displayName);
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "critical",
+      category: "Privileged Role Exclusion",
+      title: `${policiesExcludingCritRoles.length} policy(ies) exclude critical admin roles (Global Admin, Privileged Role Admin, etc.)`,
+      description:
+        `${policiesExcludingCritRoles.length} enabled policy(ies) exclude one or more critical admin roles from ` +
+        `their controls: ${affectedNames.join(", ")}. Global Administrators and Privileged Role Administrators ` +
+        `are the highest-value targets for attackers. Excluding them from CA policies means these ` +
+        `accounts have WEAKER protection than regular users — the opposite of Zero Trust principles. ` +
+        `Break-glass access should use dedicated accounts excluded by user ID, not entire admin roles.`,
+      recommendation:
+        "Remove admin role exclusions from all CA policies. Instead: " +
+        "1) Create 2 cloud-only break-glass accounts with complex passwords, " +
+        "2) Exclude them by user ID (not role) from MFA policies, " +
+        "3) Set up Azure Monitor alerts for any break-glass sign-in, " +
+        "4) Ensure all admin roles are subject to phishing-resistant MFA (FIDO2 or certificate-based). " +
+        "Per CIS 6.2.1 and Microsoft Zero Trust: admins should have equal or stricter controls.",
     });
   }
 
