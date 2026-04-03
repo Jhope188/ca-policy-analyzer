@@ -43,6 +43,11 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Legacy Auth": { icon: AlertTriangle, color: "text-red-400" },
   "Break-Glass": { icon: Info, color: "text-blue-400" },
   "MS Learn: Documented Exclusion": { icon: ShieldAlert, color: "text-orange-400" },
+  "Privileged Role Exclusion": { icon: ShieldAlert, color: "text-red-400" },
+  "Guest/External User Exclusion": { icon: AlertTriangle, color: "text-orange-400" },
+  "Guest/External User Coverage": { icon: ShieldAlert, color: "text-orange-400" },
+  "User-Agent Bypass": { icon: AlertTriangle, color: "text-orange-400" },
+  "Microsoft-Managed Policies": { icon: Info, color: "text-blue-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────
