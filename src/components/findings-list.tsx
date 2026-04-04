@@ -48,6 +48,7 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Guest/External User Coverage": { icon: ShieldAlert, color: "text-orange-400" },
   "User-Agent Bypass": { icon: AlertTriangle, color: "text-orange-400" },
   "Microsoft-Managed Policies": { icon: Info, color: "text-blue-400" },
+  "Credential Registration Constraints": { icon: ShieldAlert, color: "text-orange-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────

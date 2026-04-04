@@ -147,7 +147,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkUserAgentBypass(policy),
       ...checkMicrosoftManagedPolicy(policy),
       ...checkPrivilegedRoleExclusions(policy),
-      ...checkGuestExternalUserExclusions(policy, context)
+      ...checkGuestExternalUserExclusions(policy, context),
+      ...checkCredentialRegistrationConstraints(policy, context)
     );
 
     findings.push(...policyFindings);
@@ -1064,6 +1065,154 @@ function checkGuestExternalUserExclusions(
           `guest accounts should be subject to at least MFA and ideally session time restrictions. ` +
           `If guests must be excluded from this specific policy, create a companion policy like ` +
           `"GLOBAL - GRANT - MFA - GuestsExternal" to ensure coverage.`,
+  });
+
+  return findings;
+}
+
+// ─── Check: Credential Registration Constraints (May 2026) ────────────────────
+// Starting May 2026, CA policies targeting "Register security info" will now
+// be evaluated during Windows Hello for Business and macOS Platform SSO
+// credential provisioning. This check flags policies that may prevent users
+// from setting up new devices due to strict device compliance or location
+// requirements that cannot be satisfied during initial device setup.
+//
+// Reference: MC Post March 2026 - "Plan for change – Conditional Access 
+// enforcement during credential registration for Windows Hello for Business 
+// and macOS Platform SSO"
+
+function checkCredentialRegistrationConstraints(
+  policy: ConditionalAccessPolicy,
+  context: TenantContext
+): Finding[] {
+  const findings: Finding[] = [];
+
+  // Only check enabled policies targeting "Register security info" user action
+  if (policy.state === "disabled") return findings;
+
+  const targetsSecurityRegistration = policy.conditions.applications
+    .includeUserActions?.includes("urn:user:registersecurityinfo");
+
+  if (!targetsSecurityRegistration) return findings;
+
+  const grant = policy.grantControls;
+  const session = policy.sessionControls;
+  const conditions = policy.conditions;
+
+  // Check for constraints that may be problematic during initial device setup
+  const requiresCompliance =
+    grant?.builtInControls.includes("compliantDevice") ||
+    grant?.builtInControls.includes("domainJoinedDevice");
+
+  const requiresApprovedApp = grant?.builtInControls.includes("approvedApplication");
+  const requiresAppProtection = grant?.builtInControls.includes("compliantApplication");
+
+  const hasLocationConditions =
+    (conditions.locations?.includeLocations?.length ?? 0) > 0 ||
+    (conditions.locations?.excludeLocations?.length ?? 0) > 0;
+
+  const hasDeviceFilter = conditions.devices?.deviceFilter?.rule != null;
+
+  // Flag high-risk constraints
+  const issues: string[] = [];
+
+  if (requiresCompliance) {
+    issues.push(
+      "**Device compliance**: Users provisioning WHfB/Platform SSO on a NEW device cannot satisfy this requirement during initial setup (device isn't enrolled yet)"
+    );
+  }
+
+  if (requiresApprovedApp || requiresAppProtection) {
+    issues.push(
+      "**Approved/protected app**: Users setting up credentials during device provisioning may not have approved apps installed yet"
+    );
+  }
+
+  if (hasLocationConditions) {
+    const includedLocs = conditions.locations?.includeLocations ?? [];
+    const excludedLocs = conditions.locations?.excludeLocations ?? [];
+
+    // If requiring trusted locations
+    if (
+      includedLocs.length > 0 &&
+      !includedLocs.includes("All") &&
+      !includedLocs.includes("AllTrusted")
+    ) {
+      const namedLocNames = includedLocs
+        .map((id) => {
+          if (id === "00000000-0000-0000-0000-000000000000") return "MFA Trusted IPs (legacy)";
+          const loc = context.namedLocations.find((l) => l.id === id);
+          return loc?.displayName ?? id;
+        })
+        .join(", ");
+
+      issues.push(
+        `**Trusted location requirement**: Policy requires access from: ${namedLocNames}. Users setting up credentials from home/remote locations (common for new device setup) will be blocked`
+      );
+    }
+
+    // If blocking untrusted locations
+    if (excludedLocs.includes("AllTrusted") && !includedLocs.includes("AllTrusted")) {
+      issues.push(
+        "**Untrusted location block**: Policy blocks access from untrusted locations. Users setting up new devices from home/public networks may be blocked"
+      );
+    }
+  }
+
+  if (hasDeviceFilter) {
+    issues.push(
+      "**Device filter**: Device filters may not evaluate correctly on devices during initial provisioning before they're fully enrolled/registered"
+    );
+  }
+
+  if (issues.length === 0) return findings;
+
+  // Determine severity based on how likely this is to block legitimate enrollment
+  let severity: Severity = "medium";
+  if (requiresCompliance || (hasLocationConditions && !conditions.locations?.includeLocations?.includes("All"))) {
+    severity = "high";
+  }
+
+  findings.push({
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity,
+    category: "Credential Registration Constraints",
+    title: "Policy may block Windows Hello / Platform SSO setup on new devices (May 2026 enforcement)",
+    description:
+      `**Starting May 2026**, this policy will be enforced during Windows Hello for Business and macOS Platform SSO ` +
+      `credential registration (not just sign-in). This policy has the following constraints that may prevent ` +
+      `users from completing device setup:\n\n` +
+      issues.map((i) => `• ${i}`).join("\n") +
+      `\n\n` +
+      `When users provision WHfB on a new laptop or register macOS Platform SSO credentials for the first time, ` +
+      `they may not be able to satisfy these requirements. This can block legitimate enrollment flows. ` +
+      `Per Microsoft's Message Center post (MC March 2026), admins should review policies targeting "Register security info" ` +
+      `before enforcement begins in late April 2026.`,
+    recommendation:
+      requiresCompliance
+        ? `**High Priority**: Remove device compliance requirements from this policy or add exclusions for users ` +
+          `during initial device provisioning. Consider one of these approaches:\n\n` +
+          `1. **Separate policies**: Create one policy for sign-in (with compliance) and a second policy for ` +
+          `registration (requiring only MFA + phishing-resistant authentication)\n\n` +
+          `2. **Temporary Access Pass (TAP)**: Use TAP for new device enrollment flows, excluded from this policy\n\n` +
+          `3. **Location bypass**: Allow registration from trusted corporate networks only (where IT can assist)\n\n` +
+          `4. **Report-only mode**: Enable report-only mode BEFORE May 2026 to see impact without blocking users\n\n` +
+          `Recommended grant controls for registration policies: MFA + authentication strength (phishing-resistant) ` +
+          `— avoid device compliance/location requirements.`
+        : hasLocationConditions
+        ? `**Review Recommended**: If users commonly set up new devices from home/remote locations, consider:\n\n` +
+          `1. Allow "All locations" for registration (even if blocking specific locations for sign-in)\n\n` +
+          `2. Include "MFA Trusted IPs" or home office locations in allowed locations\n\n` +
+          `3. Create a separate policy for registration with relaxed location requirements\n\n` +
+          `4. Use report-only mode before May 2026 to identify affected users\n\n` +
+          `Remember: MFA is still required by default for ALL passwordless credential registration (WHfB, ` +
+          `Platform SSO, passkeys) even without CA policies.`
+        : `Review this policy's device filter and app requirements to ensure they don't block legitimate ` +
+          `credential registration flows. Test with report-only mode before May 2026 enforcement. ` +
+          `Per Microsoft guidance: ensure users setting up new devices can satisfy policy requirements, ` +
+          `or add exclusions/adjust conditions for the registration flow.`,
   });
 
   return findings;
