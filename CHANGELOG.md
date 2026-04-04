@@ -1,0 +1,129 @@
+# Changelog
+
+All notable changes to the CA Policy Analyzer will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [1.3.0] - 2026-04-04
+
+### Added
+
+- **Windows Hello / Platform SSO Registration Constraint Check** - New analyzer check that flags policies targeting "Register security info" user action that may block Windows Hello for Business and macOS Platform SSO credential setup on new devices
+  - Detects device compliance requirements (will block new device setup)
+  - Detects trusted location requirements (will block remote/home workers)
+  - Detects approved/protected app requirements (may block before apps installed)
+  - Detects device filter rules (may not evaluate correctly during provisioning)
+  - Provides severity levels: HIGH for compliance/location requirements, MEDIUM for app/filter constraints
+  - Includes detailed recommendations for policy adjustments before May 2026 enforcement
+  - Reference: Microsoft Entra "What's New" March 2026 - [Plan for change – Conditional Access enforcement during credential registration for Windows Hello for Business and macOS Platform SSO](https://learn.microsoft.com/entra/fundamentals/whats-new#march-2026)
+
+- **New Finding Category** - "Credential Registration Constraints" with ShieldAlert icon (orange) in UI
+
+### Context
+
+Starting May 2026, Microsoft will enforce Conditional Access policies targeting "Register security info" during Windows Hello for Business and macOS Platform SSO credential provisioning (not just sign-in). This update helps organizations prepare by identifying policies that may block legitimate device enrollment flows.
+
+### Technical Details
+
+- Added `checkCredentialRegistrationConstraints()` function to `src/lib/analyzer.ts`
+- Updated `src/components/findings-list.tsx` with new category metadata
+- Commit: `fc3c2b2` - feat: add May 2026 credential registration constraint check
+
+---
+
+## [1.2.0] - 2026-04-03
+
+### Added
+
+- **Privileged Role Exclusion Check** - Flags when high-privilege Entra ID roles (Global Admin, Privileged Role Admin, etc.) are excluded from CA policies
+  - Detects 14 critical admin role exclusions
+  - Provides attack scenarios based on policy context (security info registration, MFA bypass, block bypass)
+  - Critical severity for Global Admin, Privileged Role Admin, Privileged Auth Admin, CA Admin exclusions
+  - Tenant-wide check for policies excluding critical roles
+  - Per-policy severity adjustments based on policy type and controls
+
+- **Guest/External User Exclusion Check** - Flags when guest/external users are excluded from CA policies
+  - Detects both simple ("GuestsOrExternalUsers") and structured guest exclusions
+  - Parses 6 guest user types (b2bCollaborationGuest, b2bCollaborationMember, etc.)
+  - Checks for compensating guest-specific policies
+  - Adjusts severity based on presence of compensating policy
+  - Tenant-wide gap analysis for guest coverage
+
+- **New Finding Categories**
+  - "Privileged Role Exclusion" with ShieldAlert icon (red)
+  - "Guest/External User Exclusion" with AlertTriangle icon (orange)
+  - "Guest/External User Coverage" with ShieldAlert icon (orange)
+
+### Fixed
+
+- Removed disabled-policy filtering from privileged role and guest exclusion checks
+  - Rationale: Configuration issues like Global Admin exclusions are critical even on disabled policies (could be enabled without review)
+  - Commit: `60d2052` - fix: flag privileged role and guest exclusions on disabled policies too
+
+### Technical Details
+
+- Added `checkPrivilegedRoleExclusions()` function with HIGH_PRIVILEGE_ROLE_IDS map
+- Added `checkGuestExternalUserExclusions()` function with GUEST_TYPE_LABELS map
+- Integrated checks into `analyzeAllPolicies()` call chain
+- Updated findings-list.tsx with category metadata
+- Commits: `4068d18`, `bac30ca`, `60d2052`
+
+---
+
+## [1.1.0] - 2026-02-26
+
+### Added
+
+- Device Registration Bypass check (pre-existing feature, discovered during deployment)
+  - Flags when Device Registration Service (01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9) is targeted with location or compliance conditions
+  - Based on MSRC VULN-153600: DRS ignores location/compliance conditions by design, only honors MFA grant controls
+  - Recommends creating dedicated MFA-only policy for DRS resource
+
+### Changed
+
+- Improved findings display in both Findings and Policies tabs
+- Category grouping with icons for better visual organization
+- Repeat findings gathered together for cleaner UI
+
+---
+
+## Earlier Versions
+
+For changes prior to February 2026, see git history.
+
+---
+
+## Categories Reference
+
+The analyzer uses the following finding categories:
+
+- **Privileged Role Exclusion** - High-privilege roles excluded from policies
+- **Guest/External User Exclusion** - Guest/external users excluded from policies
+- **Guest/External User Coverage** - Tenant-wide guest coverage gaps
+- **Credential Registration Constraints** - Constraints that may block WHfB/Platform SSO setup
+- **Device Registration Bypass** - DRS targeted with location/compliance conditions
+- **FOCI Token Sharing** - FOCI family exclusions enabling token sharing
+- **Resource Exclusion Bypass** - Resource exclusions creating bypass paths
+- **CA-Immune Resources** - Resources immune to CA by design
+- **User-Agent Bypass** - Platform/client app conditions enabling UA spoofing
+- **Swiss Cheese Model** - Policy scope or control gaps
+- **App Exclusion** - High-risk app exclusions
+- **Policy Scope** - Policy targeting issues
+- **Policy State** - Report-only or disabled policies
+- **Resilience** - Session control and resilience issues
+- **Location Configuration** - Named location configuration issues
+- **Legacy Authentication** - Legacy auth blocking gaps
+- **MFA Coverage** - MFA enforcement gaps
+- **Break-Glass** - Break-glass account issues
+- **MS Learn: Documented Exclusion** - Exclusions documented in MS Learn
+- **Microsoft-Managed Policies** - Microsoft-managed policy issues
+
+---
+
+[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/Jhope188/ca-policy-analyzer/releases/tag/v1.1.0
