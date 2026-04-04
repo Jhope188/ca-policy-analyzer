@@ -14,7 +14,6 @@ permissions:
 jobs:
   trigger-implementation:
     runs-on: ubuntu-latest
-    # Only run on issues with the conditional-access label
     if: |
       (github.event_name == 'issues' && 
        github.event.label.name == 'approved-for-implementation' &&
@@ -35,9 +34,7 @@ jobs:
             const issue = context.payload.issue;
             const issueNumber = issue.number;
             const issueTitle = issue.title;
-            const issueBody = issue.body;
             
-            // Extract feature name from title (remove emoji and "New CA Feature Detected")
             const featureName = issueTitle
               .replace(/🔔/g, '')
               .replace(/New Conditional Access Feature Detected/i, '')
@@ -59,80 +56,86 @@ jobs:
             const issueNumber = ${{ steps.extract.outputs.issue_number }};
             const featureName = '${{ steps.extract.outputs.feature_name }}';
             
+            const commentBody = [
+              '## 🤖 GitHub Copilot Implementation Started',
+              '',
+              `**Branch**: \`feature/ca-check-${featureName}\``,
+              '',
+              'The GitHub Copilot coding agent will now:',
+              '1. ✅ Create a new branch',
+              '2. 📝 Implement the analyzer check in `src/lib/analyzer.ts`',
+              '3. 🎨 Add category metadata to `src/components/findings-list.tsx`',
+              '4. 📚 Update `CHANGELOG.md`',
+              '5. 🔄 Open a Pull Request for review',
+              '',
+              '**Estimated time**: 2-5 minutes',
+              '',
+              'You\'ll be notified when the PR is ready for review.',
+              '',
+              '---',
+              '',
+              '**Implementation Context**:',
+              `- Issue: #${issueNumber}`,
+              `- Feature: ${featureName}`,
+              `- Triggered by: @${context.actor}`
+            ].join('\n');
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `## 🤖 GitHub Copilot Implementation Started
-
-**Branch**: \`feature/ca-check-${featureName}\`
-
-The GitHub Copilot coding agent will now:
-1. ✅ Create a new branch
-2. 📝 Implement the analyzer check in \`src/lib/analyzer.ts\`
-3. 🎨 Add category metadata to \`src/components/findings-list.tsx\`
-4. 📚 Update \`CHANGELOG.md\`
-5. 🔄 Open a Pull Request for review
-
-**Estimated time**: 2-5 minutes
-
-You'll be notified when the PR is ready for review.
-
----
-
-**Implementation Context**:
-- Issue: #${issueNumber}
-- Feature: ${featureName}
-- Triggered by: @${context.actor}
-              `
+              body: commentBody
             });
 
       - name: Prepare implementation prompt
         id: prompt
         run: |
-          cat << 'EOF' > implementation-prompt.md
+          ISSUE_NUM="${{ steps.extract.outputs.issue_number }}"
+          FEATURE_NAME="${{ steps.extract.outputs.feature_name }}"
+          
+          cat > implementation-prompt.md << 'PROMPT_EOF'
           # Task: Implement Conditional Access Analyzer Check
-
+          
           ## Context
           A new Conditional Access feature has been announced and needs to be added to the CA Policy Analyzer.
-
+          
           **Issue**: #${{ steps.extract.outputs.issue_number }}
           **Feature**: ${{ steps.extract.outputs.feature_name }}
-
+          
           ## Requirements
-
+          
           Review the linked issue above and implement a new analyzer check following the existing patterns in the codebase.
-
+          
           ### Implementation Steps
-
+          
           1. **Add check function to `src/lib/analyzer.ts`**:
              - Follow the pattern of existing checks (e.g., `checkCredentialRegistrationConstraints`, `checkPrivilegedRoleExclusions`)
              - Include JSDoc comments with reference to the MS Learn announcement
              - Use appropriate severity levels (critical/high/medium/low/info)
              - Provide detailed description and actionable recommendations
              - Return `Finding[]` array
-
+          
           2. **Integrate into analyzer pipeline**:
              - Add the new check to the `analyzeAllPolicies()` function call chain (around line 151)
              - Follow the pattern: `...checkYourNewFunction(policy, context)`
-
+          
           3. **Add UI category metadata in `src/components/findings-list.tsx`**:
              - Add entry to `CATEGORY_META` object (around line 30-50)
              - Choose appropriate icon: `ShieldAlert`, `AlertTriangle`, `Info`, etc.
              - Choose appropriate color: `text-red-400`, `text-orange-400`, `text-blue-400`, etc.
-
+          
           4. **Update CHANGELOG.md**:
              - Add new entry under `## [Unreleased]` section
              - Use `### Added` subsection
              - Include feature name, description, severity, and reference link
              - Increment version number appropriately (patch/minor/major)
-
+          
           5. **Test compilation**:
              - Ensure TypeScript compiles without errors
              - Follow existing code style and patterns
-
+          
           ### Code Patterns to Follow
-
+          
           ```typescript
           // Check function template
           function checkYourFeatureName(
@@ -159,52 +162,52 @@ You'll be notified when the PR is ready for review.
             return findings;
           }
           ```
-
+          
           ### Important Notes
-
+          
           - Review the issue details carefully to understand the feature's impact
           - Match the existing code style (2-space indentation, TypeScript strict mode)
           - Include references to Microsoft documentation in comments
           - Use descriptive variable names and clear logic
           - Don't modify unrelated code
-
+          
           ## Acceptance Criteria
-
+          
           - [ ] New check function added to analyzer.ts
           - [ ] Check integrated into analyzeAllPolicies call chain
           - [ ] Category metadata added to findings-list.tsx
           - [ ] CHANGELOG.md updated with new version entry
           - [ ] TypeScript compiles without errors
           - [ ] Code follows existing patterns and style
-
+          
           ---
-
+          
           **Reference Issue**: #${{ steps.extract.outputs.issue_number }}
-          EOF
+          PROMPT_EOF
 
       - name: Trigger GitHub Copilot coding agent
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const issueNumber = ${{ steps.extract.outputs.issue_number }};
             const featureName = '${{ steps.extract.outputs.feature_name }}';
             
-            // Read the implementation prompt
-            const fs = require('fs');
             const prompt = fs.readFileSync('implementation-prompt.md', 'utf8');
             
-            // Create a comment with the special hashtag to trigger Copilot
-            // Note: This requires the repository to have GitHub Copilot enabled
+            const commentBody = [
+              prompt,
+              '',
+              `#github-copilot implement-ca-check-${featureName}`
+            ].join('\n');
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issueNumber,
-              body: `${prompt}
-
-#github-copilot implement-ca-check-${featureName}`
+              body: commentBody
             });
             
-            // Add in-progress label
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,

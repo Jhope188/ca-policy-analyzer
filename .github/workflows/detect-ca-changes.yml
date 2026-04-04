@@ -2,9 +2,8 @@ name: Detect New Conditional Access Features
 
 on:
   schedule:
-    # Run every Monday at 9am UTC
-    - cron: '0 9 * * 1'
-  workflow_dispatch: # Allow manual trigger
+    - cron: '0 9 * * 1'  # Every Monday at 9am UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,14 +19,10 @@ jobs:
       - name: Fetch Microsoft Entra What's New
         id: fetch
         run: |
-          # Fetch the What's New page
           curl -s "https://learn.microsoft.com/en-us/entra/fundamentals/whats-new" > whats-new.html
-          
-          # Extract current month/year
           CURRENT_MONTH=$(date +"%B %Y")
           echo "current_month=$CURRENT_MONTH" >> $GITHUB_OUTPUT
           
-          # Check if page was fetched successfully
           if [ ! -s whats-new.html ]; then
             echo "Failed to fetch page"
             exit 1
@@ -36,19 +31,10 @@ jobs:
       - name: Parse for Conditional Access announcements
         id: parse
         run: |
-          # Search for CA-related announcements in the current month section
-          # Look for keywords: "Conditional Access", "Plan for change", "Register security info"
-          
-          # Extract announcements (this is a simplified parser - could be enhanced)
           grep -i "conditional access\|plan for change.*conditional\|register security info" whats-new.html > ca-announcements.txt || true
           
           if [ -s ca-announcements.txt ]; then
             echo "found=true" >> $GITHUB_OUTPUT
-            # Get first 500 chars for summary
-            SUMMARY=$(head -c 500 ca-announcements.txt)
-            echo "summary<<EOF" >> $GITHUB_OUTPUT
-            echo "$SUMMARY" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
           else
             echo "found=false" >> $GITHUB_OUTPUT
           fi
@@ -56,14 +42,13 @@ jobs:
       - name: Check against last run
         id: check
         run: |
-          # Download previous state if exists
           if [ -f ".github/ca-state.txt" ]; then
             LAST_STATE=$(cat .github/ca-state.txt)
           else
             LAST_STATE=""
           fi
           
-          CURRENT_STATE=$(md5sum ca-announcements.txt | awk '{print $1}' || echo "")
+          CURRENT_STATE=$(md5sum ca-announcements.txt 2>/dev/null | awk '{print $1}' || echo "")
           
           if [ "$LAST_STATE" != "$CURRENT_STATE" ] && [ -n "$CURRENT_STATE" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -78,84 +63,83 @@ jobs:
         with:
           script: |
             const currentMonth = '${{ steps.fetch.outputs.current_month }}';
-            const msLearnUrl = 'https://learn.microsoft.com/en-us/entra/fundamentals/whats-new#march-2026';
+            const msLearnUrl = 'https://learn.microsoft.com/en-us/entra/fundamentals/whats-new';
             
-            // Create issue with detected changes
+            const issueBody = [
+              '## 🚨 New Conditional Access Feature Detected',
+              '',
+              `**Source**: [Microsoft Entra What's New - ${currentMonth}](${msLearnUrl})`,
+              `**Detection Date**: ${new Date().toISOString().split('T')[0]}`,
+              '',
+              '---',
+              '',
+              '## 📋 Action Required',
+              '',
+              'Please review the latest Conditional Access announcements on Microsoft Entra What\'s New:',
+              '',
+              `🔗 ${msLearnUrl}`,
+              '',
+              '### Review Checklist',
+              '',
+              '- [ ] Review the announcement details',
+              '- [ ] Determine if analyzer check is needed',
+              '- [ ] Assess impact on existing policies',
+              '- [ ] Determine severity and category',
+              '',
+              '---',
+              '',
+              '## 🤖 Automated Implementation',
+              '',
+              'Once you\'ve reviewed and want to implement:',
+              '',
+              '**Option 1**: Comment `@github-copilot implement this check` on this issue',
+              '',
+              '**Option 2**: Add the label `approved-for-implementation`',
+              '',
+              'The GitHub Copilot coding agent will:',
+              '1. Create a new branch',
+              '2. Implement the analyzer check',
+              '3. Update category metadata',
+              '4. Update CHANGELOG.md',
+              '5. Open a PR for your review',
+              '',
+              '---',
+              '',
+              '## 📚 Implementation Template',
+              '',
+              'When implementing manually or reviewing the automated PR, ensure:',
+              '',
+              '```typescript',
+              '// Add to src/lib/analyzer.ts',
+              'function check[FeatureName](',
+              '  policy: ConditionalAccessPolicy,',
+              '  context: TenantContext',
+              '): Finding[] {',
+              '  const findings: Finding[] = [];',
+              '  // Check logic here',
+              '  return findings;',
+              '}',
+              '```',
+              '',
+              'Don\'t forget:',
+              '- Add check to `analyzeAllPolicies()` call chain',
+              '- Add category to `CATEGORY_META` in findings-list.tsx',
+              '- Update CHANGELOG.md with version bump',
+              '',
+              '---',
+              '',
+              '**Automation**: This issue was created by the CA Feature Detection workflow.'
+            ].join('\n');
+            
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `🔔 New Conditional Access Feature Detected - ${currentMonth}`,
               labels: ['enhancement', 'conditional-access', 'needs-review', 'automated-detection'],
-              body: `## 🚨 New Conditional Access Feature Detected
-
-**Source**: [Microsoft Entra What's New - ${currentMonth}](${msLearnUrl})
-
-**Detection Date**: ${new Date().toISOString().split('T')[0]}
-
----
-
-## 📋 Action Required
-
-Please review the latest Conditional Access announcements on the Microsoft Entra What's New page:
-
-🔗 ${msLearnUrl}
-
-### Review Checklist
-
-- [ ] Review the announcement details
-- [ ] Determine if analyzer check is needed
-- [ ] Assess impact on existing policies
-- [ ] Determine severity and category
-
----
-
-## 🤖 Automated Implementation
-
-Once you've reviewed and want to implement:
-
-**Option 1**: Comment \`@github-copilot implement this check\` on this issue
-
-**Option 2**: Add the label \`approved-for-implementation\`
-
-The GitHub Copilot coding agent will:
-1. Create a new branch
-2. Implement the analyzer check
-3. Update category metadata
-4. Update CHANGELOG.md
-5. Open a PR for your review
-
----
-
-## 📚 Implementation Template
-
-When implementing manually or reviewing the automated PR, ensure:
-
-\`\`\`typescript
-// Add to src/lib/analyzer.ts
-function check[FeatureName](
-  policy: ConditionalAccessPolicy,
-  context: TenantContext
-): Finding[] {
-  const findings: Finding[] = [];
-  
-  // Check logic here
-  
-  return findings;
-}
-\`\`\`
-
-Don't forget:
-- Add check to \`analyzeAllPolicies()\` call chain
-- Add category to \`CATEGORY_META\` in findings-list.tsx
-- Update CHANGELOG.md with version bump
-
----
-
-**Automation**: This issue was created by the CA Feature Detection workflow.
-              `
+              body: issueBody
             });
             
-            console.log(\`Created issue #\${issue.data.number}\`);
+            console.log(`Created issue #${issue.data.number}`);
 
       - name: Commit state file
         if: steps.check.outputs.changed == 'true'
