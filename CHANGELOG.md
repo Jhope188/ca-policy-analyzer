@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+
+- **Guest Authentication Strength Check** - New analyzer check that detects policies requiring authentication strength (especially phishing-resistant MFA) for guest/external users
+  - Identifies when policies target guest users with MFA or authentication strength requirements
+  - Warns that guest users authenticate in their home tenant and require Cross-Tenant Access Settings configuration
+  - Distinguishes between B2B Collaboration guests, B2B Direct Connect users, and other guest types
+  - Provides severity levels: HIGH for phishing-resistant requirements, MEDIUM for standard MFA
+  - Includes detailed guidance on enabling inbound MFA trust in Cross-Tenant Access Settings
+  - Links to Microsoft Learn documentation on B2B collaboration authentication and cross-tenant access
+  - Reference: [Configure Cross-Tenant Access Settings](https://learn.microsoft.com/entra/external-id/cross-tenant-access-settings-b2b-collaboration)
+- **New Finding Category** - "Guest Authentication Requirements" with AlertTriangle icon (orange) in UI
+
+### Context
+
+Guest users in Microsoft Entra authenticate in their home tenant, not the resource tenant. When Conditional Access policies require MFA or authentication strength for guests, the resource tenant must trust inbound MFA claims via Cross-Tenant Access Settings. Without this trust enabled, guest users will be blocked even if they completed MFA in their home tenant. This check helps organizations identify these configurations and provides step-by-step remediation guidance.
+
+### Technical Details
+
+- Added `checkGuestAuthenticationStrength()` function to `src/lib/analyzer.ts`
+- Updated `src/components/findings-list.tsx` with new category metadata
+- Detects both authentication strength policies and standard MFA requirements targeting guests
+- Analyzes `includeGuestsOrExternalUsers` conditions to identify specific guest types affected
 
 ## [1.3.0] - 2026-04-04
 

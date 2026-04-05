@@ -148,7 +148,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkMicrosoftManagedPolicy(policy),
       ...checkPrivilegedRoleExclusions(policy),
       ...checkGuestExternalUserExclusions(policy, context),
-      ...checkCredentialRegistrationConstraints(policy, context)
+      ...checkCredentialRegistrationConstraints(policy, context),
+      ...checkGuestAuthenticationStrength(policy)
     );
 
     findings.push(...policyFindings);
@@ -1257,6 +1258,148 @@ function checkMicrosoftManagedPolicy(
       "phantom drafts. If you intentionally disabled this managed policy, consider enabling it in " +
       "report-only mode to evaluate its impact. " +
       "See: https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+  });
+
+  return findings;
+}
+
+// ─── Check: Guest Users with Authentication Strength Requirements ──────────────
+
+/**
+ * Check: Guest Users Requiring Authentication Strength (MFA Trust)
+ * 
+ * Detects policies requiring authentication strength (especially phishing-resistant MFA)
+ * for guest users. Guest users authenticate in their home tenant, so the resource tenant
+ * must trust inbound MFA claims via Cross-Tenant Access Settings.
+ * 
+ * Reference: https://learn.microsoft.com/entra/external-id/cross-tenant-access-settings-b2b-collaboration
+ * Reference: https://learn.microsoft.com/entra/external-id/authentication-conditional-access
+ */
+function checkGuestAuthenticationStrength(
+  policy: ConditionalAccessPolicy
+): Finding[] {
+  const findings: Finding[] = [];
+
+  // Only check enabled policies
+  if (policy.state === "disabled") return findings;
+
+  const users = policy.conditions.users;
+  const grant = policy.grantControls;
+
+  // Check if policy targets guest/external users
+  const targetsGuests =
+    users.includeUsers.includes("GuestsOrExternalUsers") ||
+    users.includeGuestsOrExternalUsers != null;
+
+  // Check if policy requires authentication strength
+  const requiresAuthStrength = grant?.authenticationStrength != null;
+
+  // Check if policy requires MFA (which may include authentication strength)
+  const requiresMFA = grant?.builtInControls.includes("mfa");
+
+  if (!targetsGuests || (!requiresAuthStrength && !requiresMFA)) {
+    return findings;
+  }
+
+  // Determine severity and messaging based on authentication strength type
+  let severity: Severity = "high";
+  let strengthType = "MFA";
+  let requiresCrossTenantTrust = true;
+
+  if (requiresAuthStrength) {
+    const authStrengthId = grant.authenticationStrength?.id || "";
+    const authStrengthName = grant.authenticationStrength?.displayName || "Unknown";
+    
+    // Check if it's phishing-resistant (most restrictive)
+    if (
+      authStrengthName.toLowerCase().includes("phishing-resistant") ||
+      authStrengthName.toLowerCase().includes("phishing resistant")
+    ) {
+      severity = "high";
+      strengthType = "Phishing-resistant MFA";
+    } else {
+      severity = "medium";
+      strengthType = `Authentication strength: ${authStrengthName}`;
+    }
+  }
+
+  // Determine guest user types being targeted
+  const guestTypes: string[] = [];
+  if (users.includeGuestsOrExternalUsers) {
+    const guestConfig = users.includeGuestsOrExternalUsers as any;
+    const guestTypeString = guestConfig.guestOrExternalUserTypes || "";
+    
+    if (guestTypeString.includes("b2bCollaborationGuest")) {
+      guestTypes.push("B2B Collaboration guests");
+    }
+    if (guestTypeString.includes("b2bCollaborationMember")) {
+      guestTypes.push("B2B Collaboration members");
+    }
+    if (guestTypeString.includes("b2bDirectConnectUser")) {
+      guestTypes.push("B2B Direct Connect users");
+    }
+    if (guestTypeString.includes("internalGuest")) {
+      guestTypes.push("Internal guests");
+    }
+    if (guestTypeString.includes("serviceProvider")) {
+      guestTypes.push("Service provider users");
+    }
+  }
+
+  const guestTypeText =
+    guestTypes.length > 0
+      ? guestTypes.join(", ")
+      : "All guest/external users";
+
+  findings.push({
+    id: nextFindingId(),
+    policyId: policy.id,
+    policyName: policy.displayName,
+    severity: severity,
+    category: "Guest Authentication Requirements",
+    title: `Guest users required to satisfy ${strengthType} — may need Cross-Tenant Access Settings`,
+    description:
+      `This policy requires **${strengthType}** for **${guestTypeText}**. ` +
+      `\n\n**Important:** Guest users authenticate in their **home tenant**, not in your resource tenant. ` +
+      `For guests to satisfy this policy requirement, you must:\n\n` +
+      `1. **Enable MFA trust in Cross-Tenant Access Settings** for the guest's home tenant\n` +
+      `2. The guest must have already completed MFA in their home tenant\n` +
+      `3. The home tenant must present an MFA claim that satisfies your authentication strength requirement\n\n` +
+      `**B2B Collaboration guests** can satisfy MFA requirements if their home tenant presents MFA claims ` +
+      `AND you trust those claims in Cross-Tenant Access Settings.\n\n` +
+      `**B2B Direct Connect users** authenticate entirely in their home tenant — your policy requirements ` +
+      `are not directly enforced, but you can require that their home tenant has equivalent policies.\n\n` +
+      `${
+        requiresAuthStrength && strengthType.includes("Phishing-resistant")
+          ? `**Phishing-resistant MFA note:** Very few tenants have phishing-resistant MFA deployed. ` +
+            `If you require phishing-resistant MFA for guests, ensure their home tenant supports FIDO2, ` +
+            `Windows Hello for Business, or Certificate-Based Authentication, AND that you trust those ` +
+            `MFA claims inbound.\n\n`
+          : ""
+      }` +
+      `Without Cross-Tenant Access MFA trust enabled, guest users will be **blocked** even if they ` +
+      `completed MFA in their home tenant.`,
+    recommendation:
+      `**Action Required:**\n\n` +
+      `1. **Review Cross-Tenant Access Settings**: Navigate to **Entra Admin Center → External Identities → ` +
+      `Cross-tenant access settings → Inbound access settings**\n\n` +
+      `2. **Enable MFA trust** for each organization whose guests need access:\n` +
+      `   - **Default settings**: Apply to all external organizations (broadest)\n` +
+      `   - **Organization-specific settings**: Apply to specific partner tenants only (most secure)\n\n` +
+      `3. **Configure B2B collaboration trust settings**:\n` +
+      `   - Check "Trust multi-factor authentication from Azure AD tenants"\n` +
+      `   - Optionally: "Trust compliant devices" and "Trust hybrid Azure AD joined devices"\n\n` +
+      `4. **Validate guest sign-in flow**: Test with a guest user from a trusted tenant to confirm MFA claims ` +
+      `are honored\n\n` +
+      `5. **Consider scoping**: If only specific guest users need ${strengthType}, use the ` +
+      `\`includeGuestsOrExternalUsers\` condition to target specific guest types rather than all guests\n\n` +
+      `6. **Use report-only mode first**: Enable this policy in report-only mode and review sign-in logs ` +
+      `to identify which guests would be blocked before enforcing\n\n` +
+      `**Learn more:**\n` +
+      `- [Configure Cross-Tenant Access Settings](https://learn.microsoft.com/entra/external-id/cross-tenant-access-settings-b2b-collaboration)\n` +
+      `- [B2B Collaboration MFA](https://learn.microsoft.com/entra/external-id/authentication-conditional-access#mfa-for-azure-ad-external-users)\n` +
+      `- [Authentication strength for external users](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#external-users)\n` +
+      `- [B2B Direct Connect](https://learn.microsoft.com/entra/external-id/b2b-direct-connect-overview)`,
   });
 
   return findings;
