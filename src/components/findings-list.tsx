@@ -50,6 +50,7 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Microsoft-Managed Policies": { icon: Info, color: "text-blue-400" },
   "Credential Registration Constraints": { icon: ShieldAlert, color: "text-orange-400" },
   "Guest Authentication Requirements": { icon: AlertTriangle, color: "text-orange-400" },
+  "Protected Actions Configuration": { icon: Shield, color: "text-purple-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────

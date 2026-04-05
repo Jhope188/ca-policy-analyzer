@@ -149,7 +149,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkPrivilegedRoleExclusions(policy),
       ...checkGuestExternalUserExclusions(policy, context),
       ...checkCredentialRegistrationConstraints(policy, context),
-      ...checkGuestAuthenticationStrength(policy)
+      ...checkGuestAuthenticationStrength(policy),
+      ...checkProtectedActions(policy)
     );
 
     findings.push(...policyFindings);
@@ -1401,6 +1402,225 @@ function checkGuestAuthenticationStrength(
       `- [Authentication strength for external users](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#external-users)\n` +
       `- [B2B Direct Connect](https://learn.microsoft.com/entra/external-id/b2b-direct-connect-overview)`,
   });
+
+  return findings;
+}
+
+// ─── Check: Protected Actions Configuration ──────────────────────────────────
+
+/**
+ * Check: Protected Actions Best Practices
+ * 
+ * Protected Actions require additional authentication for sensitive admin operations
+ * like deleting CA policies, modifying PIM roles, etc. This check identifies
+ * common misconfigurations and best practices.
+ * 
+ * Reference: https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions
+ */
+function checkProtectedActions(
+  policy: ConditionalAccessPolicy
+): Finding[] {
+  const findings: Finding[] = [];
+
+  const userActions = policy.conditions.applications.includeUserActions;
+  
+  // Not a protected actions policy if no user actions
+  if (userActions.length === 0) return findings;
+
+  // Check if this is targeting protected actions (starts with microsoft.directory)
+  const protectedActions = userActions.filter(action => 
+    action.startsWith("microsoft.directory")
+  );
+
+  if (protectedActions.length === 0) return findings;
+
+  const grant = policy.grantControls;
+  const users = policy.conditions.users;
+
+  // CRITICAL: Protected Actions must use authentication strength, not basic MFA
+  const usesBasicMFA = grant?.builtInControls.includes("mfa") && !grant?.authenticationStrength;
+  const usesAuthStrength = grant?.authenticationStrength != null;
+
+  if (usesBasicMFA) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: policy.id,
+      policyName: policy.displayName,
+      severity: "high",
+      category: "Protected Actions Configuration",
+      title: "Protected Actions policy uses basic MFA instead of authentication strength",
+      description:
+        `This policy targets protected actions (${protectedActions.join(", ")}) but uses the basic "Require MFA" ` +
+        `grant control instead of an authentication strength. **Protected Actions policies MUST use authentication strength** ` +
+        `to function correctly.\n\n` +
+        `When using basic MFA:\n` +
+        `- The policy may not enforce correctly during the protected action\n` +
+        `- Users may bypass the additional authentication requirement\n` +
+        `- Microsoft's recommendation is always authentication strength for Protected Actions\n\n` +
+        `Protected Actions are sensitive operations like:\n` +
+        `- \`microsoft.directory.conditionalAccessPolicies.delete\` - Deleting CA policies\n` +
+        `- \`microsoft.directory.conditionalAccessPolicies.update\` - Modifying CA policies\n` +
+        `- \`microsoft.directory.roleManagement.update\` - Changing role assignments\n` +
+        `- \`microsoft.directory.applications.update\` - Modifying app registrations\n\n` +
+        `These require phishing-resistant or strong authentication to prevent privilege escalation attacks.`,
+      recommendation:
+        `**Action Required:**\n\n` +
+        `1. **Replace the grant control**: Remove "Require multifactor authentication" and add an authentication strength:\n` +
+        `   - Recommended: "Phishing-resistant MFA" strength for maximum security\n` +
+        `   - Minimum: "Multifactor authentication" strength (allows broader MFA methods)\n\n` +
+        `2. **Navigate to**: Entra Admin Center → Protection → Conditional Access → [This Policy] → Grant\n` +
+        `3. **Select**: "Require authentication strength" → Choose your strength policy\n` +
+        `4. **Verify admin registration**: Ensure all targeted admins have registered the required auth methods before enforcing\n\n` +
+        `5. **Use report-only mode first**: Enable report-only to validate that admins can satisfy the strength requirement\n\n` +
+        `**Learn more:**\n` +
+        `- [Protected Actions for CA](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions)\n` +
+        `- [Authentication Strengths](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths)`,
+    });
+  }
+
+  // BEST PRACTICE: Protected Actions should target admins, not all users
+  const targetsAllUsers = users.includeUsers.includes("All");
+  const targetsAdminRoles = users.includeRoles && users.includeRoles.length > 0;
+
+  if (targetsAllUsers && !targetsAdminRoles) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: policy.id,
+      policyName: policy.displayName,
+      severity: "medium",
+      category: "Protected Actions Configuration",
+      title: "Protected Actions policy targets 'All users' instead of specific admin roles",
+      description:
+        `This policy targets protected actions (${protectedActions.join(", ")}) and applies to **All users**. ` +
+        `\n\nProtected Actions are typically administrative operations that only admins can perform. Targeting "All users" ` +
+        `creates unnecessary auth prompts for non-admin users who wouldn't be able to perform these actions anyway.\n\n` +
+        `**Best practice:** Target only the specific admin roles that perform these protected actions:\n` +
+        `- For CA policy changes: Conditional Access Administrator, Security Administrator\n` +
+        `- For role management: Privileged Role Administrator, Global Administrator\n` +
+        `- For app registration changes: Application Administrator, Cloud Application Administrator\n\n` +
+        `This improves user experience and reduces support burden from unnecessary MFA prompts.`,
+      recommendation:
+        `**Review Recommended:**\n\n` +
+        `1. **Determine which roles perform these actions** in your environment\n` +
+        `2. **Update the policy**: Change from "All users" to specific directory roles\n` +
+        `3. **Exclude break-glass accounts**: Ensure emergency access accounts can bypass if needed\n\n` +
+        `Example role assignments:\n` +
+        `- Delete/Update CA policies → Conditional Access Administrator, Security Administrator\n` +
+        `- Role management → Privileged Role Administrator\n` +
+        `- App registrations → Application Administrator, Cloud Application Administrator\n\n` +
+        `**Learn more:**\n` +
+        `- [Protected Actions Scoping](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions#scope-the-policy)`,
+    });
+  }
+
+  // CHECK: Phishing-resistant MFA recommendation for Protected Actions
+  if (usesAuthStrength && grant?.authenticationStrength) {
+    const authStrengthName = grant.authenticationStrength.displayName || "";
+    const isPhishingResistant = 
+      authStrengthName.toLowerCase().includes("phishing-resistant") ||
+      authStrengthName.toLowerCase().includes("phishing resistant");
+
+    if (!isPhishingResistant) {
+      findings.push({
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity: "info",
+        category: "Protected Actions Configuration",
+        title: `Protected Actions using "${authStrengthName}" — consider phishing-resistant MFA`,
+        description:
+          `This policy protects sensitive admin actions (${protectedActions.join(", ")}) using the ` +
+          `"${authStrengthName}" authentication strength.\n\n` +
+          `**Microsoft's recommendation:** Use **phishing-resistant MFA** for Protected Actions to prevent ` +
+          `privilege escalation attacks. Standard MFA methods (SMS, TOTP, push notifications) can be defeated ` +
+          `by adversary-in-the-middle (AiTM) phishing attacks.\n\n` +
+          `Protected Actions are high-value targets:\n` +
+          `- Attackers who compromise an admin account want to delete CA policies to remove security controls\n` +
+          `- Modifying role assignments enables persistent access\n` +
+          `- Changing app registrations can grant broad API permissions\n\n` +
+          `Phishing-resistant methods include:\n` +
+          `- FIDO2 security keys\n` +
+          `- Windows Hello for Business\n` +
+          `- Certificate-Based Authentication\n` +
+          `- Passkeys in Microsoft Authenticator`,
+        recommendation:
+          `**Consider Upgrading:**\n\n` +
+          `1. **Deploy phishing-resistant credentials** to admins who perform protected actions\n` +
+          `2. **Update this policy** to use the "Phishing-resistant MFA" authentication strength\n` +
+          `3. **Use Temporary Access Pass (TAP)** to bootstrap phishing-resistant credential registration\n\n` +
+          `This is informational only — your current configuration meets minimum requirements. ` +
+          `Upgrading to phishing-resistant provides defense-in-depth against sophisticated attacks.\n\n` +
+          `**Learn more:**\n` +
+          `- [Phishing-resistant authentication methods](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#built-in-authentication-strengths)\n` +
+          `- [Deploy phishing-resistant auth](https://learn.microsoft.com/entra/identity/authentication/how-to-mfa-number-match)`,
+      });
+    }
+  }
+
+  // CHECK: Report-only mode for Protected Actions (best practice for initial deployment)
+  if (policy.state === "enabledForReportingButNotEnforced") {
+    findings.push({
+      id: nextFindingId(),
+      policyId: policy.id,
+      policyName: policy.displayName,
+      severity: "info",
+      category: "Protected Actions Configuration",
+      title: "Protected Actions policy in report-only mode — consider enabling for enforcement",
+      description:
+        `This Protected Actions policy is currently in **report-only mode**. While this is the recommended ` +
+        `initial deployment state, once you've validated that admins can satisfy the requirements, the policy ` +
+        `should be enabled for enforcement.\n\n` +
+        `In report-only mode:\n` +
+        `- The additional authentication is NOT required\n` +
+        `- Sign-in logs show what WOULD have happened\n` +
+        `- Admins can still perform protected actions without the additional verification\n\n` +
+        `This means your protected actions are currently NOT protected. Report-only should be a temporary ` +
+        `validation phase, not a permanent state.`,
+      recommendation:
+        `**Next Steps:**\n\n` +
+        `1. **Review sign-in logs**: Check if admins successfully satisfy the authentication strength in report-only\n` +
+        `2. **Validate admin readiness**: Confirm all targeted admins have registered required credentials\n` +
+        `3. **Enable enforcement**: Change policy state from "Report-only" to "On"\n` +
+        `4. **Monitor for issues**: Watch for authentication failures in the first 24-48 hours\n\n` +
+        `Recommendation: Enable enforcement after 1-2 weeks of successful report-only validation.\n\n` +
+        `**Learn more:**\n` +
+        `- [Deploy Protected Actions](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions#test-the-policy)`,
+    });
+  }
+
+  // CHECK: Break-glass account exclusions
+  const hasExclusions = users.excludeUsers && users.excludeUsers.length > 0;
+  if (!hasExclusions && policy.state === "enabled") {
+    findings.push({
+      id: nextFindingId(),
+      policyId: policy.id,
+      policyName: policy.displayName,
+      severity: "medium",
+      category: "Protected Actions Configuration",
+      title: "Protected Actions policy has no user exclusions — ensure break-glass access",
+      description:
+        `This policy protects sensitive admin actions but does not exclude any users (such as break-glass accounts). ` +
+        `\n\n**Risk:** If the authentication strength requirement fails (e.g., FIDO2 not working, auth service outage), ` +
+        `admins may be unable to perform critical operations like:\n` +
+        `- Disabling a misconfigured CA policy that locks out users\n` +
+        `- Modifying role assignments to restore access\n` +
+        `- Responding to security incidents that require CA policy changes\n\n` +
+        `Break-glass accounts should be excluded from Protected Actions policies to ensure emergency access to ` +
+        `critical admin operations.`,
+      recommendation:
+        `**Review Recommended:**\n\n` +
+        `1. **Identify break-glass accounts**: Typically 2 emergency access accounts with permanent Global Admin\n` +
+        `2. **Exclude from this policy**: Add break-glass accounts to the "Exclude users" list\n` +
+        `3. **Compensating controls**: Ensure break-glass accounts are:\n` +
+        `   - Cloud-only (not synced from AD)\n` +
+        `   - Monitored with alerts for any sign-in activity\n` +
+        `   - Excluded from ALL CA policies that could block emergency access\n` +
+        `   - Using strong, randomly generated passwords stored in a secure physical location\n\n` +
+        `Protected Actions policies should allow break-glass bypass to prevent self-inflicted lockouts.\n\n` +
+        `**Learn more:**\n` +
+        `- [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)`,
+    });
+  }
 
   return findings;
 }

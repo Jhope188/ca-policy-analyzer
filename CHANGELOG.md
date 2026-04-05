@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- **Protected Actions Configuration Check** - New analyzer check that validates Protected Actions policies for security best practices
+  - Detects policies using basic MFA instead of required authentication strength for Protected Actions
+  - Identifies policies targeting "All users" instead of specific admin roles who perform protected actions
+  - Recommends phishing-resistant MFA for sensitive operations (delete CA policies, role management, app changes)
+  - Validates break-glass account exclusions to prevent emergency access lockouts
+  - Identifies policies in report-only mode that should be enabled for enforcement
+  - Provides detailed guidance on authentication strength requirements and admin role scoping
+  - Reference: [Protected Actions for Conditional Access](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions)
+- **New Finding Category** - "Protected Actions Configuration" with Shield icon (purple) in UI
+
 
 - **Guest Authentication Strength Check** - New analyzer check that detects policies requiring authentication strength (especially phishing-resistant MFA) for guest/external users
   - Identifies when policies target guest users with MFA or authentication strength requirements
