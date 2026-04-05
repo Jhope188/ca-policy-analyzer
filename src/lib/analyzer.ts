@@ -1835,6 +1835,233 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     });
   }
 
+  // Check for Identity Protection / Risk-based Conditional Access
+  const hasUserRiskPolicy = enabled.some((p) => {
+    const conditions = p.conditions as any;
+    return conditions.userRiskLevels && conditions.userRiskLevels.length > 0;
+  });
+
+  const hasSignInRiskPolicy = enabled.some((p) => {
+    const conditions = p.conditions as any;
+    return conditions.signInRiskLevels && conditions.signInRiskLevels.length > 0;
+  });
+
+  if (!hasUserRiskPolicy) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "high",
+      category: "Identity Protection",
+      title: "No policy enforces controls based on user risk level",
+      description:
+        `No enabled Conditional Access policy was found that uses **user risk levels** as a condition. ` +
+        `Microsoft Entra ID Protection continuously evaluates user accounts for compromise indicators ` +
+        `such as leaked credentials, anomalous behavior patterns, and threat intelligence signals.\n\n` +
+        `**Without user risk policies:**\n` +
+        `- Compromised accounts can operate undetected until manual discovery\n` +
+        `- Attackers with stolen credentials gain persistent access\n` +
+        `- No automated response to credential leaks or account takeovers\n` +
+        `- You're not leveraging Microsoft's threat intelligence for proactive defense\n\n` +
+        `User risk is calculated based on:\n` +
+        `- Leaked credentials detected in dark web / paste sites\n` +
+        `- Anomalous user activity patterns\n` +
+        `- Impossible travel detection\n` +
+        `- Anonymous IP usage from TOR/VPNs\n` +
+        `- Malware-linked IP addresses\n\n` +
+        `Microsoft recommends blocking high-risk users or requiring password change + MFA.`,
+      recommendation:
+        `**Action Required:**\n\n` +
+        `1. **Enable Azure AD Premium P2** (required for Identity Protection)\n` +
+        `2. **Create a user risk policy**:\n` +
+        `   - Target: All users (exclude break-glass accounts)\n` +
+        `   - Condition: User risk level = High\n` +
+        `   - Grant: Require password change + MFA\n` +
+        `   - Or: Block access for high-risk users\n\n` +
+        `3. **Monitor User Risk Events**:\n` +
+        `   - Review Entra Admin Center → Protection → Identity Protection → Risky Users\n` +
+        `   - Investigate and remediate flagged accounts\n` +
+        `   - Set up alerts for high-risk detections\n\n` +
+        `4. **Start with report-only mode** to understand impact before enforcement\n\n` +
+        `**Example policy configuration:**\n` +
+        `- Users: All users (exclude 2 break-glass accounts)\n` +
+        `- Conditions: User risk = High\n` +
+        `- Grant: Require password change + Require MFA\n` +
+        `- Session: Sign-in frequency = Every time\n\n` +
+        `**Learn more:**\n` +
+        `- [Identity Protection Overview](https://learn.microsoft.com/entra/id-protection/overview-identity-protection)\n` +
+        `- [User Risk Policy](https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies#user-risk-policy)\n` +
+        `- [Risk-based Conditional Access](https://learn.microsoft.com/entra/identity/conditional-access/howto-conditional-access-policy-risk-user)`,
+    });
+  }
+
+  if (!hasSignInRiskPolicy) {
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: "high",
+      category: "Identity Protection",
+      title: "No policy enforces controls based on sign-in risk level",
+      description:
+        `No enabled Conditional Access policy was found that uses **sign-in risk levels** as a condition. ` +
+        `Microsoft Entra ID Protection analyzes each sign-in in real-time for risk indicators ` +
+        `such as unfamiliar locations, anonymous IPs, malware-linked infrastructure, and atypical behavior.\n\n` +
+        `**Without sign-in risk policies:**\n` +
+        `- Attackers with valid credentials can sign in from anywhere without additional verification\n` +
+        `- Credential stuffing attacks go undetected\n` +
+        `- Sign-ins from TOR, VPNs, or known malicious IPs are allowed\n` +
+        `- No automated response to suspicious sign-in patterns\n` +
+        `- Adversary-in-the-middle (AiTM) phishing attacks may succeed\n\n` +
+        `Sign-in risk is calculated in real-time based on:\n` +
+        `- Anonymous IP addresses (TOR, proxy, VPN)\n` +
+        `- Atypical travel patterns\n` +
+        `- Malware-linked IP addresses\n` +
+        `- Unfamiliar sign-in properties\n` +
+        `- Password spray attacks\n` +
+        `- Impossible travel\n` +
+        `- Token anomalies\n\n` +
+        `Microsoft recommends requiring MFA for medium/high-risk sign-ins or blocking high-risk sign-ins entirely.`,
+      recommendation:
+        `**Action Required:**\n\n` +
+        `1. **Enable Azure AD Premium P2** (required for Identity Protection)\n` +
+        `2. **Create a sign-in risk policy**:\n` +
+        `   - Target: All users (exclude break-glass accounts)\n` +
+        `   - Condition: Sign-in risk level = Medium and High\n` +
+        `   - Grant: Require MFA (phishing-resistant recommended)\n\n` +
+        `3. **Consider blocking high-risk sign-ins**:\n` +
+        `   - Create a second policy for sign-in risk = High\n` +
+        `   - Grant: Block access\n` +
+        `   - This prevents account takeover attempts\n\n` +
+        `4. **Monitor Sign-In Risk Events**:\n` +
+        `   - Review Entra Admin Center → Protection → Identity Protection → Risky Sign-Ins\n` +
+        `   - Investigate flagged sign-ins\n` +
+        `   - Confirm legitimate users or dismiss false positives\n\n` +
+        `5. **Start with report-only mode** to baseline risk detections\n\n` +
+        `**Example policy configuration:**\n` +
+        `Policy 1 - Require MFA for risky sign-ins:\n` +
+        `- Users: All users (exclude break-glass)\n` +
+        `- Conditions: Sign-in risk = Medium, High\n` +
+        `- Grant: Require MFA\n\n` +
+        `Policy 2 - Block high-risk sign-ins:\n` +
+        `- Users: All users (exclude break-glass)\n` +
+        `- Conditions: Sign-in risk = High\n` +
+        `- Grant: Block access\n\n` +
+        `**Learn more:**\n` +
+        `- [Sign-in Risk Policy](https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies#sign-in-risk-policy)\n` +
+        `- [Risk-based Conditional Access](https://learn.microsoft.com/entra/identity/conditional-access/howto-conditional-access-policy-risk)\n` +
+        `- [Identity Protection Risk Events](https://learn.microsoft.com/entra/id-protection/concept-identity-protection-risks)`,
+    });
+  }
+
+  // Check for high-value application coverage
+  const HIGH_VALUE_APPS = {
+    "797f4846-ba00-4fd7-ba43-dac1f8f63013": {
+      name: "Azure Management",
+      description: "Portal, ARM, PowerShell, CLI",
+      risk: "critical",
+    },
+    "00000002-0000-0ff1-ce00-000000000000": {
+      name: "Office 365 Exchange Online",
+      description: "Email, calendar, contacts",
+      risk: "high",
+    },
+    "00000003-0000-0ff1-ce00-000000000000": {
+      name: "Office 365 SharePoint Online",
+      description: "SharePoint, OneDrive",
+      risk: "high",
+    },
+    "00000003-0000-0000-c000-000000000000": {
+      name: "Microsoft Graph",
+      description: "API access to M365 data",
+      risk: "critical",
+    },
+    "c44b4083-3bb0-49c1-b47d-974e53cbdf3c": {
+      name: "Azure Portal",
+      description: "Web-based Azure management",
+      risk: "critical",
+    },
+  };
+
+  const unprotectedHighValueApps: Array<{ id: string; name: string; description: string; risk: string }> = [];
+
+  for (const [appId, appInfo] of Object.entries(HIGH_VALUE_APPS)) {
+    const isCovered = enabled.some((p) => {
+      const apps = p.conditions.applications;
+      const includesAll = apps.includeApplications.includes("All");
+      const includesSpecific = apps.includeApplications.includes(appId);
+      const isExcluded = apps.excludeApplications.includes(appId);
+      const hasMfaOrBlock =
+        p.grantControls?.builtInControls.includes("mfa") ||
+        p.grantControls?.builtInControls.includes("block") ||
+        p.grantControls?.authenticationStrength != null;
+
+      return (includesAll || includesSpecific) && !isExcluded && hasMfaOrBlock;
+    });
+
+    if (!isCovered) {
+      unprotectedHighValueApps.push({ id: appId, ...appInfo });
+    }
+  }
+
+  if (unprotectedHighValueApps.length > 0) {
+    const criticalApps = unprotectedHighValueApps.filter((a) => a.risk === "critical");
+    const highApps = unprotectedHighValueApps.filter((a) => a.risk === "high");
+
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: criticalApps.length > 0 ? "critical" : "high",
+      category: "Application Coverage",
+      title: `${unprotectedHighValueApps.length} high-value application(s) lack MFA/blocking policies${criticalApps.length > 0 ? ` (${criticalApps.length} critical)` : ""}`,
+      description:
+        `${unprotectedHighValueApps.length} high-value Microsoft application(s) do not have Conditional Access ` +
+        `policies requiring MFA, authentication strength, or blocking access. These applications provide ` +
+        `access to critical tenant resources and should have the strongest protection.\n\n` +
+        `**Unprotected applications:**\n` +
+        unprotectedHighValueApps
+          .map(
+            (app) =>
+              `- **${app.name}** (${app.description}) - ${app.risk.toUpperCase()} RISK\n` +
+              `  App ID: \`${app.id}\``
+          )
+          .join("\n") +
+        `\n\n` +
+        `**Risk by application:**\n` +
+        `- **Azure Management / Azure Portal**: Full control over subscription resources, ability to create backdoors, exfiltrate data, deploy crypto miners\n` +
+        `- **Microsoft Graph**: API access to all M365 data (mail, files, users, groups), can be used to escalate privileges\n` +
+        `- **Exchange Online**: Access to corporate email, potential for business email compromise (BEC)\n` +
+        `- **SharePoint/OneDrive**: Access to corporate documents, intellectual property theft risk\n\n` +
+        `Without MFA/strong auth on these apps, a compromised password grants full access to your tenant's most sensitive resources.`,
+      recommendation:
+        `**Action Required:**\n\n` +
+        `Create specific Conditional Access policies for high-value applications:\n\n` +
+        `**For Azure Management / Azure Portal:**\n` +
+        `1. Target: All users\n` +
+        `2. Cloud apps: Select "Azure Management" (includes Portal, ARM, PowerShell, CLI)\n` +
+        `3. Grant: Require phishing-resistant MFA (FIDO2 or certificate-based)\n` +
+        `4. Session: Sign-in frequency = Every time (prevent token reuse)\n` +
+        `5. Exclude: Break-glass accounts only\n\n` +
+        `**For Office 365 (Exchange, SharePoint, Teams):**\n` +
+        `1. Target: All users\n` +
+        `2. Cloud apps: Select "Office 365"\n` +
+        `3. Grant: Require MFA (standard or phishing-resistant)\n` +
+        `4. Consider device compliance or approved client app requirements\n\n` +
+        `**For Microsoft Graph API:**\n` +
+        `1. Target: All users\n` +
+        `2. Cloud apps: Select "Microsoft Graph"\n` +
+        `3. Grant: Require MFA + compliant device\n` +
+        `4. Session: Sign-in frequency = Every time\n\n` +
+        `**Best practice:** Use "All cloud apps" policies for baseline MFA, then layer application-specific ` +
+        `policies with stronger controls (phishing-resistant MFA, device compliance) for high-value resources.\n\n` +
+        `**Learn more:**\n` +
+        `- [Securing privileged access](https://learn.microsoft.com/entra/identity/role-based-access-control/security-planning)\n` +
+        `- [Application-specific CA policies](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps)\n` +
+        `- [Phishing-resistant authentication](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths)`,
+    });
+  }
+
   // CA-Immune resources — single tenant-wide awareness finding
   const allAppsPolicies = context.policies.filter(
     (p) =>

@@ -51,6 +51,8 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Credential Registration Constraints": { icon: ShieldAlert, color: "text-orange-400" },
   "Guest Authentication Requirements": { icon: AlertTriangle, color: "text-orange-400" },
   "Protected Actions Configuration": { icon: Shield, color: "text-purple-400" },
+  "Identity Protection": { icon: ShieldAlert, color: "text-red-400" },
+  "Application Coverage": { icon: ShieldAlert, color: "text-red-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────

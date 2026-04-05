@@ -7,9 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-04-04
 
 ### Added
+- **Identity Protection Risk-Based Checks** - New tenant-wide checks for Identity Protection integration
+  - Detects missing user risk policies (high-risk users not blocked or required to change password)
+  - Detects missing sign-in risk policies (risky sign-ins not requiring MFA)
+  - Explains risk indicators: leaked credentials, anomalous behavior, TOR/VPN usage, impossible travel
+  - Provides Azure AD Premium P2 requirements and policy configuration guidance
+  - Severity: HIGH for missing risk-based policies
+  - Reference: [Identity Protection Overview](https://learn.microsoft.com/entra/id-protection/overview-identity-protection)
+- **High-Value Application Coverage Check** - Validates MFA/blocking policies for critical Microsoft apps
+  - Detects unprotected access to Azure Management, Azure Portal, Microsoft Graph, Exchange, SharePoint
+  - Flags applications by risk level: CRITICAL (Azure, Graph) and HIGH (Office 365 services)
+  - Recommends phishing-resistant MFA for Azure management and API access
+  - Provides app-specific policy configuration guidance
+  - Severity: CRITICAL if Azure/Graph unprotected, HIGH for Office 365 apps
+  - Reference: [Application-specific CA policies](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps)
+- **New Finding Categories**: "Identity Protection" and "Application Coverage" with ShieldAlert icon (red)
+
 - **Protected Actions Configuration Check** - New analyzer check that validates Protected Actions policies for security best practices
   - Detects policies using basic MFA instead of required authentication strength for Protected Actions
   - Identifies policies targeting "All users" instead of specific admin roles who perform protected actions
