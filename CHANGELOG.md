@@ -6,11 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
+## [Unreleased]
 
 ### Added
-- **Identity Protection Risk-Based Checks** - New tenant-wide checks for Identity Protection integration
   - Detects missing user risk policies (high-risk users not blocked or required to change password)
+- **Identity Protection Risk-Based Checks** - New tenant-wide checks for Identity Protection integration
+
   - Detects missing sign-in risk policies (risky sign-ins not requiring MFA)
   - Explains risk indicators: leaked credentials, anomalous behavior, TOR/VPN usage, impossible travel
   - Provides Azure AD Premium P2 requirements and policy configuration guidance
@@ -173,7 +174,8 @@ The analyzer uses the following finding categories:
 
 ---
 
-[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.1.0...v1.2.0
