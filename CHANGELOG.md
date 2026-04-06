@@ -6,12 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-## [Unreleased]
+
+## [1.5.0] - 2026-04-06
 
 ### Added
-  - Detects missing user risk policies (high-risk users not blocked or required to change password)
 - **Identity Protection Risk-Based Checks** - New tenant-wide checks for Identity Protection integration
-
+  - Detects missing user risk policies (high-risk users not blocked or required to change password)
   - Detects missing sign-in risk policies (risky sign-ins not requiring MFA)
   - Explains risk indicators: leaked credentials, anomalous behavior, TOR/VPN usage, impossible travel
   - Provides Azure AD Premium P2 requirements and policy configuration guidance
@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Reference: [Application-specific CA policies](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps)
 - **New Finding Categories**: "Identity Protection" and "Application Coverage" with ShieldAlert icon (red)
 
+## [1.4.0] - 2026-04-04
+
+### Added
 - **Protected Actions Configuration Check** - New analyzer check that validates Protected Actions policies for security best practices
   - Detects policies using basic MFA instead of required authentication strength for Protected Actions
   - Identifies policies targeting "All users" instead of specific admin roles who perform protected actions
@@ -35,7 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Provides detailed guidance on authentication strength requirements and admin role scoping
   - Reference: [Protected Actions for Conditional Access](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions)
 - **New Finding Category** - "Protected Actions Configuration" with Shield icon (purple) in UI
-
 
 - **Guest Authentication Strength Check** - New analyzer check that detects policies requiring authentication strength (especially phishing-resistant MFA) for guest/external users
   - Identifies when policies target guest users with MFA or authentication strength requirements
@@ -54,24 +56,23 @@ Guest users in Microsoft Entra authenticate in their home tenant, not the resour
 ### Technical Details
 
 - Added `checkGuestAuthenticationStrength()` function to `src/lib/analyzer.ts`
+- Added `checkProtectedActions()` function to `src/lib/analyzer.ts`
 - Updated `src/components/findings-list.tsx` with new category metadata
 - Detects both authentication strength policies and standard MFA requirements targeting guests
 - Analyzes `includeGuestsOrExternalUsers` conditions to identify specific guest types affected
+
+---
 
 ## [1.3.0] - 2026-04-04
 
 ### Added
 
-- **Windows Hello / Platform SSO Registration Constraint Check** - New analyzer check that flags policies targeting "Register security info" user action that may block Windows Hello for Business and macOS Platform SSO credential setup on new devices
-  - Detects device compliance requirements (will block new device setup)
-  - Detects trusted location requirements (will block remote/home workers)
-  - Detects approved/protected app requirements (may block before apps installed)
-  - Detects device filter rules (may not evaluate correctly during provisioning)
-  - Provides severity levels: HIGH for compliance/location requirements, MEDIUM for app/filter constraints
-  - Includes detailed recommendations for policy adjustments before May 2026 enforcement
-  - Reference: Microsoft Entra "What's New" March 2026 - [Plan for change – Conditional Access enforcement during credential registration for Windows Hello for Business and macOS Platform SSO](https://learn.microsoft.com/entra/fundamentals/whats-new#march-2026)
+- **Windows Hello / Platform SSO Registration Constraint Check** - Identifies CA policies that may block Windows Hello for Business and macOS Platform SSO credential provisioning starting May 2026
+  - Validates policies targeting "Register security info" user action
+  - Flags report-only policies requiring activation before enforcement
+  - Checks for overly restrictive location/compliance requirements incompatible with DRS
+  - Severity adjusts based on policy state and control configuration
 
-- **New Finding Category** - "Credential Registration Constraints" with ShieldAlert icon (orange) in UI
 
 ### Context
 
