@@ -1002,13 +1002,42 @@ function checkGuestExternalUserExclusions(
 
   // Build human-readable description of excluded types
   let guestDescription = "";
+  let excludedTypesList: string[] = [];
+  
   if (excludesGuestsSimple) {
     guestDescription = "all guest and external users";
+    excludedTypesList = Object.keys(GUEST_TYPE_LABELS);
   } else {
     const typeLabels = excludedGuestTypes
       .map((t) => GUEST_TYPE_LABELS[t] ?? t)
       .join(", ");
     guestDescription = typeLabels + (externalTenantScope ? ` from ${externalTenantScope}` : "");
+    excludedTypesList = excludedGuestTypes;
+  }
+
+  // Categorize guest types by enforcement model
+  const resourceTenantEnforceable = excludedTypesList.filter(t => 
+    ["b2bCollaborationGuest", "b2bCollaborationMember", "internalGuest", "serviceProvider"].includes(t)
+  );
+  const homeTenantOnly = excludedTypesList.filter(t => t === "b2bDirectConnectUser");
+  const otherTypes = excludedTypesList.filter(t => t === "otherExternalUser");
+
+  // Build enforcement model explanation
+  let enforcementDetail = "";
+  if (resourceTenantEnforceable.length > 0) {
+    const types = resourceTenantEnforceable.map(t => GUEST_TYPE_LABELS[t] ?? t).join(", ");
+    enforcementDetail += `\n\n**Resource tenant enforceable (excluded from this policy):** ${types}. ` +
+      `These guest types can be required to satisfy MFA in YOUR tenant if you enable MFA trust in Cross-Tenant Access Settings. ` +
+      `The guest completes MFA in their home tenant, and you trust that MFA claim via inbound trust settings.`;
+  }
+  if (homeTenantOnly.length > 0) {
+    enforcementDetail += `\n\n**Home tenant only (excluded from this policy):** ${GUEST_TYPE_LABELS["b2bDirectConnectUser"]}. ` +
+      `These users authenticate entirely in their home tenant — your CA policies are NOT enforced. ` +
+      `You cannot directly require MFA for B2B Direct Connect users, but you can require their home tenant has equivalent policies via trust settings.`;
+  }
+  if (otherTypes.length > 0) {
+    enforcementDetail += `\n\n**Other external users (excluded from this policy):** ${GUEST_TYPE_LABELS["otherExternalUser"]}. ` +
+      `External identities not covered by B2B collaboration or direct connect.`;
   }
 
   // Severity depends on scope and whether compensating policy exists
@@ -1053,20 +1082,31 @@ function checkGuestExternalUserExclusions(
     description:
       context_detail +
       (excludedGuestTypes.length > 0 && !excludesGuestsSimple
-        ? ` Excluded types: ${excludedGuestTypes.map((t) => GUEST_TYPE_LABELS[t] ?? t).join(", ")}.`
+        ? ` **Excluded types:** ${excludedGuestTypes.map((t) => GUEST_TYPE_LABELS[t] ?? t).join(", ")}.`
+        : excludesGuestsSimple
+        ? ` **Excluded types:** All guest and external user types.`
         : "") +
       (externalTenantScope
-        ? ` Tenant scope: ${externalTenantScope}.`
-        : ""),
+        ? ` **Tenant scope:** ${externalTenantScope}.`
+        : "") +
+      enforcementDetail,
     recommendation:
       hasGuestCoveragePolicy
         ? `A compensating policy was found, but verify it enforces equivalent controls for guest/external users. ` +
-          `Ensure the guest policy covers the same apps and actions as this policy.`
+          `Ensure the guest policy covers the same apps and actions as this policy. ` +
+          `**For B2B Collaboration guests (b2bCollaborationGuest, b2bCollaborationMember):** Enable MFA trust in ` +
+          `Cross-Tenant Access Settings (Entra Admin Center → External Identities → Cross-tenant access settings → ` +
+          `Inbound access settings → Trust settings → "Trust multi-factor authentication from Azure AD tenants"). ` +
+          `**For B2B Direct Connect users:** Your CA policies do not apply — require equivalent policies in the partner tenant via trust settings.`
         : `Create a dedicated CA policy for guest/external users with appropriate controls, or ` +
           `remove the guest exclusion from this policy. Per CIS and Microsoft Zero Trust guidance, ` +
           `guest accounts should be subject to at least MFA and ideally session time restrictions. ` +
           `If guests must be excluded from this specific policy, create a companion policy like ` +
-          `"GLOBAL - GRANT - MFA - GuestsExternal" to ensure coverage.`,
+          `"GLOBAL - GRANT - MFA - GuestsExternal" to ensure coverage. ` +
+          `**For B2B Collaboration guests (b2bCollaborationGuest, b2bCollaborationMember):** Enable MFA trust in ` +
+          `Cross-Tenant Access Settings to require guests complete MFA in their home tenant before accessing your resources. ` +
+          `**For B2B Direct Connect users:** These users authenticate in their home tenant only — your CA policies do NOT apply. ` +
+          `Require the partner organization has equivalent policies via Cross-Tenant Access Settings trust configuration.`,
   });
 
   return findings;
