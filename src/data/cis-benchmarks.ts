@@ -811,7 +811,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Require MFA for device registration", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-registration" },
+      { label: "MS Learn: Block legacy authentication", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication" },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
