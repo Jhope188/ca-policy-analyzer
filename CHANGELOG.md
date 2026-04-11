@@ -15,7 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **High**: NOT excluded on block + all users + all apps policies
     - **Medium**: NOT excluded on MFA / compliance + all users policies
     - **Low**: NOT excluded on other enabled policies
-    - **Info**: Disabled, report-only, or Microsoft managed policies show guidance to add before enabling/enforcing
+    - **Medium**: NOT excluded on report-only policies (will block break-glass once switched to enabled)
+    - **Low**: NOT excluded on disabled policies (will block break-glass if enabled without adding exclusion)
+    - **Info**: Disabled Microsoft managed policies show guidance to add before enabling
   - Skips workload-identity-only policies (no user targeting)
   - Resolves display names for break-glass accounts/groups from directory objects
 

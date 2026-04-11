@@ -1861,14 +1861,14 @@ function checkBreakGlassPerPolicy(
       ];
     }
 
-    // Report-only — informational
+    // Report-only — medium: will block break-glass once switched to enabled
     if (policy.state === "enabledForReportingButNotEnforced") {
       return [
         {
           id: nextFindingId(),
           policyId: policy.id,
           policyName: policy.displayName,
-          severity: "info",
+          severity: "medium",
           category: "Break-Glass",
           title: `Break-glass ${breakGlass.type} not excluded (report-only policy)`,
           description:
@@ -1882,14 +1882,14 @@ function checkBreakGlassPerPolicy(
       ];
     }
 
-    // Disabled non-managed — informational
+    // Disabled non-managed — low: will block break-glass if enabled without adding exclusion
     if (policy.state === "disabled") {
       return [
         {
           id: nextFindingId(),
           policyId: policy.id,
           policyName: policy.displayName,
-          severity: "info",
+          severity: "low",
           category: "Break-Glass",
           title: `Break-glass ${breakGlass.type} not excluded (disabled policy)`,
           description:
