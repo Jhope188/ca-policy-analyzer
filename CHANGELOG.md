@@ -16,6 +16,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Notes that B2B Direct Connect users authenticate in their home tenant and cannot be directly controlled
   - More actionable recommendations based on which guest types are at risk
 
+### Added
+- **Comprehensive Break-Glass Account Review** - New tenant-wide analysis to validate emergency access protection
+  - Automatically identifies break-glass accounts or groups by analyzing exclusion patterns across policies
+  - Distinguishes between user-based and group-based break-glass strategies
+  - Validates break-glass exclusions are present in all critical policies (MFA, blocks, security registration, protected actions)
+  - Special handling for Microsoft managed policies: Allows omission of break-glass if policy is disabled
+  - Three severity levels:
+    - CRITICAL: No break-glass detected anywhere in tenant
+    - HIGH: Break-glass identified but missing from some critical policies
+    - INFO: Break-glass properly excluded from all critical policies ✓
+  - Provides targeted guidance based on findings:
+    - If no break-glass: Step-by-step instructions to create 2 emergency access accounts
+    - If partial coverage: Lists specific policies missing break-glass exclusions
+    - If full coverage: Ongoing maintenance recommendations
+  - Includes best practices: Cloud-only accounts, 16+ char passwords, no mailboxes, Azure Monitor alerts, quarterly testing
+  - Links to Microsoft Learn articles on emergency access account management
+  - References: [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)
+
 ## [1.5.0] - 2026-04-06
 
 ### Added
