@@ -143,7 +143,10 @@ const SERVICE_PLAN_IDS: Record<string, string> = {
   entraIdP1: "41781fb2-bc02-4b7c-bd55-b576c07bb09d",
   entraIdP2: "eec0eb4f-6444-4f95-aba0-50c24d67f998",
   intunePlan1: "c1ec4a95-1f05-45b3-a911-aa3fa01094f5",
-  workloadIdPremium: "84c289f0-efcb-486f-8581-07f44fc9efad",
+  // AAD_WRKLDID_P1 — included in Workload_Identities_Premium_CN SKU
+  workloadIdPremiumP1: "84c289f0-efcb-486f-8581-07f44fc9efad",
+  // AAD_WRKLDID_P2 — included in Workload_Identities_P2 and Workload_Identities_Premium_CN SKUs
+  workloadIdPremiumP2: "7dc0e92d-bf15-401d-907e-0884efe7c760",
 };
 
 export interface TenantContext {
@@ -345,7 +348,7 @@ async function fetchSubscribedSkus(
         allPlanIds.has(SERVICE_PLAN_IDS.entraIdP2), // P2 implies P1
       hasEntraIdP2: allPlanIds.has(SERVICE_PLAN_IDS.entraIdP2),
       hasIntunePlan1: allPlanIds.has(SERVICE_PLAN_IDS.intunePlan1),
-      hasWorkloadIdPremium: allPlanIds.has(SERVICE_PLAN_IDS.workloadIdPremium),
+      hasWorkloadIdPremium: allPlanIds.has(SERVICE_PLAN_IDS.workloadIdPremiumP1) || allPlanIds.has(SERVICE_PLAN_IDS.workloadIdPremiumP2),
     };
   } catch (e) {
     console.warn(

@@ -5,16 +5,7 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Enhanced
-- **Guest/External User Exclusion Check** - Improved clarity on guest type enforcement models
-  - Now shows which specific guest types are excluded from policies
-  - Clearly explains which types can be enforced in the resource tenant (B2B Collaboration guests/members) vs home tenant only (B2B Direct Connect users)
-  - Categorizes excluded types by enforcement model: Resource tenant enforceable, Home tenant only, Other external users
-  - Explains MFA trust requirements in Cross-Tenant Access Settings for B2B Collaboration guests
-  - Notes that B2B Direct Connect users authenticate in their home tenant and cannot be directly controlled
-  - More actionable recommendations based on which guest types are at risk
+## [1.7.0] - 2026-04-11
 
 ### Changed
 - **Resource Exclusion Bypass Check — Updated for March 2026 Enforcement Change**
@@ -29,6 +20,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Updated `RESOURCE_EXCLUSION_BYPASSES` data model with `enforcementStatus`, `enforcementAudience`, and `confidentialClientScopes` fields
   - Severity reduced from HIGH to MEDIUM since Microsoft is actively remediating the bypass
   - References: [CA behavior change](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#new-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)
+
+### Added
+- **Low-Privilege Scope Enforcement Tenant-Wide Check** — New finding category
+  - Detects policies with "All resources" targeting that have app exclusions affected by the enforcement rollout
+  - Identifies whether tenant has explicit Azure AD Graph policy coverage
+  - Warns about apps that may receive unexpected CA challenges (MFA, device compliance) during rollout
+  - Recommends reviewing Usage & Insights report and sign-in logs filtered by Azure AD Graph resource
+  - Advises updating custom apps not designed for CA claims challenges
+  - Added "Low-Privilege Scope Enforcement" category with yellow AlertTriangle icon
+
+### Fixed
+- **Workload Identity Premium License Detection** — Now detects both `AAD_WRKLDID_P1` and `AAD_WRKLDID_P2` service plan IDs
+  - Previously only checked `84c289f0-efcb-486f-8581-07f44fc9efad` (P1 plan from `Workload_Identities_Premium_CN` SKU)
+  - Now also checks `7dc0e92d-bf15-401d-907e-0884efe7c760` (P2 plan from `Workload_Identities_P2` SKU)
+  - Tenants with the standalone `Microsoft Entra Workload ID` license were incorrectly showing "not detected"
+
+## [1.6.0] - 2026-04-11
+
+### Enhanced
+- **Guest/External User Exclusion Check** - Improved clarity on guest type enforcement models
+  - Now shows which specific guest types are excluded from policies
+  - Clearly explains which types can be enforced in the resource tenant (B2B Collaboration guests/members) vs home tenant only (B2B Direct Connect users)
+  - Categorizes excluded types by enforcement model: Resource tenant enforceable, Home tenant only, Other external users
+  - Explains MFA trust requirements in Cross-Tenant Access Settings for B2B Collaboration guests
+  - Notes that B2B Direct Connect users authenticate in their home tenant and cannot be directly controlled
+  - More actionable recommendations based on which guest types are at risk
 
 ### Added
 - **Comprehensive Break-Glass Account Review** - New tenant-wide analysis to validate emergency access protection
@@ -47,14 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Includes best practices: Cloud-only accounts, 16+ char passwords, no mailboxes, Azure Monitor alerts, quarterly testing
   - Links to Microsoft Learn articles on emergency access account management
   - References: [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)
-
-- **Low-Privilege Scope Enforcement Tenant-Wide Check** — New finding category
-  - Detects policies with "All resources" targeting that have app exclusions affected by the enforcement rollout
-  - Identifies whether tenant has explicit Azure AD Graph policy coverage
-  - Warns about apps that may receive unexpected CA challenges (MFA, device compliance) during rollout
-  - Recommends reviewing Usage & Insights report and sign-in logs filtered by Azure AD Graph resource
-  - Advises updating custom apps not designed for CA claims challenges
-  - Added "Low-Privilege Scope Enforcement" category with yellow AlertTriangle icon
 
 ## [1.5.0] - 2026-04-06
 

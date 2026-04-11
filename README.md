@@ -23,6 +23,23 @@ The app runs **100% in your browser** — your data never leaves your machine. I
 
 ---
 
+## Recent Changes
+
+### v1.7.0 — Resource Exclusion Enforcement & License Fix (April 11, 2026)
+- **Resource Exclusion Bypass Check updated** for Microsoft's March–June 2026 enforcement rollout — low-privilege scopes (`User.Read`, `openid`, `profile`, etc.) previously exempt from CA are now enforced via Azure AD Graph
+- **Added confidential client scope tracking** — `User.Read.All`, `User.ReadBasic.All`, `People.Read.All`, `GroupMember.Read.All`, `Member.Read.Hidden` (broader bypass not previously documented)
+- **New tenant-wide "Low-Privilege Scope Enforcement" check** — detects "All resources" policies affected by the rollout and validates Azure AD Graph coverage
+- **Fixed Workload Identity Premium license detection** — now checks both `AAD_WRKLDID_P1` and `AAD_WRKLDID_P2` service plan IDs (tenants with the standalone `Microsoft Entra Workload ID` SKU were showing "not detected")
+
+### v1.6.0 — Guest Exclusion Clarity & Break-Glass Review (April 11, 2026)
+- **Guest/External User Exclusion Check enhanced** — categorizes guest types by enforcement model (resource tenant enforceable vs home tenant only), explains MFA trust requirements in Cross-Tenant Access Settings
+- **Comprehensive Break-Glass Account Review** — automatically identifies break-glass accounts/groups by exclusion pattern analysis, validates coverage across all critical policies, special handling for Microsoft managed policies
+  - Three severity levels: CRITICAL (none found), HIGH (partial coverage), INFO (fully covered)
+
+See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+---
+
 ## Screenshots
 
 ### Dashboard — Security Posture at a Glance
