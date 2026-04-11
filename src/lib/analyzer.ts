@@ -230,39 +230,88 @@ function checkFociExclusions(
   return findings;
 }
 
-// ─── Check: Resource Exclusion Bypass (Basic Scopes Leak) ────────────────────
+// ─── Check: Resource Exclusion — Low-Privilege Scope Enforcement (March 2026) ─
 
 function checkResourceExclusion(
   policy: ConditionalAccessPolicy,
   _context: TenantContext
 ): Finding[] {
+  const findings: Finding[] = [];
   const apps = policy.conditions.applications;
   const includesAll = apps.includeApplications.includes("All");
   const hasExclusions = apps.excludeApplications.length > 0;
 
-  if (!includesAll || !hasExclusions) return [];
+  if (!includesAll || !hasExclusions) return findings;
 
-  const scopeLeaks = RESOURCE_EXCLUSION_BYPASSES.map((b) =>
-    `${b.resourceName}: ${b.bypassedScopes.join(", ")}`
-  ).join(" • ");
+  // ── Finding 1: Enforcement change awareness ──
+  // Microsoft is rolling out CA enforcement for low-privilege scopes (March-June 2026).
+  // Previously excluded scopes are now mapped to Azure AD Graph for enforcement.
+  // This may cause apps that ONLY request these scopes to receive CA challenges.
+  
+  const nativeClientScopes = RESOURCE_EXCLUSION_BYPASSES.map(b =>
+    `**${b.resourceName}**: ${b.bypassedScopes.join(", ")}`
+  ).join("\n");
+  
+  const confidentialClientScopes = RESOURCE_EXCLUSION_BYPASSES
+    .filter(b => b.confidentialClientScopes && b.confidentialClientScopes.length > b.bypassedScopes.length)
+    .map(b => {
+      const extraScopes = b.confidentialClientScopes!.filter(s => !b.bypassedScopes.includes(s));
+      return `**${b.resourceName}** (additional): ${extraScopes.join(", ")}`;
+    }).join("\n");
 
-  return [{
+  findings.push({
     id: nextFindingId(),
     policyId: policy.id,
     policyName: policy.displayName,
-    severity: "high",
+    severity: "medium",
     category: "Resource Exclusion Bypass",
-    title: `Excluding apps from "All cloud apps" leaks Graph & Azure AD scopes`,
+    title: `${apps.excludeApplications.length} app(s) excluded from "All resources" — verify low-privilege scope enforcement rollout`,
     description:
-      `This policy targets "All cloud apps" but has ${apps.excludeApplications.length} excluded app(s). ` +
-      `When ANY resource is excluded, these scopes become unprotected — ${scopeLeaks}. ` +
-      `This allows reading basic user profile data without the policy's controls.`,
+      `This policy targets "All resources" but excludes ${apps.excludeApplications.length} app(s). ` +
+      `**Microsoft is actively changing how this works (March-June 2026 rollout).**\n\n` +
+      `**Legacy behavior (before March 2026):**\n` +
+      `When ANY resource was excluded, these low-privilege scopes were automatically exempt from CA enforcement, ` +
+      `allowing users to access basic directory data without meeting the policy's controls:\n\n` +
+      `*Native clients & SPAs:*\n${nativeClientScopes}\n\n` +
+      `*Confidential clients had a BROADER leak:*\n${confidentialClientScopes}\n\n` +
+      `**New behavior (rolling out March-June 2026):**\n` +
+      `These scopes are now evaluated as directory access and mapped to **Azure AD Graph** ` +
+      `(Windows Azure Active Directory, ID: 00000002-0000-0000-c000-000000000000) as the enforcement audience. ` +
+      `CA policies targeting "All resources" — even with exclusions — will now enforce on these scopes.\n\n` +
+      `**⚠️ Impact of this change:**\n` +
+      `- Apps that only request \`User.Read\`, \`openid\`, or \`profile\` may now prompt users for MFA or device compliance\n` +
+      `- Confidential client apps that were excluded and relied on \`User.Read.All\`, \`GroupMember.Read.All\`, ` +
+      `or \`Member.Read.Hidden\` will now face CA enforcement\n` +
+      `- Directory enumeration that previously bypassed CA (even for excluded apps) is now blocked\n` +
+      `- Custom apps not designed to handle CA challenges may break`,
     recommendation:
-      "Avoid excluding resources from 'All cloud apps' policies. " +
-      "Instead, create a separate less-restrictive policy for the apps that need exemption " +
-      "while keeping the base policy without exclusions.",
+      `**Action Required:**\n\n` +
+      `1. **Check your tenant's rollout status**: The change is rolling out in phases. Sign in with a test account ` +
+      `and check if low-privilege scope requests now trigger CA challenges.\n\n` +
+      `2. **Review impacted apps**: Use the Usage & Insights report in Microsoft Entra Admin Center ` +
+      `(Entra ID → Monitoring & health → Usage & insights) to identify apps requesting only low-privilege scopes.\n\n` +
+      `3. **Review sign-in logs**: Filter by resource "Windows Azure Active Directory" ` +
+      `(00000002-0000-0000-c000-000000000000) to see which apps are now being evaluated.\n\n` +
+      `4. **Update custom apps**: Applications that only request scopes like \`openid\`, \`profile\`, \`User.Read\` ` +
+      `and are not designed to handle CA claims challenges must be updated per the ` +
+      `[Conditional Access developer guidance](https://learn.microsoft.com/entra/identity-platform/v2-conditional-access-dev-guide).\n\n` +
+      `5. **Best practice**: Remove resource exclusions entirely and use Microsoft's recommended baseline: ` +
+      `"All resources" with no exclusions. Create separate less-restrictive policies for apps that need exemptions.\n\n` +
+      `**Previously leaked confidential client scopes (now being enforced):**\n` +
+      `These scopes were especially dangerous because they allowed directory enumeration ` +
+      `without CA enforcement for excluded confidential client apps:\n` +
+      `- \`User.Read.All\` / \`User.ReadBasic.All\` — enumerate all users in the directory\n` +
+      `- \`People.Read.All\` — read organizational relationships\n` +
+      `- \`GroupMember.Read.All\` — enumerate group memberships including security groups\n` +
+      `- \`Member.Read.Hidden\` — read hidden group memberships\n\n` +
+      `**Learn More:**\n` +
+      `- [CA behavior change for All resources policies](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#new-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)\n` +
+      `- [Legacy CA behavior with exclusions](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)\n` +
+      `- [Recommended baseline MFA policy](https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-mfa-strength)`,
     relatedIds: RESOURCE_EXCLUSION_BYPASSES.map((b) => b.resourceId),
-  }];
+  });
+
+  return findings;
 }
 
 // ─── Check: CA-Immune Resources ──────────────────────────────────────────────
@@ -2409,6 +2458,82 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         "Consider enabling managed policies that are in report-only mode for defense-in-depth. " +
         "You can exclude users from managed policies but cannot rename or delete them. " +
         "See: https://learn.microsoft.com/entra/identity/conditional-access/managed-policies",
+    });
+  }
+
+  // ── Low-Privilege Scope Enforcement Change (March-June 2026) ──
+  // Tenant-wide check: identify policies with resource exclusions that are
+  // affected by Microsoft's enforcement change for low-privilege scopes.
+  const policiesWithResourceExclusions = enabled.filter(p => {
+    const apps = p.conditions.applications;
+    return apps.includeApplications.includes("All") && apps.excludeApplications.length > 0;
+  });
+
+  if (policiesWithResourceExclusions.length > 0) {
+    const policyNames = policiesWithResourceExclusions.map(p => p.displayName).join(", ");
+    const totalExclusions = policiesWithResourceExclusions.reduce(
+      (sum, p) => sum + p.conditions.applications.excludeApplications.length, 0
+    );
+
+    // Check if any policy explicitly targets Azure AD Graph (the new enforcement audience)
+    const hasAzureADGraphPolicy = enabled.some(p => {
+      const apps = p.conditions.applications;
+      return apps.includeApplications.some(a => 
+        a.toLowerCase() === "00000002-0000-0000-c000-000000000000"
+      );
+    });
+
+    findings.push({
+      id: nextFindingId(),
+      policyId: "tenant-wide",
+      policyName: "Tenant-Wide Analysis",
+      severity: hasAzureADGraphPolicy ? "info" : "medium",
+      category: "Low-Privilege Scope Enforcement",
+      title: `${policiesWithResourceExclusions.length} "All resources" policy(ies) with exclusions — affected by March 2026 enforcement change`,
+      description:
+        `**${policiesWithResourceExclusions.length} enabled policy(ies) target "All resources" with a combined ` +
+        `${totalExclusions} app exclusion(s):** ${policyNames}.\n\n` +
+        `Microsoft is rolling out a behavioral change (March-June 2026) that affects these policies. Previously, ` +
+        `low-privilege scopes (\`User.Read\`, \`openid\`, \`profile\`, \`email\`, \`offline_access\`, \`People.Read\`) ` +
+        `were automatically exempt from CA enforcement when ANY resource was excluded. This created a bypass path ` +
+        `where apps could read directory data without meeting policy controls.\n\n` +
+        `**What's changing:**\n` +
+        `These scopes are now mapped to **Azure AD Graph** (Windows Azure Active Directory, ` +
+        `ID: 00000002-0000-0000-c000-000000000000) as the enforcement audience. ` +
+        `Any "All resources" policy — even with exclusions — will enforce on these scopes.\n\n` +
+        `**Confidential client impact:**\n` +
+        `Confidential client apps (server-to-server) that were excluded from your policies and relied on ` +
+        `low-privilege scopes had an even broader set of unprotected scopes:\n` +
+        `- \`User.Read.All\`, \`User.ReadBasic.All\` — enumerate directory users\n` +
+        `- \`People.Read.All\` — read organizational relationships\n` +
+        `- \`GroupMember.Read.All\` — enumerate security group memberships\n` +
+        `- \`Member.Read.Hidden\` — read hidden group memberships\n\n` +
+        `These scopes will now also face CA enforcement, closing the directory enumeration bypass.` +
+        (hasAzureADGraphPolicy
+          ? `\n\n✅ **You have a policy explicitly targeting Azure AD Graph**, which provides coverage for the enforcement audience.`
+          : `\n\n⚠️ **No policy explicitly targets Azure AD Graph.** If your "All resources" policies have exclusions ` +
+            `but don't cover the Azure AD Graph resource, the enforcement change may cause unexpected CA challenges ` +
+            `for apps that only request low-privilege scopes. Review and test before the rollout completes.`),
+      recommendation:
+        `**Recommended Actions:**\n\n` +
+        `1. **Remove resource exclusions where possible**: Microsoft recommends "All resources" policies ` +
+        `with NO exclusions as the baseline. Create separate, less-restrictive policies for apps that need exemptions.\n\n` +
+        `2. **Test with report-only**: If you can't remove exclusions immediately, create a report-only policy ` +
+        `targeting Azure AD Graph (00000002-0000-0000-c000-000000000000) with the same controls to preview impact.\n\n` +
+        `3. **Review apps requesting only low-privilege scopes**:\n` +
+        `   - Entra Admin Center → Entra ID → Monitoring & health → Usage & insights\n` +
+        `   - Filter sign-in logs by resource "Windows Azure Active Directory"\n` +
+        `   - Identify apps that may receive new CA challenges\n\n` +
+        `4. **Update custom apps**: Applications only requesting \`openid\`, \`profile\`, \`User.Read\` ` +
+        `that are not designed to handle CA claims challenges must be updated. See: ` +
+        `[CA developer guidance](https://learn.microsoft.com/entra/identity-platform/v2-conditional-access-dev-guide)\n\n` +
+        `5. **Consider explicit Azure AD Graph policy**: If you need granular control over directory scope enforcement, ` +
+        `create a dedicated policy targeting the Azure AD Graph resource ` +
+        `(see [Protect directory information](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-for-all-resources)).\n\n` +
+        `**Learn More:**\n` +
+        `- [Enforcement behavior change](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#new-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)\n` +
+        `- [Legacy behavior reference](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)\n` +
+        `- [Identify affected applications (PowerShell)](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#powershell)`,
     });
   }
 

@@ -167,15 +167,30 @@ export const CA_BYPASS_APPS: CABypassApp[] = [
   },
 ];
 
-// ─── Resource Exclusion Bypass ───────────────────────────────────────────────
-// When ANY resource is excluded from an "All cloud apps" policy, these
-// resource+scope combos become unprotected (Microsoft documented behavior).
+// ─── Resource Exclusion Bypass (Legacy + Transitional) ────────────────────────
+// IMPORTANT: Microsoft is rolling out enforcement changes March-June 2026.
+// Previously, when ANY resource was excluded from an "All cloud apps" policy,
+// certain low-privilege scopes were automatically excluded from CA enforcement.
+// Microsoft is NOW enforcing CA on these scopes by mapping them to Azure AD
+// Graph (00000002-0000-0000-c000-000000000000) as the enforcement audience.
+//
+// Ref: https://learn.microsoft.com/entra/identity/conditional-access/
+//      concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-
+//      when-an-all-resources-policy-has-a-resource-exclusion
+//
+// Status: Rolling out March-June 2026 — some tenants may still have old behavior.
 
 export interface ResourceExclusionBypass {
   resourceId: string;
   resourceName: string;
   bypassedScopes: string[];
+  /** Scopes that were ALSO leaked for confidential clients (broader set) */
+  confidentialClientScopes?: string[];
   description: string;
+  /** Whether Microsoft has begun enforcing CA on these scopes (March 2026+) */
+  enforcementStatus: "rolling-out" | "enforced" | "legacy";
+  /** The enforcement audience resource these scopes now map to */
+  enforcementAudience?: string;
 }
 
 export const RESOURCE_EXCLUSION_BYPASSES: ResourceExclusionBypass[] = [
@@ -183,22 +198,37 @@ export const RESOURCE_EXCLUSION_BYPASSES: ResourceExclusionBypass[] = [
     resourceId: "00000002-0000-0000-c000-000000000000",
     resourceName: "Azure AD Graph (Windows Azure Active Directory)",
     bypassedScopes: ["email", "offline_access", "openid", "profile", "User.Read"],
+    confidentialClientScopes: [
+      "email", "offline_access", "openid", "profile",
+      "User.Read", "User.Read.All", "User.ReadBasic.All",
+    ],
     description:
-      "If you exclude ANY resource from an 'All cloud apps' policy, these Azure AD Graph scopes become unprotected. Allows reading basic user profile data.",
+      "LEGACY: Previously, excluding ANY resource from an 'All cloud apps' policy caused these Azure AD Graph scopes " +
+      "to become unprotected. Microsoft is now enforcing CA on these scopes (rolling out March-June 2026). " +
+      "Confidential clients had an even broader set of leaked scopes including User.Read.All and User.ReadBasic.All.",
+    enforcementStatus: "rolling-out",
+    enforcementAudience: "00000002-0000-0000-c000-000000000000",
   },
   {
     resourceId: "00000003-0000-0000-c000-000000000000",
     resourceName: "Microsoft Graph",
     bypassedScopes: [
-      "email",
-      "offline_access",
-      "openid",
-      "profile",
-      "User.Read",
-      "People.Read",
+      "email", "offline_access", "openid", "profile",
+      "User.Read", "People.Read",
+    ],
+    confidentialClientScopes: [
+      "email", "offline_access", "openid", "profile",
+      "User.Read", "User.Read.All", "User.ReadBasic.All",
+      "People.Read", "People.Read.All",
+      "GroupMember.Read.All", "Member.Read.Hidden",
     ],
     description:
-      "If you exclude ANY resource from an 'All cloud apps' policy, these MS Graph scopes become unprotected. Allows reading user profile AND people data.",
+      "LEGACY: Previously, excluding ANY resource from an 'All cloud apps' policy caused these MS Graph scopes " +
+      "to become unprotected. Confidential clients had an even broader leak including User.Read.All, People.Read.All, " +
+      "GroupMember.Read.All, and Member.Read.Hidden — allowing directory enumeration without CA enforcement. " +
+      "Microsoft is now enforcing CA on these scopes (rolling out March-June 2026).",
+    enforcementStatus: "rolling-out",
+    enforcementAudience: "00000002-0000-0000-c000-000000000000",
   },
 ];
 

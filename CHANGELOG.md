@@ -16,6 +16,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Notes that B2B Direct Connect users authenticate in their home tenant and cannot be directly controlled
   - More actionable recommendations based on which guest types are at risk
 
+### Changed
+- **Resource Exclusion Bypass Check — Updated for March 2026 Enforcement Change**
+  - Microsoft is rolling out CA enforcement for low-privilege scopes (March-June 2026) that were previously exempt
+  - Updated check from "scopes are leaked" (HIGH) to transitional enforcement awareness (MEDIUM)
+  - Previously excluded scopes (`User.Read`, `openid`, `profile`, `email`, `offline_access`, `People.Read`) are now enforced via Azure AD Graph as the enforcement audience
+  - **Added missing confidential client scopes** that had a broader bypass (not previously tracked):
+    - `User.Read.All`, `User.ReadBasic.All` — directory user enumeration
+    - `People.Read.All` — organizational relationship data
+    - `GroupMember.Read.All` — security group membership enumeration
+    - `Member.Read.Hidden` — hidden group membership reads
+  - Updated `RESOURCE_EXCLUSION_BYPASSES` data model with `enforcementStatus`, `enforcementAudience`, and `confidentialClientScopes` fields
+  - Severity reduced from HIGH to MEDIUM since Microsoft is actively remediating the bypass
+  - References: [CA behavior change](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#new-conditional-access-behavior-when-an-all-resources-policy-has-a-resource-exclusion)
+
 ### Added
 - **Comprehensive Break-Glass Account Review** - New tenant-wide analysis to validate emergency access protection
   - Automatically identifies break-glass accounts or groups by analyzing exclusion patterns across policies
@@ -33,6 +47,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Includes best practices: Cloud-only accounts, 16+ char passwords, no mailboxes, Azure Monitor alerts, quarterly testing
   - Links to Microsoft Learn articles on emergency access account management
   - References: [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)
+
+- **Low-Privilege Scope Enforcement Tenant-Wide Check** — New finding category
+  - Detects policies with "All resources" targeting that have app exclusions affected by the enforcement rollout
+  - Identifies whether tenant has explicit Azure AD Graph policy coverage
+  - Warns about apps that may receive unexpected CA challenges (MFA, device compliance) during rollout
+  - Recommends reviewing Usage & Insights report and sign-in logs filtered by Azure AD Graph resource
+  - Advises updating custom apps not designed for CA claims challenges
+  - Added "Low-Privilege Scope Enforcement" category with yellow AlertTriangle icon
 
 ## [1.5.0] - 2026-04-06
 

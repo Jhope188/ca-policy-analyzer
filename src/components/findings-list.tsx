@@ -53,6 +53,7 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Protected Actions Configuration": { icon: Shield, color: "text-purple-400" },
   "Identity Protection": { icon: ShieldAlert, color: "text-red-400" },
   "Application Coverage": { icon: ShieldAlert, color: "text-red-400" },
+  "Low-Privilege Scope Enforcement": { icon: AlertTriangle, color: "text-yellow-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────
