@@ -25,6 +25,12 @@ The app runs **100% in your browser** — your data never leaves your machine. I
 
 ## Recent Changes
 
+### v1.8.0 — Per-Policy Break-Glass Annotations (April 11, 2026)
+- **Every CA policy now shows break-glass status** — info/high/medium/low annotations on ALL policies, not just 7 critical types
+- **Tenant-wide summary shows total coverage** — "X of Y policies" with full breakdown (total, user-targeting, with/without counts)
+- Severity-aware: block+allUsers+allApps = high, MFA/compliance+allUsers = medium, others = low, disabled/report-only = info
+- Extracted reusable `identifyBreakGlass()` helper shared by per-policy and tenant-wide checks
+
 ### v1.7.0 — Resource Exclusion Enforcement & License Fix (April 11, 2026)
 - **Resource Exclusion Bypass Check updated** for Microsoft's March–June 2026 enforcement rollout — low-privilege scopes (`User.Read`, `openid`, `profile`, etc.) previously exempt from CA are now enforced via Azure AD Graph
 - **Added confidential client scope tracking** — `User.Read.All`, `User.ReadBasic.All`, `People.Read.All`, `GroupMember.Read.All`, `Member.Read.Hidden` (broader bypass not previously documented)

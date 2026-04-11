@@ -126,6 +126,9 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
   const findings: Finding[] = [];
   const policyResults: PolicyResult[] = [];
 
+  // Identify break-glass candidate once for use in per-policy checks
+  const breakGlass = identifyBreakGlass(context);
+
   for (const policy of context.policies) {
     const policyFindings: Finding[] = [];
 
@@ -150,7 +153,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkGuestExternalUserExclusions(policy, context),
       ...checkCredentialRegistrationConstraints(policy, context),
       ...checkGuestAuthenticationStrength(policy),
-      ...checkProtectedActions(policy)
+      ...checkProtectedActions(policy),
+      ...checkBreakGlassPerPolicy(policy, breakGlass, context)
     );
 
     findings.push(...policyFindings);
@@ -1714,6 +1718,214 @@ function checkProtectedActions(
   return findings;
 }
 
+// ─── Break-Glass Identification Helper ────────────────────────────────────────
+
+interface BreakGlassCandidate {
+  id: string;
+  count: number;
+  policies: string[];
+  type: "user" | "group";
+}
+
+/**
+ * Identifies the most likely break-glass account or group by analyzing exclusion
+ * patterns across all enabled "All Users" policies.
+ */
+function identifyBreakGlass(context: TenantContext): BreakGlassCandidate | null {
+  const enabled = context.policies.filter(
+    (p) => p.state === "enabled" || p.state === "enabledForReportingButNotEnforced"
+  );
+
+  const candidates = new Map<string, { count: number; policies: string[]; type: "user" | "group" }>();
+
+  for (const p of enabled) {
+    if (!p.conditions.users.includeUsers.includes("All")) continue;
+
+    for (const userId of p.conditions.users.excludeUsers) {
+      if (userId === "GuestsOrExternalUsers") continue;
+      if (!candidates.has(userId)) {
+        candidates.set(userId, { count: 0, policies: [], type: "user" });
+      }
+      const c = candidates.get(userId)!;
+      c.count++;
+      c.policies.push(p.displayName);
+    }
+
+    for (const groupId of p.conditions.users.excludeGroups) {
+      if (!candidates.has(groupId)) {
+        candidates.set(groupId, { count: 0, policies: [], type: "group" });
+      }
+      const c = candidates.get(groupId)!;
+      c.count++;
+      c.policies.push(p.displayName);
+    }
+  }
+
+  let primary: BreakGlassCandidate | null = null;
+  for (const [id, data] of candidates.entries()) {
+    if (!primary || data.count > primary.count) {
+      primary = { id, ...data };
+    }
+  }
+  return primary;
+}
+
+// ─── Per-Policy Break-Glass Exclusion Check ──────────────────────────────────
+
+function checkBreakGlassPerPolicy(
+  policy: ConditionalAccessPolicy,
+  breakGlass: BreakGlassCandidate | null,
+  context: TenantContext
+): Finding[] {
+  if (!breakGlass) return []; // Tenant-wide finding handles this case
+
+  const label = breakGlass.type === "user" ? "break-glass account" : "break-glass group";
+  const displayName =
+    breakGlass.type === "user"
+      ? context.directoryObjects.get(breakGlass.id)?.displayName ?? `ID: ${breakGlass.id.substring(0, 8)}…`
+      : context.directoryObjects.get(breakGlass.id)?.displayName ?? `ID: ${breakGlass.id.substring(0, 8)}…`;
+
+  const excluded =
+    breakGlass.type === "user"
+      ? policy.conditions.users.excludeUsers.includes(breakGlass.id)
+      : policy.conditions.users.excludeGroups.includes(breakGlass.id);
+
+  // Determine if this policy actually targets users (skip workload-identity-only policies)
+  const targetsUsers =
+    policy.conditions.users.includeUsers.length > 0 ||
+    policy.conditions.users.includeGroups.length > 0 ||
+    policy.conditions.users.includeRoles.length > 0;
+  if (!targetsUsers) return [];
+
+  if (excluded) {
+    return [
+      {
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity: "info",
+        category: "Break-Glass",
+        title: `Break-glass ${breakGlass.type} excluded ✓`,
+        description:
+          `The ${label} **${displayName}** is excluded from this policy. ` +
+          `This ensures emergency access is preserved if this policy causes a lockout.`,
+        recommendation:
+          `No action required. Verify the ${label} periodically to ensure it is still valid ` +
+          `and monitored for sign-in activity.`,
+      },
+    ];
+  } else {
+    // Determine severity based on policy characteristics
+    const grant = policy.grantControls;
+    const blocks = grant?.builtInControls.includes("block");
+    const requiresMfa =
+      grant?.builtInControls.includes("mfa") || grant?.authenticationStrength != null;
+    const requiresCompliance =
+      grant?.builtInControls.includes("compliantDevice") ||
+      grant?.builtInControls.includes("domainJoinedDevice");
+    const targetsAllUsers = policy.conditions.users.includeUsers.includes("All");
+    const targetsAllApps =
+      policy.conditions.applications.includeApplications.includes("All");
+
+    // Critical: blocks all users + all apps without break-glass
+    // High: MFA/compliance for all users without break-glass
+    // Medium: other policies without break-glass
+    let severity: Severity = "low";
+    if (blocks && targetsAllUsers && targetsAllApps) {
+      severity = "high";
+    } else if ((requiresMfa || requiresCompliance) && targetsAllUsers) {
+      severity = "medium";
+    } else if (blocks && targetsAllUsers) {
+      severity = "medium";
+    }
+
+    // Microsoft managed & disabled — just informational
+    const isMicrosoftManaged =
+      policy.displayName.toLowerCase().includes("microsoft managed") || policy.templateId != null;
+    if (isMicrosoftManaged && policy.state === "disabled") {
+      return [
+        {
+          id: nextFindingId(),
+          policyId: policy.id,
+          policyName: policy.displayName,
+          severity: "info",
+          category: "Break-Glass",
+          title: `Break-glass ${breakGlass.type} not excluded (disabled Microsoft managed policy)`,
+          description:
+            `The ${label} **${displayName}** is not excluded from this policy, but the policy is ` +
+            `disabled and Microsoft managed. No risk while disabled.`,
+          recommendation:
+            `If you enable this policy, add the ${label} **${displayName}** to the exclusions first ` +
+            `to prevent emergency access lockout.`,
+        },
+      ];
+    }
+
+    // Report-only — informational
+    if (policy.state === "enabledForReportingButNotEnforced") {
+      return [
+        {
+          id: nextFindingId(),
+          policyId: policy.id,
+          policyName: policy.displayName,
+          severity: "info",
+          category: "Break-Glass",
+          title: `Break-glass ${breakGlass.type} not excluded (report-only policy)`,
+          description:
+            `The ${label} **${displayName}** is not excluded from this policy. ` +
+            `This policy is currently in report-only mode so there is no enforcement risk, ` +
+            `but the ${label} should be added before switching to enabled.`,
+          recommendation:
+            `Add the ${label} **${displayName}** to the user/group exclusions before ` +
+            `enabling enforcement on this policy.`,
+        },
+      ];
+    }
+
+    // Disabled non-managed — informational
+    if (policy.state === "disabled") {
+      return [
+        {
+          id: nextFindingId(),
+          policyId: policy.id,
+          policyName: policy.displayName,
+          severity: "info",
+          category: "Break-Glass",
+          title: `Break-glass ${breakGlass.type} not excluded (disabled policy)`,
+          description:
+            `The ${label} **${displayName}** is not excluded from this policy. ` +
+            `This policy is currently disabled so there is no enforcement risk.`,
+          recommendation:
+            `Add the ${label} **${displayName}** to the exclusions before enabling this policy.`,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: nextFindingId(),
+        policyId: policy.id,
+        policyName: policy.displayName,
+        severity,
+        category: "Break-Glass",
+        title: `Break-glass ${breakGlass.type} NOT excluded ⚠`,
+        description:
+          `The ${label} **${displayName}** is NOT excluded from this enabled policy. ` +
+          `If this policy causes a lockout (e.g. misconfigured MFA, compliance, or block rule), ` +
+          `the ${label} will also be blocked and cannot be used for emergency access.`,
+        recommendation:
+          `Add the ${label} **${displayName}** to the ${breakGlass.type === "user" ? "excluded users" : "excluded groups"} ` +
+          `for this policy to preserve emergency access.\n\n` +
+          `**Steps:**\n` +
+          `1. Edit this policy in the Entra admin center\n` +
+          `2. Under Users → Exclude → ${breakGlass.type === "user" ? "Select excluded users" : "Select excluded groups"}\n` +
+          `3. Add **${displayName}**\n` +
+          `4. Save the policy`,
+      },
+    ];
+  }
+}
+
 // ─── Tenant-Wide Gap Analysis ────────────────────────────────────────────────
 
 function checkTenantWideGaps(context: TenantContext): Finding[] {
@@ -1774,254 +1986,163 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     });
   }
 
-  // ─── Comprehensive Break-Glass Account Review ──────────────────────────────
-  // Identifies potential break-glass accounts/groups across all policies and
-  // validates they are properly excluded from critical policies. Managed Microsoft
-  // policies are allowed to omit break-glass exclusions if they are disabled.
-  
-  // Step 1: Identify candidates for break-glass accounts/groups
-  // Look at user and group exclusions across all "All Users" policies
-  const breakGlassCandidates = new Map<string, { count: number; policies: string[]; type: 'user' | 'group' }>();
-  
-  for (const p of enabled) {
-    if (!p.conditions.users.includeUsers.includes("All")) continue;
-    
-    // Track user exclusions
-    for (const userId of p.conditions.users.excludeUsers) {
-      if (userId === "GuestsOrExternalUsers") continue; // Not a break-glass
-      if (!breakGlassCandidates.has(userId)) {
-        breakGlassCandidates.set(userId, { count: 0, policies: [], type: 'user' });
-      }
-      const candidate = breakGlassCandidates.get(userId)!;
-      candidate.count++;
-      candidate.policies.push(p.displayName);
-    }
-    
-    // Track group exclusions
-    for (const groupId of p.conditions.users.excludeGroups) {
-      if (!breakGlassCandidates.has(groupId)) {
-        breakGlassCandidates.set(groupId, { count: 0, policies: [], type: 'group' });
-      }
-      const candidate = breakGlassCandidates.get(groupId)!;
-      candidate.count++;
-      candidate.policies.push(p.displayName);
-    }
-  }
-  
-  // Step 2: Identify the most likely break-glass (appears in most policies)
-  let primaryBreakGlass: { id: string; count: number; policies: string[]; type: 'user' | 'group' } | null = null;
-  for (const [id, data] of breakGlassCandidates.entries()) {
-    if (!primaryBreakGlass || data.count > primaryBreakGlass.count) {
-      primaryBreakGlass = { id, ...data };
-    }
-  }
-  
-  // Step 3: Define critical policies that MUST have break-glass exclusions
-  const criticalPolicies = enabled.filter(p => {
-    const targetsAllUsers = p.conditions.users.includeUsers.includes("All");
-    if (!targetsAllUsers) return false;
-    
-    const grant = p.grantControls;
-    const requiresMfa = grant?.builtInControls.includes("mfa") || grant?.authenticationStrength != null;
-    const requiresCompliance = grant?.builtInControls.includes("compliantDevice") || grant?.builtInControls.includes("domainJoinedDevice");
-    const blocks = grant?.builtInControls.includes("block");
-    const targetsAllApps = p.conditions.applications.includeApplications.includes("All");
-    const targetsSecurityRegistration = p.conditions.applications.includeUserActions?.includes("urn:user:registersecurityinfo");
-    const targetsProtectedActions = (p.conditions.applications.includeUserActions?.length ?? 0) > 0;
-    
-    // Critical if: requires MFA for all apps, blocks all apps, protects security registration, or targets protected actions
-    return (requiresMfa && targetsAllApps) || (blocks && targetsAllApps) || targetsSecurityRegistration || 
-           targetsProtectedActions || requiresCompliance;
+  // ─── Comprehensive Break-Glass Account Review (Tenant-Wide Summary) ─────────
+  // Uses the identifyBreakGlass() helper (same candidate used by per-policy checks)
+  // to generate a tenant-wide summary showing total policy coverage.
+
+  const primaryBreakGlass = identifyBreakGlass(context);
+
+  // Count break-glass coverage across ALL policies (not just critical ones)
+  const allPolicies = context.policies;
+  const totalPolicyCount = allPolicies.length;
+  const userTargetingPolicies = allPolicies.filter(p => {
+    const u = p.conditions.users;
+    return u.includeUsers.length > 0 || u.includeGroups.length > 0 || u.includeRoles.length > 0;
   });
-  
-  // Step 4: Check each critical policy for break-glass exclusions
-  const policiesMissingBreakGlass: Array<{ policy: ConditionalAccessPolicy; isMicrosoftManaged: boolean }> = [];
-  
-  for (const p of criticalPolicies) {
-    const isMicrosoftManaged = p.displayName.toLowerCase().includes("microsoft managed") || 
-                               p.templateId != null; // Policies created from templates are often Microsoft-managed
-    
-    const hasUserExclusions = p.conditions.users.excludeUsers.length > 0;
-    const hasGroupExclusions = p.conditions.users.excludeGroups.length > 0;
-    const hasAnyExclusions = hasUserExclusions || hasGroupExclusions;
-    
-    // Microsoft managed policies are OK without break-glass IF they're disabled
-    if (isMicrosoftManaged && p.state === "disabled") {
-      continue; // OK - disabled managed policy doesn't need break-glass
-    }
-    
-    // If there's a primary break-glass, check if this policy excludes it
-    if (primaryBreakGlass) {
-      const excludesBreakGlass = primaryBreakGlass.type === 'user' 
-        ? p.conditions.users.excludeUsers.includes(primaryBreakGlass.id)
-        : p.conditions.users.excludeGroups.includes(primaryBreakGlass.id);
-      
-      if (!excludesBreakGlass) {
-        policiesMissingBreakGlass.push({ policy: p, isMicrosoftManaged });
+
+  let policiesWithBreakGlass = 0;
+  let policiesWithoutBreakGlass = 0;
+  const withoutNames: string[] = [];
+  const withNames: string[] = [];
+
+  if (primaryBreakGlass) {
+    for (const p of userTargetingPolicies) {
+      const excluded =
+        primaryBreakGlass.type === "user"
+          ? p.conditions.users.excludeUsers.includes(primaryBreakGlass.id)
+          : p.conditions.users.excludeGroups.includes(primaryBreakGlass.id);
+      if (excluded) {
+        policiesWithBreakGlass++;
+        withNames.push(p.displayName);
+      } else {
+        policiesWithoutBreakGlass++;
+        withoutNames.push(p.displayName);
       }
-    } else if (!hasAnyExclusions) {
-      // No break-glass candidate identified tenant-wide, and this policy has no exclusions
-      policiesMissingBreakGlass.push({ policy: p, isMicrosoftManaged });
     }
   }
-  
-  // Step 5: Generate findings
+
   if (primaryBreakGlass) {
-    // We found a break-glass candidate - report on it and any policies missing it
-    const breakGlassLabel = primaryBreakGlass.type === 'user' ? "Break-glass account" : "Break-glass group";
-    const exclusionCount = primaryBreakGlass.count;
-    const totalCritical = criticalPolicies.length;
-    
-    if (policiesMissingBreakGlass.length > 0) {
-      const missingPolicyNames = policiesMissingBreakGlass.map(p => 
-        `${p.policy.displayName}${p.isMicrosoftManaged ? " (Microsoft managed)" : ""}`
-      ).join(", ");
-      
+    const breakGlassLabel = primaryBreakGlass.type === "user" ? "Break-glass account" : "Break-glass group";
+    const bgDisplayName =
+      primaryBreakGlass.type === "user"
+        ? context.directoryObjects.get(primaryBreakGlass.id)?.displayName ?? `ID: ${primaryBreakGlass.id.substring(0, 8)}…`
+        : context.directoryObjects.get(primaryBreakGlass.id)?.displayName ?? `ID: ${primaryBreakGlass.id.substring(0, 8)}…`;
+
+    if (policiesWithoutBreakGlass > 0) {
+      // Some policies missing break-glass
+      const enabledWithout = withoutNames.filter(name => {
+        const p = allPolicies.find(pol => pol.displayName === name);
+        return p && p.state === "enabled";
+      });
+      const severity = enabledWithout.length > 0 ? "high" as const : "medium" as const;
+
       findings.push({
         id: nextFindingId(),
         policyId: "tenant-wide",
         policyName: "Tenant-Wide Analysis",
-        severity: "high",
+        severity,
         category: "Break-Glass",
-        title: `${breakGlassLabel} detected but ${policiesMissingBreakGlass.length} critical policy(ies) don't exclude it`,
+        title: `${breakGlassLabel} coverage: ${policiesWithBreakGlass} of ${userTargetingPolicies.length} policies (${totalPolicyCount} total in tenant)`,
         description:
-          `A ${breakGlassLabel.toLowerCase()} was identified (ID: ${primaryBreakGlass.id.substring(0, 8)}...) that is excluded ` +
-          `from ${exclusionCount} of ${totalCritical} critical policies. However, ${policiesMissingBreakGlass.length} critical ` +
-          `policy(ies) do NOT exclude this ${breakGlassLabel.toLowerCase()}, which could cause an emergency access lockout.\n\n` +
-          `**Policies missing break-glass exclusion:** ${missingPolicyNames}\n\n` +
-          `**What are break-glass accounts?**\n` +
-          `Break-glass (emergency access) accounts are cloud-only accounts with permanent Global Administrator privileges ` +
-          `that are excluded from ALL Conditional Access policies. They provide emergency access if CA misconfiguration ` +
-          `locks out all administrators.\n\n` +
+          `**${breakGlassLabel}:** ${bgDisplayName}\n\n` +
+          `**Tenant overview:**\n` +
+          `- **Total policies in tenant:** ${totalPolicyCount}\n` +
+          `- **Policies targeting users:** ${userTargetingPolicies.length}\n` +
+          `- **With break-glass excluded:** ${policiesWithBreakGlass} ✓\n` +
+          `- **Without break-glass excluded:** ${policiesWithoutBreakGlass} ⚠\n\n` +
+          `The ${breakGlassLabel.toLowerCase()} **${bgDisplayName}** was detected by analyzing exclusion patterns across your policies. ` +
+          `${policiesWithoutBreakGlass} user-targeting policy(ies) do NOT exclude this ${breakGlassLabel.toLowerCase()}.\n\n` +
           `**Why this matters:**\n` +
-          `Without break-glass exclusions in critical policies, a misconfigured CA policy can lock out ALL administrators, ` +
-          `including Global Admins. This creates a scenario where you cannot fix the problem because you cannot sign in. ` +
-          `Microsoft Support intervention may be required, causing extended downtime.\n\n` +
-          `**Microsoft managed policies:**\n` +
-          `${policiesMissingBreakGlass.some(p => p.isMicrosoftManaged) 
-            ? "Some policies are Microsoft managed. If disabled, they don't require break-glass exclusions. " +
-              "If enabled, add break-glass exclusions before enabling."
-            : "All flagged policies are tenant-managed and should have break-glass exclusions."}`,
+          `Without break-glass exclusions, a misconfigured CA policy can lock out ALL administrators. ` +
+          `Microsoft recommends excluding break-glass accounts from every Conditional Access policy to ensure emergency access.\n\n` +
+          `**Policies WITHOUT break-glass exclusion:** ${withoutNames.slice(0, 10).join(", ")}` +
+          (withoutNames.length > 10 ? ` and ${withoutNames.length - 10} more...` : ""),
         recommendation:
-          `**Immediate Actions:**\n\n` +
-          `1. **Verify the break-glass ${primaryBreakGlass.type}**: Confirm ID ${primaryBreakGlass.id.substring(0, 8)}... is your intended emergency access ${primaryBreakGlass.type}\n` +
-          `2. **Add break-glass exclusions to all critical policies**:\n` +
-          `   - Navigate to each policy listed above\n` +
-          `   - Go to Users → Exclude → ${primaryBreakGlass.type === 'user' ? 'Select users' : 'Select groups'}\n` +
-          `   - Add your break-glass ${primaryBreakGlass.type}\n` +
-          `3. **For Microsoft managed policies**: Either add exclusions before enabling, or keep them disabled\n\n` +
-          `**Break-Glass Best Practices:**\n\n` +
-          `- **Quantity**: Use exactly 2 break-glass accounts (redundancy if one is compromised)\n` +
-          `- **Credentials**: Cloud-only with 16+ character complex passwords (not synced from on-premises)\n` +
-          `- **Storage**: Store passwords in a secure physical location (safe, sealed envelope)\n` +
-          `- **Monitoring**: Set up Azure Monitor alerts for ANY break-glass sign-in activity\n` +
-          `- **Access Reviews**: Quarterly reviews to ensure accounts are not compromised\n` +
-          `- **Licensing**: Assign necessary licenses but no mailbox (can't be phished)\n` +
-          `- **Exclusions**: Exclude from ALL CA policies including MFA, device compliance, location restrictions\n` +
-          `- **Testing**: Test break-glass access quarterly to ensure it works\n\n` +
+          `**Add break-glass exclusions to all policies:**\n\n` +
+          `1. **Review all ${policiesWithoutBreakGlass} policies** listed above\n` +
+          `2. Edit each policy → Users → Exclude → ${primaryBreakGlass.type === "user" ? "Select excluded users" : "Select excluded groups"}\n` +
+          `3. Add **${bgDisplayName}**\n` +
+          `4. Save each policy\n\n` +
+          `**Best Practices:**\n` +
+          `- Exclude break-glass from ALL CA policies, not just critical ones\n` +
+          `- Use cloud-only accounts with 16+ char passwords stored in a physical safe\n` +
+          `- No mailbox assigned (prevents phishing)\n` +
+          `- Set up Azure Monitor alerts for ANY break-glass sign-in\n` +
+          `- Test quarterly to verify emergency access still works\n\n` +
           `**Learn More:**\n` +
-          `- [Manage emergency access accounts in Microsoft Entra ID](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)\n` +
-          `- [Emergency access account best practices](https://learn.microsoft.com/entra/architecture/security-operations-privileged-accounts#emergency-access-or-break-glass-accounts)`,
+          `- [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)`,
       });
     } else {
-      // All critical policies have the break-glass - positive finding
+      // All policies have break-glass - positive finding
       findings.push({
         id: nextFindingId(),
         policyId: "tenant-wide",
         policyName: "Tenant-Wide Analysis",
         severity: "info",
         category: "Break-Glass",
-        title: `${breakGlassLabel} properly excluded from all ${totalCritical} critical policies ✓`,
+        title: `${breakGlassLabel} excluded from all ${userTargetingPolicies.length} user-targeting policies ✓ (${totalPolicyCount} total in tenant)`,
         description:
-          `A ${breakGlassLabel.toLowerCase()} (ID: ${primaryBreakGlass.id.substring(0, 8)}...) was identified and is correctly ` +
-          `excluded from all ${totalCritical} critical Conditional Access policies. This provides emergency access in case ` +
-          `of CA misconfiguration or lockout scenarios.\n\n` +
-          `**Covered policies:** ${primaryBreakGlass.policies.slice(0, 5).join(", ")}` +
-          `${primaryBreakGlass.policies.length > 5 ? ` and ${primaryBreakGlass.policies.length - 5} more...` : ""}\n\n` +
+          `**${breakGlassLabel}:** ${bgDisplayName}\n\n` +
+          `**Tenant overview:**\n` +
+          `- **Total policies in tenant:** ${totalPolicyCount}\n` +
+          `- **Policies targeting users:** ${userTargetingPolicies.length}\n` +
+          `- **With break-glass excluded:** ${policiesWithBreakGlass} ✓\n` +
+          `- **Without break-glass excluded:** 0\n\n` +
+          `The ${breakGlassLabel.toLowerCase()} **${bgDisplayName}** is correctly excluded from all user-targeting Conditional Access policies. ` +
+          `This ensures emergency access is preserved across your entire tenant.\n\n` +
           `**Break-glass accounts** are cloud-only emergency access accounts with permanent Global Admin privileges that ` +
           `are excluded from all CA policies to prevent administrative lockout.`,
         recommendation:
           `**Ongoing Maintenance:**\n\n` +
-          `1. **Verify this is your intended break-glass ${primaryBreakGlass.type}**: Confirm ID ${primaryBreakGlass.id.substring(0, 8)}...\n` +
+          `1. **Verify this is your intended break-glass ${primaryBreakGlass.type}**: Confirm **${bgDisplayName}** is correct\n` +
           `2. **Monitor for sign-in activity**: Set up Azure Monitor alerts for ANY activity on this ${primaryBreakGlass.type}\n` +
           `3. **Test quarterly**: Verify emergency access works every 3 months\n` +
           `4. **Review new policies**: Ensure any new CA policies also exclude this ${primaryBreakGlass.type}\n` +
           `5. **Maintain 2 break-glass accounts**: If this is a single account, create a second for redundancy\n\n` +
-          `**Best Practices:**\n` +
-          `- Use cloud-only accounts (not synced from AD)\n` +
-          `- 16+ character complex passwords stored in physical safe\n` +
-          `- No mailbox assigned (prevents phishing)\n` +
-          `- Exclude from ALL CA policies\n` +
-          `- Alert on any usage\n\n` +
           `**Learn More:**\n` +
           `- [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)`,
       });
     }
   } else {
     // No break-glass candidate detected at all
+    const criticalPolicies = enabled.filter(p => {
+      const targetsAllUsers = p.conditions.users.includeUsers.includes("All");
+      if (!targetsAllUsers) return false;
+      const grant = p.grantControls;
+      return grant?.builtInControls.includes("mfa") || grant?.authenticationStrength != null ||
+             grant?.builtInControls.includes("block") || grant?.builtInControls.includes("compliantDevice");
+    });
+
+    const criticalList = criticalPolicies.slice(0, 10).map(p => "- " + p.displayName).join("\n");
+    const criticalOverflow = criticalPolicies.length > 10 ? "\n...and " + (criticalPolicies.length - 10) + " more" : "";
+
     findings.push({
       id: nextFindingId(),
       policyId: "tenant-wide",
       policyName: "Tenant-Wide Analysis",
       severity: "critical",
       category: "Break-Glass",
-      title: "No break-glass account or group detected across any policies",
+      title: `No break-glass account or group detected across ${totalPolicyCount} policies`,
       description:
-        `No consistent user or group exclusions were found across your Conditional Access policies that would indicate ` +
-        `a break-glass (emergency access) account or group. ${criticalPolicies.length} critical policy(ies) were analyzed.\n\n` +
+        `No consistent user or group exclusions were found across your ${totalPolicyCount} Conditional Access policies that would indicate ` +
+        `a break-glass (emergency access) account or group.\n\n` +
+        `**Tenant overview:**\n` +
+        `- **Total policies in tenant:** ${totalPolicyCount}\n` +
+        `- **Policies targeting users:** ${userTargetingPolicies.length}\n` +
+        `- **Break-glass exclusions found:** 0 ❌\n\n` +
         `**Why this is critical:**\n` +
         `Without break-glass accounts excluded from CA policies, a misconfiguration can lock out ALL administrators, ` +
-        `including Global Admins. If an MFA policy blocks access or a device compliance policy prevents sign-in, you ` +
-        `will have NO way to fix the problem because you cannot access the tenant. This requires Microsoft Support ` +
-        `intervention and causes extended downtime.\n\n` +
-        `**What are break-glass accounts?**\n` +
-        `Break-glass accounts are cloud-only accounts with:\n` +
-        `- Permanent Global Administrator role assignment\n` +
-        `- Complex passwords (16+ characters) stored in a physical safe\n` +
-        `- Exclusion from ALL Conditional Access policies\n` +
-        `- No mailbox (can't be phished)\n` +
-        `- Azure Monitor alerts for any sign-in activity\n\n` +
-        `**Real-world scenario:**\n` +
-        `You deploy a new CA policy requiring device compliance for all users. A configuration error blocks all devices ` +
-        `from being marked compliant. Without break-glass accounts, every administrator is locked out. The tenant is ` +
-        `inaccessible until Microsoft Support can intervene (potentially 24-48 hours).\n\n` +
+        `including Global Admins. Microsoft Support intervention may be required, causing extended downtime.\n\n` +
         `**Critical policies that need break-glass exclusions:**\n` +
-        `${criticalPolicies.slice(0, 10).map(p => `- ${p.displayName}`).join("\n")}` +
-        `${criticalPolicies.length > 10 ? `\n...and ${criticalPolicies.length - 10} more` : ""}`,
+        criticalList + criticalOverflow,
       recommendation:
         `**IMMEDIATE ACTION REQUIRED:**\n\n` +
-        `1. **Create 2 break-glass accounts**:\n` +
-        `   - Name them clearly: breakglass01@yourdomain.com, breakglass02@yourdomain.com\n` +
-        `   - Cloud-only (not synced from on-premises AD)\n` +
-        `   - Assign Global Administrator role\n` +
-        `   - Set 16+ character complex passwords\n` +
-        `   - Store passwords in physical safe with controlled access\n` +
-        `   - Do NOT assign mailboxes\n\n` +
-        `2. **Exclude break-glass accounts from ALL CA policies**:\n` +
-        `   - Edit each policy shown above\n` +
-        `   - Go to Users → Exclude → Select users\n` +
-        `   - Add both break-glass accounts\n` +
-        `   - Save changes\n\n` +
-        `3. **Set up monitoring**:\n` +
-        `   - Create Azure Monitor alert for any break-glass sign-in\n` +
-        `   - Alert should trigger: Email + SMS + PagerDuty/incident system\n` +
-        `   - Example KQL query:\n` +
-        `     \`SigninLogs | where UserPrincipalName contains "breakglass"\`\n\n` +
-        `4. **Document the process**:\n` +
-        `   - Create runbook for when/how to use break-glass accounts\n` +
-        `   - Document password retrieval process\n` +
-        `   - Include post-use procedures (password change, investigation)\n\n` +
-        `5. **Test quarterly**:\n` +
-        `   - Sign in with break-glass account\n` +
-        `   - Verify access to Entra Admin Center\n` +
-        `   - Change password after test\n` +
-        `   - Investigate any unexpected usage\n\n` +
-        `**Alternative: Break-Glass Group**\n` +
-        `You can also use a security group containing 2 break-glass accounts and exclude the group from policies. ` +
-        `This centralizes management but requires the same monitoring and controls.\n\n` +
+        `1. **Create 2 break-glass accounts**: Cloud-only, Global Admin, 16+ char passwords, no mailbox\n` +
+        `2. **Exclude from ALL ${totalPolicyCount} CA policies**: Edit each policy → Users → Exclude → Add both accounts\n` +
+        `3. **Set up Azure Monitor alerts**: Alert on ANY break-glass sign-in\n` +
+        `4. **Test quarterly**: Verify emergency access works\n\n` +
         `**Learn More:**\n` +
-        `- [Manage emergency access accounts in Microsoft Entra ID](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)\n` +
-        `- [Emergency access account best practices](https://learn.microsoft.com/entra/architecture/security-operations-privileged-accounts#emergency-access-or-break-glass-accounts)\n` +
+        `- [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)\n` +
         `- [Plan for CA lockout prevention](https://learn.microsoft.com/entra/identity/conditional-access/howto-conditional-access-best-practices#break-glass-accounts)`,
     });
   }

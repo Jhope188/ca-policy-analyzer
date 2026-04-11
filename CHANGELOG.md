@@ -5,6 +5,28 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-11
+
+### Added
+- **Per-Policy Break-Glass Annotations** — Every Conditional Access policy now shows whether the break-glass account/group is excluded
+  - Fires on ALL policies in the tenant, not just the 7 critical policy types
+  - Severity-aware annotations:
+    - **Info**: Break-glass excluded ✓ (positive confirmation)
+    - **High**: NOT excluded on block + all users + all apps policies
+    - **Medium**: NOT excluded on MFA / compliance + all users policies
+    - **Low**: NOT excluded on other enabled policies
+    - **Info**: Disabled, report-only, or Microsoft managed policies show guidance to add before enabling/enforcing
+  - Skips workload-identity-only policies (no user targeting)
+  - Resolves display names for break-glass accounts/groups from directory objects
+
+### Changed
+- **Tenant-Wide Break-Glass Summary — Now shows total policy coverage counts**
+  - Title shows "X of Y policies" with total tenant policy count
+  - Description includes full breakdown: total policies, user-targeting policies, with/without break-glass counts
+  - Lists specific policies missing break-glass exclusions
+  - Extracted break-glass identification into reusable `identifyBreakGlass()` helper shared by per-policy and tenant-wide checks
+  - Removed duplicate identification logic (Steps 1–5) from tenant-wide section
+
 ## [1.7.0] - 2026-04-11
 
 ### Changed
@@ -233,7 +255,8 @@ The analyzer uses the following finding categories:
 
 ---
 
-[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.4.0...v1.5.0
