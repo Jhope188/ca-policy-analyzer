@@ -377,7 +377,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Block legacy authentication", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication" },
+      { label: "MS Learn: Require MFA for external users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guest-mfa-strength" },
       { label: "MS Learn: Microsoft-managed CA policies", url: "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies" },
     ],
     advisories: [
@@ -506,8 +506,8 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Sign-in risk-based CA policy", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
-      { label: "MS Learn: Conditions — sign-in risk", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#sign-in-risk" },
+      { label: "MS Learn: Require MFA for device registration", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-registration" },
+      { label: "MS Learn: Device registration as user action", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#user-actions" },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -553,8 +553,8 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: User risk-based CA policy", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
-      { label: "MS Learn: Require password change for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
+      { label: "MS Learn: Sign-in risk-based CA policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in" },
+      { label: "MS Learn: Configure risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
     ],
     advisories: [
       {
@@ -971,8 +971,8 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Require compliant or hybrid joined device for admins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-alt-admin-device-compliand-hybrid" },
-      { label: "MS Learn: Grant controls", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-grant" },
+      { label: "MS Learn: Block device code flow", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-device-code-flow" },
+      { label: "MS Learn: Authentication flows condition", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#authentication-flows" },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -1069,7 +1069,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Block access for high-risk sign-ins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in" },
+      { label: "MS Learn: Block access for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
       { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
     ],
     check: (policies) => {
@@ -1118,7 +1118,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Block access for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
+      { label: "MS Learn: Block access for high-risk sign-ins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in" },
       { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
     ],
     check: (policies) => {
@@ -1359,7 +1359,7 @@ export const CIS_CONTROLS: CISControl[] = [
       },
     },
     msLearnLinks: [
-      { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-compliance" },
+      { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-app-protection" },
       { label: "MS Learn: Intune app protection", url: "https://learn.microsoft.com/mem/intune/apps/app-protection-policy" },
       { label: "MS Learn: Migrate approved client app to app protection", url: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app" },
     ],

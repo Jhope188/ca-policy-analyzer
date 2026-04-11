@@ -28,7 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed duplicate identification logic (Steps 1–5) from tenant-wide section
 
 ### Fixed
-- **CIS 5.3.9 MS Learn Link** — "Ensure legacy authentication is blocked" was linking to the wrong article ("Require MFA for device registration"); now correctly links to [Block legacy authentication](https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication)
+- **CIS MS Learn Link Audit — 7 controls had wrong articles** (links were shifted between neighboring controls)
+  - **5.3.3** (Guest MFA): Was "Block legacy auth" → Now [Require MFA for external users](https://learn.microsoft.com/entra/identity/conditional-access/policy-guest-mfa-strength)
+  - **5.3.5** (MFA for device registration): Was "Sign-in risk" → Now [Require MFA for device registration](https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-registration)
+  - **5.3.6** (Sign-in risk): Was "User risk" → Now [Sign-in risk-based CA policy](https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in)
+  - **5.3.9** (Legacy auth block): Was "Require MFA for device registration" → Now [Block legacy authentication](https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication)
+  - **5.3.12** (Device code flow): Was "Compliant device for admins" → Now [Block device code flow](https://learn.microsoft.com/entra/identity/conditional-access/policy-block-device-code-flow)
+  - **5.4.1** (High-risk users): Was linking to sign-in risk article → Now [Block access for high-risk users](https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user)
+  - **5.4.2** (High-risk sign-ins): Was linking to user risk article → Now [Block access for high-risk sign-ins](https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in)
+  - **5.4.5** (App protection): Was linking to device-compliance URL → Now [Require app protection policy](https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-app-protection)
 
 ## [1.7.0] - 2026-04-11
 
