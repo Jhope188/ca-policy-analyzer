@@ -42,6 +42,19 @@ The app runs **100% in your browser** — your data never leaves your machine. I
 - **Comprehensive Break-Glass Account Review** — automatically identifies break-glass accounts/groups by exclusion pattern analysis, validates coverage across all critical policies, special handling for Microsoft managed policies
   - Three severity levels: CRITICAL (none found), HIGH (partial coverage), INFO (fully covered)
 
+#### Guest / External User MFA Enforcement Model
+
+| External User Type | MFA Enforced By | Can Use Destination Tenant MFA? |
+|---|---|---|
+| **Local guest users** | Destination (resource) tenant | ✅ Yes — account exists only in your tenant |
+| **B2B collaboration guest users** | Destination (resource) tenant | ✅ Yes — resource tenant enforces MFA by default |
+| B2B collaboration member users | Home (source) tenant | ❌ Home tenant MFA, trusted via cross-tenant settings |
+| B2B direct connect users | Home (source) tenant | ❌ Home tenant MFA, trusted via cross-tenant settings |
+| Service provider users | Home (source) tenant | ❌ Partner tenant manages MFA (GDAP/CSP) |
+| Other external users | Home (source) tenant | ❌ Home tenant MFA |
+
+> **Local guest users** and **B2B collaboration guest users** can register and complete MFA directly in your tenant. The other four types rely on their home tenant's MFA — your tenant can choose to trust those claims via **Cross-Tenant Access Settings** (inbound trust).
+
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ---
