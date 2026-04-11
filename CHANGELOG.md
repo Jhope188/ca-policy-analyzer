@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Extracted break-glass identification into reusable `identifyBreakGlass()` helper shared by per-policy and tenant-wide checks
   - Removed duplicate identification logic (Steps 1–5) from tenant-wide section
 
+### Fixed
+- **CIS 5.3.9 MS Learn Link** — "Ensure legacy authentication is blocked" was linking to the wrong article ("Require MFA for device registration"); now correctly links to [Block legacy authentication](https://learn.microsoft.com/entra/identity/conditional-access/policy-block-legacy-authentication)
+
 ## [1.7.0] - 2026-04-11
 
 ### Changed
