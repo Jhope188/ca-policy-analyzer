@@ -822,14 +822,14 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "dirsync-account-mfa",
-    title: "Directory Sync Account: Entra Connect v2.5.79+ supports app-based auth",
+    title: "Directory Sync Account: Entra Connect v2.5.76.0+ supports app-based auth",
     appliesWhen:
       "MFA policy targeting All Users excludes a Directory Synchronization Accounts role or service account",
     requirement:
-      "Prior to Entra Connect v2.5.79, organizations excluded Directory Synchronization Accounts " +
+      "Prior to Entra Connect v2.5.76.0, organizations excluded Directory Synchronization Accounts " +
       "from MFA policies because the sync engine used a service account that could not perform MFA. " +
-      "Starting with Entra Connect v2.5.79 (released 2025), application-based authentication is supported, " +
-      "eliminating the need for this exclusion. If your organization has upgraded to v2.5.79+, the " +
+      "Starting with Entra Connect v2.5.76.0 (released 2025), application-based authentication is supported, " +
+      "eliminating the need for this exclusion. If your organization has upgraded to v2.5.76.0+, the " +
       "Directory Sync account exclusion should be reviewed and potentially removed to close this gap.",
     detect: (policy) => {
       if (!isActivePolicy(policy)) return null;
@@ -850,8 +850,8 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       return {
         detail:
           "This MFA policy excludes the Directory Synchronization Accounts role. " +
-          "If your organization is running Entra Connect v2.5.79 or later, this exclusion " +
-          "may no longer be necessary — v2.5.79 introduced application-based authentication " +
+          "If your organization is running Entra Connect v2.5.76.0 or later, this exclusion " +
+          "may no longer be necessary — v2.5.76.0 introduced application-based authentication " +
           "for the sync engine, meaning the sync service principal can authenticate without " +
           "a traditional user account. Review your Entra Connect version and migrate to " +
           "app-based auth to eliminate this MFA gap.",
@@ -868,9 +868,9 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
     remediation:
       "Check your Entra Connect version (Azure Portal → Entra Connect → Version or see the " +
       "[version history](https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history)). " +
-      "If running v2.5.79+, configure application-based authentication for the sync engine " +
+      "If running v2.5.76.0+, configure application-based authentication for the sync engine " +
       "and remove the Directory Synchronization Accounts role exclusion from your MFA policies. " +
-      "If still on an older version, upgrade to v2.5.79+ and then migrate to app-based auth.",
+      "If still on an older version, upgrade to v2.5.76.0+ and then migrate to app-based auth.",
   },
   // ═══════════════════════════════════════════════════════════════════════
   // EXTERNAL AUTHENTICATION METHOD (EAM) — DUO, THIRD-PARTY MFA
