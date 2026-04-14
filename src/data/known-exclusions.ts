@@ -864,9 +864,10 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
     },
     severity: "medium",
     docUrl:
-      "https://learn.microsoft.com/entra/identity/hybrid/connect/how-to-connect-install-roadmap",
+      "https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history",
     remediation:
-      "Check your Entra Connect version (Azure Portal → Entra Connect → Version). " +
+      "Check your Entra Connect version (Azure Portal → Entra Connect → Version or see the " +
+      "[version history](https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history)). " +
       "If running v2.5.79+, configure application-based authentication for the sync engine " +
       "and remove the Directory Synchronization Accounts role exclusion from your MFA policies. " +
       "If still on an older version, upgrade to v2.5.79+ and then migrate to app-based auth.",

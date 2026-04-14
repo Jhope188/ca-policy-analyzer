@@ -271,7 +271,7 @@ Click the **Export JSON** button (visible when results are loaded) to download t
 | Sign-in frequency — Individual services | Medium | Targeting individual M365 services breaks Teams |
 | Resilience disabled | Medium | Policies disabling resilience defaults |
 | All Resources scope change | High | Low-privilege scope exemption ending March 2026 |
-| Directory Sync Account | Medium | MFA policy excluding DirSync role — Entra Connect v2.5.79+ supports app-based auth |
+| Directory Sync Account | Medium | MFA policy excluding DirSync role — Entra Connect v2.5.79+ supports app-based auth ([version history](https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history)) |
 | External Auth Method (EAM) | High | EAM (DUO, RSA) on All Users policy blocks guests and external vendors who can't enroll |
 
 ## Examples
