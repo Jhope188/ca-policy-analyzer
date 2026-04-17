@@ -5,6 +5,23 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-04-17
+
+### Added
+- **Custom GitHub Template Comparison** — Compare your tenant policies against any public GitHub repository containing CA policy JSON exports
+  - New "Compare Custom Repo" button on the Templates tab
+  - Accepts GitHub URLs (`https://github.com/owner/repo`) or shorthand (`owner/repo`)
+  - Supports deep links to specific branches/paths (`/tree/main/Policies`)
+  - Auto-detects JSON files in root or common subdirectories (`Policies/`, `policies/`, `CA/`)
+  - Converts Graph API CA policy JSON into templates with auto-generated fingerprints
+  - Re-runs the template matching engine against custom templates
+  - Shows custom repo attribution with "Back to default" reset button
+
+### Fixed
+- **Break-glass severity for disabled/report-only policies** — Disabled policies missing break-glass raised from info → **low**, report-only raised from info → **medium**
+- **Entra Connect version corrected** — DirSync app-based auth was introduced in v2.5.76.0, not v2.5.79
+- **DirSync check now links to version history** — `docUrl` updated to the [Entra Connect version history](https://learn.microsoft.com/entra/identity/hybrid/connect/reference-connect-version-history) article
+
 ## [1.8.0] - 2026-04-11
 
 ### Added
@@ -281,7 +298,8 @@ The analyzer uses the following finding categories:
 
 ---
 
-[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/Jhope188/ca-policy-analyzer/compare/v1.5.0...v1.6.0
