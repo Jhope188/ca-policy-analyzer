@@ -5,6 +5,7 @@ import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { loadTenantContext, TenantContext } from "@/lib/graph-client";
 import { analyzeAllPolicies, AnalysisResult, calculateCompositeScore, CompositeScoreResult } from "@/lib/analyzer";
 import { analyzeTemplates, TemplateAnalysisResult } from "@/lib/template-matcher";
+import { fetchGitHubTemplates } from "@/lib/github-templates";
 import { runCISAlignment, CISAlignmentResult } from "@/data/cis-benchmarks";
 import { Dashboard } from "@/components/dashboard";
 import { PolicyList } from "@/components/policy-list";
@@ -29,6 +30,7 @@ export default function Home() {
   const [context, setContext] = useState<TenantContext | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [templateResult, setTemplateResult] = useState<TemplateAnalysisResult | null>(null);
+  const [customRepoDisplay, setCustomRepoDisplay] = useState<string | null>(null);
   const [cisResult, setCisResult] = useState<CISAlignmentResult | null>(null);
   const [compositeScore, setCompositeScore] = useState<CompositeScoreResult | null>(null);
   const [locationResult, setLocationResult] = useState<LocationAnalysisResult | null>(null);
@@ -36,6 +38,25 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [hideMicrosoft, setHideMicrosoft] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+
+  /** Load templates from a custom GitHub repo and re-run template analysis */
+  const handleLoadGitHub = useCallback(async (url: string): Promise<string | null> => {
+    if (!context) return "Run an analysis first before loading custom templates.";
+    const result = await fetchGitHubTemplates(url);
+    if (result.error && result.templates.length === 0) return result.error;
+    const templates = analyzeTemplates(context, result.templates);
+    setTemplateResult(templates);
+    setCustomRepoDisplay(result.repoDisplay);
+    return result.error ?? null; // partial error (some files skipped)
+  }, [context]);
+
+  /** Reset back to built-in templates */
+  const handleResetTemplates = useCallback(() => {
+    if (!context) return;
+    const templates = analyzeTemplates(context);
+    setTemplateResult(templates);
+    setCustomRepoDisplay(null);
+  }, [context]);
 
   const runAnalysis = useCallback(async () => {
     if (!accounts[0]) return;
@@ -296,7 +317,7 @@ export default function Home() {
         <FindingsList findings={result.findings} title="All Findings" />
       )}
       {activeTab === "templates" && templateResult && (
-        <TemplatesView result={templateResult} />
+        <TemplatesView result={templateResult} customRepoDisplay={customRepoDisplay} onLoadGitHub={handleLoadGitHub} onResetTemplates={handleResetTemplates} />
       )}
       {activeTab === "cis" && cisResult && (
         <CISView result={cisResult} />

@@ -22,6 +22,9 @@ import {
   ExternalLink,
   Filter,
   Ban,
+  Github,
+  Loader2,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +32,12 @@ import { cn } from "@/lib/utils";
 
 interface TemplatesViewProps {
   result: TemplateAnalysisResult;
+  /** Current custom repo display name (null = using built-in) */
+  customRepoDisplay?: string | null;
+  /** Callback when user wants to load templates from a GitHub URL */
+  onLoadGitHub?: (url: string) => Promise<string | null>;
+  /** Callback to reset back to built-in templates */
+  onResetTemplates?: () => void;
 }
 
 // ─── Status Badge ────────────────────────────────────────────────────────────
@@ -342,8 +351,38 @@ function CategorySection({
 
 // ─── Main View ───────────────────────────────────────────────────────────────
 
-export function TemplatesView({ result }: TemplatesViewProps) {
+export function TemplatesView({
+  result,
+  customRepoDisplay,
+  onLoadGitHub,
+  onResetTemplates,
+}: TemplatesViewProps) {
   const [statusFilter, setStatusFilter] = useState<MatchStatus | "all">("all");
+  const [showGitHubInput, setShowGitHubInput] = useState(false);
+  const [gitHubUrl, setGitHubUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const handleLoadGitHub = async () => {
+    if (!onLoadGitHub || !gitHubUrl.trim()) return;
+    setLoading(true);
+    setLoadError(null);
+    const error = await onLoadGitHub(gitHubUrl.trim());
+    setLoading(false);
+    if (error) {
+      setLoadError(error);
+    } else {
+      setShowGitHubInput(false);
+      setGitHubUrl("");
+    }
+  };
+
+  const handleReset = () => {
+    onResetTemplates?.();
+    setShowGitHubInput(false);
+    setGitHubUrl("");
+    setLoadError(null);
+  };
 
   const filteredMatches =
     statusFilter === "all"
@@ -419,35 +458,119 @@ export function TemplatesView({ result }: TemplatesViewProps) {
         </Card>
       </div>
 
-      {/* Source Attribution */}
-      <div className="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <span>📋</span>
-          Templates from{" "}
-          <a
-            href="https://github.com/Jhope188/ConditionalAccessPolicies"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 underline"
-          >
-            Jhope188/ConditionalAccessPolicies
-          </a>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExportAll}
-            disabled={result.missingCount === 0}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors",
-              result.missingCount > 0
-                ? "border border-gray-700 text-gray-300 hover:bg-gray-800"
-                : "text-gray-600 cursor-not-allowed"
+      {/* Source Attribution & GitHub Input */}
+      <div className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <span>📋</span>
+            {customRepoDisplay ? (
+              <>
+                Comparing against{" "}
+                <a
+                  href={`https://github.com/${customRepoDisplay}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  {customRepoDisplay}
+                </a>
+                <button
+                  onClick={handleReset}
+                  className="ml-2 rounded-md border border-gray-700 px-2 py-0.5 text-xs text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                >
+                  ← Back to default
+                </button>
+              </>
+            ) : (
+              <>
+                Templates from{" "}
+                <a
+                  href="https://github.com/Jhope188/ConditionalAccessPolicies"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 underline"
+                >
+                  Jhope188/ConditionalAccessPolicies
+                </a>
+              </>
             )}
-          >
-            <Download className="h-3.5 w-3.5" />
-            Export Missing ({result.missingCount})
-          </button>
+          </div>
+          <div className="flex gap-2">
+            {onLoadGitHub && !customRepoDisplay && (
+              <button
+                onClick={() => setShowGitHubInput(!showGitHubInput)}
+                className="flex items-center gap-1.5 rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+              >
+                <Github className="h-3.5 w-3.5" />
+                Compare Custom Repo
+              </button>
+            )}
+            <button
+              onClick={handleExportAll}
+              disabled={result.missingCount === 0}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs transition-colors",
+                result.missingCount > 0
+                  ? "border border-gray-700 text-gray-300 hover:bg-gray-800"
+                  : "text-gray-600 cursor-not-allowed"
+              )}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Missing ({result.missingCount})
+            </button>
+          </div>
         </div>
+
+        {/* GitHub URL Input */}
+        {showGitHubInput && (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={gitHubUrl}
+                onChange={(e) => setGitHubUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleLoadGitHub()}
+                placeholder="https://github.com/owner/repo or owner/repo"
+                className="flex-1 rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                disabled={loading}
+              />
+              <button
+                onClick={handleLoadGitHub}
+                disabled={loading || !gitHubUrl.trim()}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+                  loading || !gitHubUrl.trim()
+                    ? "bg-gray-700 text-gray-500 cursor-not-allowed"
+                    : "bg-blue-600 text-white hover:bg-blue-500"
+                )}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="h-4 w-4" />
+                )}
+                {loading ? "Loading…" : "Load"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowGitHubInput(false);
+                  setGitHubUrl("");
+                  setLoadError(null);
+                }}
+                className="rounded-md border border-gray-700 px-2 py-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-500">
+              Enter a public GitHub repo containing CA policy JSON exports (Graph API format).
+              The tool will auto-detect JSON files in the root or common subdirectories (Policies/, policies/, CA/).
+            </p>
+            {loadError && (
+              <p className="text-xs text-red-400">{loadError}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filters */}

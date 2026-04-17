@@ -336,14 +336,17 @@ function setsOverlap(a: Set<string>, b: Set<string>): boolean {
 // ─── Main Analysis ───────────────────────────────────────────────────────────
 
 export function analyzeTemplates(
-  context: TenantContext
+  context: TenantContext,
+  customTemplates?: PolicyTemplate[]
 ): TemplateAnalysisResult {
   const activePolicies = context.policies.filter(
     (p) => p.state !== "disabled"
   );
   const allPolicies = context.policies;
 
-  const matches: TemplateMatch[] = POLICY_TEMPLATES.map((template) => {
+  const templates = customTemplates ?? POLICY_TEMPLATES;
+
+  const matches: TemplateMatch[] = templates.map((template) => {
     // License-aware: if the template requires a license the tenant doesn't have,
     // mark it not-applicable so it doesn't penalise the coverage score.
     if (
@@ -517,7 +520,7 @@ export function analyzeTemplates(
 
   // Per-category score
   const categories = [
-    ...new Set(POLICY_TEMPLATES.map((t) => t.category)),
+    ...new Set(templates.map((t) => t.category)),
   ] as TemplateCategory[];
 
   const byCategoryScore = {} as Record<TemplateCategory, number>;
@@ -541,7 +544,7 @@ export function analyzeTemplates(
     partialCount,
     missingCount,
     notApplicableCount,
-    totalTemplates: POLICY_TEMPLATES.length,
+    totalTemplates: templates.length,
     coverageScore,
     byCategoryScore,
   };
