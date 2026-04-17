@@ -47,6 +47,7 @@ export default function Home() {
     const templates = analyzeTemplates(context, result.templates);
     setTemplateResult(templates);
     setCustomRepoDisplay(result.repoDisplay);
+    localStorage.setItem("customRepoUrl", url);
     return result.error ?? null; // partial error (some files skipped)
   }, [context]);
 
@@ -56,6 +57,7 @@ export default function Home() {
     const templates = analyzeTemplates(context);
     setTemplateResult(templates);
     setCustomRepoDisplay(null);
+    localStorage.removeItem("customRepoUrl");
   }, [context]);
 
   const runAnalysis = useCallback(async () => {
@@ -74,6 +76,20 @@ export default function Home() {
       setProgress("Matching against policy templates…");
       const templates = analyzeTemplates(ctx);
       setTemplateResult(templates);
+
+      // Restore custom repo from previous session if saved
+      const savedRepoUrl = localStorage.getItem("customRepoUrl");
+      if (savedRepoUrl) {
+        setProgress("Restoring custom repo templates…");
+        const custom = await fetchGitHubTemplates(savedRepoUrl);
+        if (custom.templates.length > 0) {
+          const customResult = analyzeTemplates(ctx, custom.templates);
+          setTemplateResult(customResult);
+          setCustomRepoDisplay(custom.repoDisplay);
+        } else {
+          localStorage.removeItem("customRepoUrl");
+        }
+      }
 
       setProgress("Running CIS alignment checks…");
       const cis = runCISAlignment(ctx);
