@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Converts Graph API CA policy JSON into templates with auto-generated fingerprints
   - Re-runs the template matching engine against custom templates
   - Shows custom repo attribution with "Back to default" reset button
+- **Persistent custom repo across refreshes** — Selected GitHub repo URL saved to localStorage and auto-restored on next analysis run
+- **Prefix-based grouping for custom repos** — Custom repo templates grouped by naming prefix (CAD, CAL, CAP…) instead of Foundation/Baseline categories, sorted numerically within each group
 
 ### Fixed
 - **Break-glass severity for disabled/report-only policies** — Disabled policies missing break-glass raised from info → **low**, report-only raised from info → **medium**
