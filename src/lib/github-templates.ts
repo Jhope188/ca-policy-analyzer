@@ -336,7 +336,7 @@ function policyToTemplate(
   return {
     id: `custom-${index}-${displayName.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase()}`,
     displayName,
-    category: inferCategory(displayName),
+    category: "baseline",  // custom repo templates all go under one group
     controlType,
     priority: inferPriority(policy),
     summary: `Custom template: ${displayName}`,

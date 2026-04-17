@@ -264,6 +264,100 @@ function TemplateCard({ match }: { match: TemplateMatch }) {
   );
 }
 
+
+
+// ─── Custom Repo Prefix Grouping ─────────────────────────────────────────────
+
+/** Extract a prefix group (e.g. "CAD", "CAL", "CAP") and numeric index from a template name */
+function parsePrefix(name: string): { prefix: string; num: number; rest: string } {
+  // Match patterns like "CAD005", "CAL001-All", "CAP001-All" at the start
+  const m = name.match(/^([A-Za-z]+?)(\d+)/);
+  if (m) {
+    return { prefix: m[1].toUpperCase(), num: parseInt(m[2], 10), rest: name };
+  }
+  return { prefix: "ZZZ", num: 0, rest: name }; // fallback sorts last
+}
+
+/** Sort matches by prefix group then numeric index */
+function sortByPrefix(matches: TemplateMatch[]): TemplateMatch[] {
+  return [...matches].sort((a, b) => {
+    const pa = parsePrefix(a.template.displayName);
+    const pb = parsePrefix(b.template.displayName);
+    if (pa.prefix !== pb.prefix) return pa.prefix.localeCompare(pb.prefix);
+    if (pa.num !== pb.num) return pa.num - pb.num;
+    return pa.rest.localeCompare(pb.rest);
+  });
+}
+
+/** Group matches by their prefix, preserving sort order */
+function groupByPrefix(matches: TemplateMatch[]): { prefix: string; matches: TemplateMatch[] }[] {
+  const sorted = sortByPrefix(matches);
+  const groups: { prefix: string; matches: TemplateMatch[] }[] = [];
+  for (const m of sorted) {
+    const { prefix } = parsePrefix(m.template.displayName);
+    const last = groups[groups.length - 1];
+    if (last && last.prefix === prefix) {
+      last.matches.push(m);
+    } else {
+      groups.push({ prefix, matches: [m] });
+    }
+  }
+  return groups;
+}
+
+function PrefixGroupSection({
+  prefix,
+  matches,
+}: {
+  prefix: string;
+  matches: TemplateMatch[];
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const present = matches.filter((m) => m.status === "present").length;
+  const partial = matches.filter((m) => m.status === "partial").length;
+  const missing = matches.filter((m) => m.status === "missing").length;
+  const na = matches.filter((m) => m.status === "not-applicable").length;
+  const applicable = matches.length - na;
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={() => setCollapsed(!collapsed)}
+        className="flex w-full items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📋</span>
+          <h3 className="text-base font-semibold text-white">{prefix} Policies</h3>
+          <span className="text-xs text-gray-500">
+            {present}/{applicable} present{na > 0 ? ` · ${na} N/A` : ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1.5 text-xs">
+            {present > 0 && <span className="text-emerald-400">{present}✓</span>}
+            {partial > 0 && <span className="text-amber-400">{partial}~</span>}
+            {missing > 0 && <span className="text-red-400">{missing}✗</span>}
+            {na > 0 && <span className="text-gray-500">{na} N/A</span>}
+          </div>
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          )}
+        </div>
+      </button>
+
+      {!collapsed && (
+        <div className="space-y-2">
+          {matches.map((match) => (
+            <TemplateCard key={match.template.id} match={match} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Category Section ────────────────────────────────────────────────────────
 
 function CategorySection({
@@ -605,22 +699,34 @@ export function TemplatesView({
         ))}
       </div>
 
-      {/* Category Sections */}
+      {/* Category / Prefix Sections */}
       <div className="space-y-8">
-        {categories.map((cat) => {
-          const catMatches = filteredMatches.filter(
-            (m) => m.template.category === cat
-          );
-          if (catMatches.length === 0) return null;
-          return (
-            <CategorySection
-              key={cat}
-              category={cat}
-              matches={catMatches}
-              score={result.byCategoryScore[cat] ?? 0}
+        {customRepoDisplay ? (
+          /* Custom repo: group by naming prefix (CAD, CAL, CAP…) */
+          groupByPrefix(filteredMatches).map((group) => (
+            <PrefixGroupSection
+              key={group.prefix}
+              prefix={group.prefix}
+              matches={group.matches}
             />
-          );
-        })}
+          ))
+        ) : (
+          /* Built-in templates: group by category */
+          categories.map((cat) => {
+            const catMatches = filteredMatches.filter(
+              (m) => m.template.category === cat
+            );
+            if (catMatches.length === 0) return null;
+            return (
+              <CategorySection
+                key={cat}
+                category={cat}
+                matches={catMatches}
+                score={result.byCategoryScore[cat] ?? 0}
+              />
+            );
+          })
+        )}
       </div>
     </div>
   );
