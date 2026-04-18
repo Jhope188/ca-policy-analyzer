@@ -98,7 +98,7 @@ All detected issues ranked Critical → Info. Expand any finding to see the full
 The Locations tab maps every named location (IP ranges, countries, compliant networks) to the Conditional Access policies that reference it — showing whether each location is used as an include or exclude condition. It flags orphaned references, untrusted locations used with "All Trusted Locations", empty country lists, and overly broad IP ranges.
 
 <!-- Replace with actual screenshot: open the app → Locations tab -->
-![Locations](https://github.com/Jhope188/ca-policy-analyzer/blob/main/docs/screenshots/Locations.png)
+![Locations](docs/screenshots/Locations.png)
 
 ---
 
