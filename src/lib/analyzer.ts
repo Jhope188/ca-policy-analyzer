@@ -149,7 +149,7 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
       ...checkCABypassApps(policy, context),
       ...checkUserAgentBypass(policy),
       ...checkMicrosoftManagedPolicy(policy),
-      ...checkPrivilegedRoleExclusions(policy),
+      ...checkPrivilegedRoleExclusions(policy, context),
       ...checkGuestExternalUserExclusions(policy, context),
       ...checkCredentialRegistrationConstraints(policy, context),
       ...checkGuestAuthenticationStrength(policy),
@@ -871,7 +871,8 @@ const CRITICAL_ROLE_IDS = new Set([
 ]);
 
 function checkPrivilegedRoleExclusions(
-  policy: ConditionalAccessPolicy
+  policy: ConditionalAccessPolicy,
+  context: TenantContext
 ): Finding[] {
   const findings: Finding[] = [];
 
@@ -897,6 +898,29 @@ function checkPrivilegedRoleExclusions(
   const hasCritical = excludedHighPriv.some((r) => r.critical);
   const criticalNames = excludedHighPriv.filter((r) => r.critical).map((r) => r.name);
   const allNames = excludedHighPriv.map((r) => r.name);
+
+  // Check if excluded admin roles are covered by a separate dedicated policy
+  const excludedRoleIdsLower = new Set(excludedHighPriv.map((r) => r.id.toLowerCase()));
+  const coveringPolicy = context.policies.find((p) => {
+    if (p.id === policy.id || p.state === "disabled") return false;
+    const pu = p.conditions.users;
+    const pg = p.grantControls;
+    // Policy must enforce MFA or auth strength
+    const enforcesMfa =
+      pg?.builtInControls.includes("mfa") ||
+      pg?.authenticationStrength != null;
+    if (!enforcesMfa) return false;
+    // Policy must include the excluded roles (via includeRoles or All Users without re-excluding them)
+    const includesViaRoles = [...excludedRoleIdsLower].every((rid) =>
+      pu.includeRoles.some((ir) => ir.toLowerCase() === rid)
+    );
+    const includesViaAllUsers =
+      pu.includeUsers.includes("All") &&
+      ![...excludedRoleIdsLower].some((rid) =>
+        pu.excludeRoles.some((er) => er.toLowerCase() === rid)
+      );
+    return includesViaRoles || includesViaAllUsers;
+  });
 
   // Determine what grant controls the policy enforces
   const grant = policy.grantControls;
@@ -938,23 +962,35 @@ function checkPrivilegedRoleExclusions(
       `Privileged accounts should have EQUAL or STRICTER controls, not exemptions.`;
   }
 
+  // Downgrade severity if a compensating policy covers the excluded roles
+  if (coveringPolicy) {
+    severity = "info";
+  }
+
+  const coveredNote = coveringPolicy
+    ? ` However, these roles appear to be covered by a separate policy: **${coveringPolicy.displayName}**` +
+      ` (${coveringPolicy.state === "enabledForReportingButNotEnforced" ? "report-only" : "enabled"}).` +
+      ` Verify that policy enforces equivalent or stricter controls for these admin roles.`
+    : ` No separate policy was found that covers these excluded admin roles with MFA or authentication strength.` +
+      ` Per Microsoft Zero Trust and CIS benchmarks, privileged roles should be the FIRST` +
+      ` users subject to strong controls, not excluded from them.`;
+
   findings.push({
     id: nextFindingId(),
     policyId: policy.id,
     policyName: policy.displayName,
     severity,
     category: "Privileged Role Exclusion",
-    title: `${excludedHighPriv.length} privileged role(s) excluded${hasCritical ? " — includes critical admin roles" : ""}`,
-    description:
-      attackScenario +
-      ` Per Microsoft Zero Trust and CIS benchmarks, privileged roles should be the FIRST ` +
-      `users subject to strong controls, not excluded from them. Break-glass accounts should ` +
-      `be excluded by specific user ID, never by role.`,
-    recommendation:
-      `Remove ${allNames.join(", ")} from the excluded roles. ` +
-      `If you need emergency access, exclude 1-2 dedicated break-glass accounts by user ID ` +
-      `(in excludeUsers) instead of excluding an entire admin role. ` +
-      `Break-glass accounts should have complex passwords, be cloud-only, and be monitored with alerts.`,
+    title: `${excludedHighPriv.length} privileged role(s) excluded${hasCritical ? " — includes critical admin roles" : ""}${coveringPolicy ? " (covered by separate policy)" : ""}`,
+    description: attackScenario + coveredNote,
+    recommendation: coveringPolicy
+      ? `The excluded admin roles appear covered by **${coveringPolicy.displayName}**. ` +
+        `Confirm that policy enforces equivalent controls (MFA, authentication strength, device compliance). ` +
+        `Break-glass accounts should still be excluded by specific user ID, never by role.`
+      : `Remove ${allNames.join(", ")} from the excluded roles. ` +
+        `If you need emergency access, exclude 1-2 dedicated break-glass accounts by user ID ` +
+        `(in excludeUsers) instead of excluding an entire admin role. ` +
+        `Break-glass accounts should have complex passwords, be cloud-only, and be monitored with alerts.`,
     relatedIds: excludedHighPriv.map((r) => r.id),
   });
 

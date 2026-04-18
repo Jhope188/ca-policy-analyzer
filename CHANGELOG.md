@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Persistent custom repo across refreshes** — Selected GitHub repo URL saved to localStorage and auto-restored on next analysis run
 - **Prefix-based grouping for custom repos** — Custom repo templates grouped by naming prefix (CAD, CAL, CAP…) instead of Foundation/Baseline categories, sorted numerically within each group
 
+### Changed
+- **Privileged Role Exclusion check now detects compensating policies** — When admin roles are excluded from an MFA policy, the analyzer checks if another enabled policy covers those roles with MFA or authentication strength. If covered, severity drops from critical/high to info with a note identifying the covering policy.
+
 ### Fixed
 - **Break-glass severity for disabled/report-only policies** — Disabled policies missing break-glass raised from info → **low**, report-only raised from info → **medium**
 - **Entra Connect version corrected** — DirSync app-based auth was introduced in v2.5.76.0, not v2.5.79
