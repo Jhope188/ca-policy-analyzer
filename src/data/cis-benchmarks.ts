@@ -387,7 +387,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Require MFA for external users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-guest-mfa-strength" },
+      { label: "MS Learn: Require MFA for external users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-mfa-strength" },
       { label: "MS Learn: Microsoft-managed CA policies", url: "https://learn.microsoft.com/entra/identity/conditional-access/managed-policies" },
     ],
     advisories: [
@@ -983,7 +983,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Block device code flow", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-device-code-flow" },
+      { label: "MS Learn: Block device code flow", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-block-authentication-flows" },
       { label: "MS Learn: Authentication flows condition", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#authentication-flows" },
     ],
     check: (policies) => {
@@ -1312,7 +1312,7 @@ export const CIS_CONTROLS: CISControl[] = [
       ],
     },
     msLearnLinks: [
-      { label: "MS Learn: Require reauthentication every time", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-enrollment-reauth" },
+      { label: "MS Learn: Require reauthentication every time", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-registration" },
       { label: "MS Learn: Sign-in frequency", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-session-lifetime#user-sign-in-frequency" },
     ],
     check: (policies) => {
@@ -1556,7 +1556,7 @@ export const CIS_CONTROLS: CISControl[] = [
       },
     },
     msLearnLinks: [
-      { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-app-protection" },
+      { label: "MS Learn: Require app protection policy", url: "https://learn.microsoft.com/mem/intune/apps/app-protection-policy" },
       { label: "MS Learn: Intune app protection", url: "https://learn.microsoft.com/mem/intune/apps/app-protection-policy" },
       { label: "MS Learn: Migrate approved client app to app protection", url: "https://learn.microsoft.com/entra/identity/conditional-access/migrate-approved-client-app" },
     ],

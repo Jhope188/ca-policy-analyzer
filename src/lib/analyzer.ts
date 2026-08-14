@@ -1753,7 +1753,7 @@ function checkGuestAuthenticationStrength(
  * like deleting CA policies, modifying PIM roles, etc. This check identifies
  * common misconfigurations and best practices.
  * 
- * Reference: https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions
+ * Reference: https://learn.microsoft.com/entra/identity/conditional-access/overview
  */
 function checkProtectedActions(
   policy: ConditionalAccessPolicy,
@@ -1812,7 +1812,7 @@ function checkProtectedActions(
         `4. **Verify admin registration**: Ensure all targeted admins have registered the required auth methods before enforcing\n\n` +
         `5. **Use report-only mode first**: Enable report-only to validate that admins can satisfy the strength requirement\n\n` +
         `**Learn more:**\n` +
-        `- [Protected Actions for CA](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions)\n` +
+        `- [Protected Actions for CA](https://learn.microsoft.com/entra/identity/conditional-access/overview)\n` +
         `- [Authentication Strengths](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths)`,
     });
   }
@@ -1848,7 +1848,7 @@ function checkProtectedActions(
         `- Role management → Privileged Role Administrator\n` +
         `- App registrations → Application Administrator, Cloud Application Administrator\n\n` +
         `**Learn more:**\n` +
-        `- [Protected Actions Scoping](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions#scope-the-policy)`,
+        `- [Protected Actions Scoping](https://learn.microsoft.com/entra/identity/conditional-access/overview)`,
     });
   }
 
@@ -1924,7 +1924,7 @@ function checkProtectedActions(
         `4. **Monitor for issues**: Watch for authentication failures in the first 24-48 hours\n\n` +
         `Recommendation: Enable enforcement after 1-2 weeks of successful report-only validation.\n\n` +
         `**Learn more:**\n` +
-        `- [Deploy Protected Actions](https://learn.microsoft.com/entra/identity/conditional-access/how-to-policy-protected-actions#test-the-policy)`,
+        `- [Deploy Protected Actions](https://learn.microsoft.com/entra/identity/conditional-access/overview)`,
     });
   }
 
@@ -2439,7 +2439,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         `4. **Test quarterly**: Verify emergency access works\n\n` +
         `**Learn More:**\n` +
         `- [Manage emergency access accounts](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)\n` +
-        `- [Plan for CA lockout prevention](https://learn.microsoft.com/entra/identity/conditional-access/howto-conditional-access-best-practices#break-glass-accounts)`,
+        `- [Plan for CA lockout prevention](https://learn.microsoft.com/entra/identity/role-based-access-control/security-emergency-access)`,
     });
   }
 
