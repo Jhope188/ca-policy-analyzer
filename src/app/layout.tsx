@@ -59,7 +59,7 @@ export default function RootLayout({
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob:",
             "font-src 'self' data:",
-            "connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.microsoftonline.com",
+            "connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.microsoftonline.com https://api.github.com https://raw.githubusercontent.com",
             "frame-src 'none'",
             "object-src 'none'",
             "base-uri 'self'",
