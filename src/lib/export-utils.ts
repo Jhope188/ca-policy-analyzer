@@ -302,23 +302,24 @@ export async function exportToPowerPoint(
   const titleSlide = pptx.addSlide();
   titleSlide.background = { color: COLORS.bg };
 
-  // Logo — top-right corner (customisable placeholder)
+  // Logo — top-right corner. Logo is 1024×1024 (square) so keep 1:1 aspect ratio.
+  // Slide width = 10" (pptxgenjs default). Logo at 1.8" square, 0.3" from right/top edge.
   const logoData = options?.logoBase64;
+  const LOGO_SIZE = 1.8; // inches — square
   if (logoData) {
     titleSlide.addImage({
       data: logoData,
-      x: 8.5,
-      y: 0.4,
-      w: 3.8,
-      h: 2.53,
-      rounding: true,
+      x: 7.9,  // 10 - 1.8 - 0.3 = right-aligned with margin
+      y: 0.3,
+      w: LOGO_SIZE,
+      h: LOGO_SIZE,
     });
   }
 
   titleSlide.addText("Conditional Access\nPolicy Analysis", {
     x: 0.8,
     y: 1.5,
-    w: logoData ? 7.5 : 11,
+    w: logoData ? 6.8 : 11,
     h: 2.5,
     fontSize: 36,
     fontFace: "Arial",
@@ -373,20 +374,20 @@ export async function exportToPowerPoint(
   if (!logoData) {
     // Placeholder hint when no logo is provided
     titleSlide.addShape("rect" as PptxGenJS.ShapeType, {
-      x: 9.2,
-      y: 0.5,
-      w: 3,
-      h: 2,
+      x: 8.1,
+      y: 0.3,
+      w: 1.8,
+      h: 1.8,
       fill: { color: COLORS.card },
       rectRadius: 0.1,
       line: { color: COLORS.muted, dashType: "dash", width: 1 },
     });
     titleSlide.addText("Your Logo Here", {
-      x: 9.2,
-      y: 1.1,
-      w: 3,
+      x: 8.1,
+      y: 0.95,
+      w: 1.8,
       h: 0.5,
-      fontSize: 12,
+      fontSize: 11,
       fontFace: "Arial",
       color: COLORS.muted,
       align: "center",
