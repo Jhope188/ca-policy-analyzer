@@ -236,12 +236,6 @@ export function ExclusionsView({ findings }: ExclusionsViewProps) {
               ),
             ];
 
-            // Check if all policy details are the same
-            const uniqueDetails = new Set(
-              group.policies.map((p) => p.result.detail)
-            );
-            const hasUniformDetail = uniqueDetails.size === 1;
-
             return (
               <Card key={uid}>
                 <button
@@ -270,9 +264,14 @@ export function ExclusionsView({ findings }: ExclusionsViewProps) {
                           </span>
                         </>
                       ) : (
-                        <span className="text-gray-400">
-                          {policyCount} policies affected
-                        </span>
+                        <>
+                          <span className="text-gray-400">
+                            {group.policies[0].policyName}
+                          </span>
+                          <span className="text-gray-500">
+                            {" "}+{policyCount - 1} more affected
+                          </span>
+                        </>
                       )}
                     </p>
                   </div>
@@ -280,36 +279,26 @@ export function ExclusionsView({ findings }: ExclusionsViewProps) {
 
                 {isOpen && (
                   <div className="mt-4 ml-7 space-y-4 border-t border-gray-800 pt-4">
-                    {/* Assessment — show once if uniform, per-policy otherwise */}
-                    {hasUniformDetail ? (
-                      <div>
-                        <h5 className="text-xs font-semibold text-gray-400 uppercase mb-1">
-                          Assessment
-                        </h5>
-                        <p className="text-sm text-gray-300">
-                          {group.policies[0].result.detail}
-                        </p>
-                      </div>
-                    ) : null}
+                    {/* Assessment — always shown once at the top */}
+                    <div>
+                      <h5 className="text-xs font-semibold text-gray-400 uppercase mb-1">
+                        Assessment
+                      </h5>
+                      <p className="text-sm text-gray-300">
+                        {group.policies[0].result.detail}
+                      </p>
+                    </div>
 
-                    {/* Affected policies */}
+                    {/* Affected policies — names only, compact list */}
                     <div>
                       <h5 className="text-xs font-semibold text-gray-400 uppercase mb-1">
                         <Shield className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />
                         Affected {policyCount === 1 ? "Policy" : `Policies (${policyCount})`}
                       </h5>
-                      <ul className="space-y-1.5">
+                      <ul className="space-y-1">
                         {group.policies.map((p, i) => (
-                          <li key={`${p.policyId}-${i}`}>
-                            <span className="text-sm font-medium text-gray-300">
-                              {p.policyName}
-                            </span>
-                            {/* Show per-policy detail only when details differ */}
-                            {!hasUniformDetail && (
-                              <p className="text-xs text-gray-500 mt-0.5 ml-4">
-                                {p.result.detail}
-                              </p>
-                            )}
+                          <li key={`${p.policyId}-${i}`} className="text-sm text-gray-300">
+                            {p.policyName}
                           </li>
                         ))}
                       </ul>

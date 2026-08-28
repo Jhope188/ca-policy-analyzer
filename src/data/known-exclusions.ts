@@ -797,22 +797,17 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
 
       const hasAppExclusions =
         policy.conditions.applications.excludeApplications.length > 0;
+      if (!hasAppExclusions) return null;
 
-      const detail = hasAppExclusions
-        ? 'This policy targets "All cloud apps" with app exclusions. Since March 2026, the ' +
+      return {
+        detail:
+          'This policy targets "All cloud apps" with app exclusions. Since March 2026, the ' +
           "low-privilege scope exemption has been removed — User.Read, openid, profile, email, and " +
           "offline_access are now enforced via the Windows Azure Active Directory app " +
           "(00000002-0000-0000-c000-000000000000) as the enforcement audience. " +
           "Without a dedicated policy covering this app, users accessing apps that only request " +
           "these basic scopes may receive unexpected CA challenges — or may bypass enforcement entirely " +
-          "depending on your tenant's rollout state."
-        : 'This policy targets "All cloud apps". Per the Microsoft Learn article on CA behavior with ' +
-          "app exclusions, Microsoft recommends explicitly covering the Windows Azure Active Directory " +
-          "app (00000002-0000-0000-c000-000000000000) with a dedicated MFA policy to protect baseline " +
-          "scopes (User.Read, openid, profile, email, offline_access) regardless of exclusions.";
-
-      return {
-        detail,
+          "depending on your tenant's rollout state.",
         impactedResources: [
           "Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)",
           "Apps requesting User.Read, openid, profile, email, offline_access scopes",
