@@ -1778,12 +1778,15 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
     (r) => r.result.status === "not-applicable"
   ).length;
 
+  // Manual controls count as 0.5 in both numerator and denominator so they
+  // reduce the score proportionally (same as the composite pillar calculation).
   const scorable = official.filter(
-    (r) => r.result.status !== "not-applicable" && r.result.status !== "manual"
+    (r) => r.result.status !== "not-applicable"
   );
+  const weightedPassed = passCount + manualCount * 0.5;
   const alignmentScore =
     scorable.length > 0
-      ? Math.round((passCount / scorable.length) * 100)
+      ? Math.round((weightedPassed / scorable.length) * 100)
       : 0;
 
   return {
