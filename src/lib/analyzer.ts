@@ -2954,6 +2954,108 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     });
   }
 
+  // ── Excluded Apps With No Alternative CA Coverage ──
+  // Per https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps:
+  // "Microsoft recommends creating a baseline MFA policy targeting all users and
+  //  all resources WITHOUT any resource exclusions."
+  // When an app is excluded from an "All resources" policy it MUST have its own
+  // dedicated CA policy — otherwise it has zero Conditional Access coverage.
+  // Some apps also cannot be individually targeted (they only appear via "All
+  // resources"), so excluding them creates an uncloseable gap.
+  {
+    // Build a set of app IDs that are excluded from at least one enabled "All resources" policy
+    const excludedFromAllResources = new Map<string, string[]>(); // appId → [policyNames]
+    for (const p of enabled) {
+      const apps = p.conditions.applications;
+      if (!apps.includeApplications.includes("All")) continue;
+      for (const exclId of apps.excludeApplications) {
+        const existing = excludedFromAllResources.get(exclId) ?? [];
+        existing.push(p.displayName);
+        excludedFromAllResources.set(exclId, existing);
+      }
+    }
+
+    // For each excluded app, check if any other enabled policy covers it
+    // Coverage = policy targets the specific app directly OR targets "All" without excluding it
+    const uncoveredExclusions: Array<{
+      appId: string;
+      displayName: string;
+      excludedFrom: string[];
+    }> = [];
+
+    for (const [appId, excludedFrom] of excludedFromAllResources) {
+      const isCovered = enabled.some((p) => {
+        const apps = p.conditions.applications;
+        const isExcludedHere = apps.excludeApplications.includes(appId);
+        if (isExcludedHere) return false; // still excluded in this policy
+        // Directly targeted
+        if (apps.includeApplications.includes(appId)) return true;
+        // Covered by an "All resources" policy that does NOT exclude it
+        if (apps.includeApplications.includes("All") && !isExcludedHere) return true;
+        return false;
+      });
+
+      if (!isCovered) {
+        // Resolve display name
+        const sp = context.servicePrincipals.get(appId.toLowerCase());
+        const appDesc = APP_DESCRIPTION_MAP.get(appId.toLowerCase());
+        const displayName =
+          appDesc?.displayName ?? sp?.displayName ?? appId;
+        uncoveredExclusions.push({ appId, displayName, excludedFrom });
+      }
+    }
+
+    if (uncoveredExclusions.length > 0) {
+      const appList = uncoveredExclusions
+        .map(
+          (a) =>
+            `- **${a.displayName}** (\`${a.appId}\`)\n` +
+            `  Excluded from: ${a.excludedFrom.join(", ")}\n` +
+            `  → No dedicated CA policy found for this app`
+        )
+        .join("\n");
+
+      findings.push({
+        id: nextFindingId(),
+        policyId: "tenant-wide",
+        policyName: "Tenant-Wide Analysis",
+        severity: "high",
+        category: "Application Coverage",
+        title: `${uncoveredExclusions.length} app(s) excluded from "All resources" policies with no alternative CA coverage`,
+        description:
+          `**${uncoveredExclusions.length} application(s) are excluded from your "All resources" Conditional Access ` +
+          `policies and have no dedicated policy covering them — they receive zero CA enforcement:**\n\n` +
+          `${appList}\n\n` +
+          `Per Microsoft documentation, when an app is excluded from an "All resources" (All cloud apps) policy, ` +
+          `it falls completely outside your CA baseline. Microsoft's recommendation is clear:\n\n` +
+          `> *"Microsoft recommends creating a baseline multifactor authentication policy targeting all users and ` +
+          `all resources without any resource exclusions."*\n\n` +
+          `Additionally, **some applications cannot be individually targeted in the CA app picker** — ` +
+          `the only way to protect them is via an "All resources" policy. Excluding them creates an uncloseable gap ` +
+          `unless you remove the exclusion.`,
+        recommendation:
+          `**To close the scope gap, choose one of these approaches for each excluded app:**\n\n` +
+          `**Option A (Preferred): Remove the exclusion**\n` +
+          `Remove the app exclusion from your "All resources" policy. If the app needs different controls, ` +
+          `create a separate policy targeting that specific app with the appropriate grant controls. ` +
+          `The "All resources" policy then acts as the baseline floor.\n\n` +
+          `**Option B: Create a dedicated app policy**\n` +
+          `Create a new Conditional Access policy that explicitly targets the excluded app by its App ID:\n` +
+          `1. Target resources → Select resources → enter the App ID\n` +
+          `2. Users: All users (or scoped to the app's user population)\n` +
+          `3. Grant: Require MFA or appropriate controls\n` +
+          `4. Enable in report-only first to validate impact\n\n` +
+          `**Important:** Some apps (not individually targetable) can only be protected via "All resources" — ` +
+          `for those, **Option A is the only option**. Check if the app ID appears in the Entra app picker; ` +
+          `if not, remove the exclusion instead.\n\n` +
+          `**Learn more:**\n` +
+          `- [Target resources in CA policies](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps)\n` +
+          `- [Baseline MFA for all users](https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-mfa-strength)\n` +
+          `- [CA policy best practices](https://learn.microsoft.com/entra/identity/conditional-access/plan-conditional-access)`,
+      });
+    }
+  }
+
   return findings;
 }
 
