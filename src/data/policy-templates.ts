@@ -1032,11 +1032,11 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     displayName: "GLOBAL - BLOCK - Countries-NotAllowed - NoExclusions",
     category: "foundation",
     controlType: "BLOCK",
-    priority: "optional",
+    priority: "recommended",
     summary:
       "Block access from non-allowed countries with no group exclusions (strict)",
     rationale:
-      "A hardline country-block policy with no traveling-user or global bypass groups. This is the strictest form of geo-blocking — only the breakglass account is excluded.",
+      "The recommended approach for geo-blocking: no traveling-user or bypass groups means no exceptions other than the breakglass account. Group exclusions on country-block policies create gaps that attackers can exploit by compromising an excluded account. Only the breakglass account should be excluded.",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],
