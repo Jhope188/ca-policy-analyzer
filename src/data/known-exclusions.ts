@@ -781,40 +781,58 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "all-resources-exclusion-change",
-    title: "All Resources: Low-privilege scope exemption ending March 2026",
+    title: "All Resources: Ensure Windows Azure AD baseline scopes are covered",
     appliesWhen:
-      'Policy targets "All resources" (All cloud apps) with app exclusions',
+      'Policy targets "All resources" (All cloud apps) — with or without app exclusions',
     requirement:
-      "Microsoft is removing the legacy behavior where certain low-privilege scopes " +
-      "(User.Read, openid, profile, email) were auto-excluded from All Resources policies " +
-      "when app exclusions existed. Starting March 2026, these scopes WILL be enforced.",
+      "When a Conditional Access policy targets 'All cloud apps' and has app exclusions, Microsoft's " +
+      "legacy behavior automatically exempted low-privilege scopes (User.Read, openid, profile, email, " +
+      "offline_access) from enforcement. This exemption was removed starting March 2026. " +
+      "Microsoft now maps these scopes to Windows Azure Active Directory " +
+      "(00000002-0000-0000-c000-000000000000) as the enforcement audience. " +
+      "To ensure coverage, a dedicated policy targeting this app should be in place.",
     detect: (policy) => {
       if (!isActivePolicy(policy)) return null;
       if (!targetsAllApps(policy)) return null;
 
       const hasAppExclusions =
         policy.conditions.applications.excludeApplications.length > 0;
-      if (!hasAppExclusions) return null;
+
+      const detail = hasAppExclusions
+        ? 'This policy targets "All cloud apps" with app exclusions. Since March 2026, the ' +
+          "low-privilege scope exemption has been removed — User.Read, openid, profile, email, and " +
+          "offline_access are now enforced via the Windows Azure Active Directory app " +
+          "(00000002-0000-0000-c000-000000000000) as the enforcement audience. " +
+          "Without a dedicated policy covering this app, users accessing apps that only request " +
+          "these basic scopes may receive unexpected CA challenges — or may bypass enforcement entirely " +
+          "depending on your tenant's rollout state."
+        : 'This policy targets "All cloud apps". Per the Microsoft Learn article on CA behavior with ' +
+          "app exclusions, Microsoft recommends explicitly covering the Windows Azure Active Directory " +
+          "app (00000002-0000-0000-c000-000000000000) with a dedicated MFA policy to protect baseline " +
+          "scopes (User.Read, openid, profile, email, offline_access) regardless of exclusions.";
 
       return {
-        detail:
-          'This policy targets "All cloud apps" with app exclusions. Microsoft is changing behavior ' +
-          "starting March 2026: previously auto-excluded low-privilege scopes (User.Read, openid, profile, " +
-          "email, offline_access) will now be enforced. Users who could previously access apps without CA " +
-          "challenges may now be prompted. Review sign-in logs for impact.",
+        detail,
         impactedResources: [
-          "Apps using User.Read scope",
-          "Apps using openid/profile scopes",
-          "Native clients and SPAs with basic Graph access",
+          "Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)",
+          "Apps requesting User.Read, openid, profile, email, offline_access scopes",
+          "Native clients and SPAs with basic Azure AD Graph access",
         ],
       };
     },
     severity: "high",
     docUrl:
-      "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-for-all-resources",
+      "https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-behavior-when-an-all-resources-policy-has-an-app-exclusion",
     remediation:
-      "Review all policies targeting 'All cloud apps' with exclusions. Test the impact using report-only mode. " +
-      "Consider removing app exclusions from the policy and creating separate targeted policies instead.",
+      "Create a dedicated Conditional Access policy targeting Windows Azure Active Directory " +
+      "(app ID: 00000002-0000-0000-c000-000000000000) to protect low-privilege baseline scopes:\n\n" +
+      "• Users: All users (exclude break-glass accounts)\n" +
+      "• Target resources: Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)\n" +
+      "• Grant: Require MFA (or phishing-resistant authentication strength)\n\n" +
+      "This ensures that even if your 'All cloud apps' policies have app exclusions, the baseline " +
+      "scopes enforced via this app remain protected. " +
+      "See the 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' template in the Templates tab for a ready-to-deploy configuration. " +
+      "Reference: https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-cloud-apps#conditional-access-behavior-when-an-all-resources-policy-has-an-app-exclusion",
   },
 
   // ═══════════════════════════════════════════════════════════════════════
