@@ -1035,6 +1035,113 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "If you need a transition period, use both controls with the OR operator so either grant satisfies the requirement. " +
       "For new policies, only use 'Require application protection policy'.",
   },
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // USER RISK — DEPRECATED passwordChange + EAM COVERAGE GAP
+  // Ref: https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-policies
+  // ═══════════════════════════════════════════════════════════════════════
+  {
+    id: "user-risk-password-change-deprecated",
+    title: "User Risk: 'Require password change' is deprecated — migrate to 'Require risk remediation'",
+    appliesWhen:
+      "User risk policy uses the legacy 'passwordChange' grant control",
+    requirement:
+      "Microsoft has deprecated the standalone 'Require password change' grant control for user risk policies. " +
+      "The replacement is 'Require risk remediation', which supports both password-based and passwordless " +
+      "(External Authentication Methods, FIDO2, WHfB) remediation flows. " +
+      "Passwordless users cannot complete a password-change-only flow and will be permanently blocked.",
+    detect: (policy) => {
+      if (!isActivePolicy(policy)) return null;
+
+      const userRiskLevels = policy.conditions.userRiskLevels ?? [];
+      if (userRiskLevels.length === 0) return null;
+
+      const grant = policy.grantControls;
+      if (!grant) return null;
+
+      const usesPasswordChange = grant.builtInControls.includes("passwordChange");
+      if (!usesPasswordChange) return null;
+
+      const usesRiskRemediation = grant.builtInControls.includes("riskRemediation");
+
+      return {
+        detail:
+          `Policy "${policy.displayName}" uses the legacy 'Require password change' grant control for user risk. ` +
+          "This control is deprecated and does not support passwordless users " +
+          "(FIDO2, Windows Hello for Business, External Authentication Methods such as Duo). " +
+          "Passwordless users flagged as high risk will be unable to self-remediate and will remain blocked. " +
+          (usesRiskRemediation
+            ? "The policy also has 'riskRemediation' — consider removing 'passwordChange' and keeping only 'riskRemediation'."
+            : "Replace with 'Require risk remediation' to support all authentication method types."),
+        impactedResources: [
+          "Passwordless users (FIDO2, Windows Hello for Business)",
+          "External Authentication Method users (Duo, Okta, etc.)",
+          "High-risk users who cannot complete a password change flow",
+        ],
+      };
+    },
+    severity: "high",
+    docUrl:
+      "https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-policies",
+    remediation:
+      "Replace 'Require password change' with 'Require risk remediation' in the grant controls. " +
+      "'Require risk remediation' automatically determines the correct remediation path based on the user's " +
+      "registered authentication methods — password change for password-based users, secure sign-in for passwordless users. " +
+      "See the 'P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation' template in the Templates tab.",
+  },
+
+  {
+    id: "user-risk-remediation-no-eam-companion",
+    title: "User Risk: 'Require risk remediation' uses auth strength — EAM users (e.g. Duo) need a companion policy",
+    appliesWhen:
+      "User risk policy uses 'Require risk remediation' with an authentication strength object",
+    requirement:
+      "When 'Require risk remediation' is combined with a custom authentication strength, " +
+      "users enrolled in External Authentication Methods (EAM) such as Duo, Okta Verify, or Ping " +
+      "cannot satisfy the auth strength requirement — EAM is not supported in authentication strength objects. " +
+      "A companion policy targeting the EAM group using the built-in 'Require MFA' control instead of " +
+      "an auth strength must exist to allow EAM users to complete risk remediation.",
+    detect: (policy) => {
+      if (!isActivePolicy(policy)) return null;
+
+      const userRiskLevels = policy.conditions.userRiskLevels ?? [];
+      if (userRiskLevels.length === 0) return null;
+
+      const grant = policy.grantControls;
+      if (!grant) return null;
+
+      const usesRiskRemediation = grant.builtInControls.includes("riskRemediation");
+      if (!usesRiskRemediation) return null;
+
+      // Only flag if the policy uses an authentication strength (custom or built-in object)
+      const hasAuthStrength = grant.authenticationStrength != null;
+      if (!hasAuthStrength) return null;
+
+      return {
+        detail:
+          `Policy "${policy.displayName}" combines 'Require risk remediation' with an authentication strength object. ` +
+          "Authentication strength objects do NOT support External Authentication Methods (EAM) such as Duo, Okta Verify, or Ping. " +
+          "Users enrolled in EAM who are flagged as high risk will be unable to complete the remediation challenge and will remain blocked indefinitely. " +
+          "A companion policy targeting only EAM-enrolled users — using the built-in 'Require MFA' control instead of an auth strength — is required to close this gap.",
+        impactedResources: [
+          "Users enrolled in External Authentication Methods (Duo, Okta Verify, Ping, etc.)",
+          "Any tenant using a third-party MFA provider as EAM",
+          "High-risk EAM users who cannot complete authentication strength challenges",
+        ],
+      };
+    },
+    severity: "high",
+    docUrl:
+      "https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-policies",
+    remediation:
+      "Create a companion user risk policy scoped to your EAM user group:\n\n" +
+      "• Users: Include — EAM users group only (exclude from the main policy)\n" +
+      "• Conditions: User risk = High (same as primary policy)\n" +
+      "• Grant: Require MFA (built-in, NOT an authentication strength object) + Require risk remediation\n\n" +
+      "This allows EAM users (Duo, Okta, Ping) to satisfy the MFA challenge using their third-party method " +
+      "and complete risk remediation. The main policy retains the stronger auth strength for all other users. " +
+      "See the 'P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation' template in the Templates tab.",
+  },
 ];
 
 // ─── Run all exclusion checks against a single policy ────────────────────────
