@@ -454,7 +454,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
   {
     id: "foundation-block-unsupported-platforms",
     displayName: "GLOBAL - BLOCK - UnsupportedDevicePlatforms",
-    category: "foundation",
+    category: "baseline",
     controlType: "BLOCK",
     priority: "recommended",
     summary: "Block access from unsupported device platforms (Linux, ChromeOS, etc.)",
@@ -1030,7 +1030,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
   {
     id: "baseline-block-countries-noexclusions",
     displayName: "GLOBAL - BLOCK - Countries-NotAllowed - NoExclusions",
-    category: "baseline",
+    category: "foundation",
     controlType: "BLOCK",
     priority: "optional",
     summary:
@@ -2070,6 +2070,56 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     },
   },
 
+  // ── WindowsAzureAD Baseline Scopes — MFA for Azure AD Graph ──────────────
+  {
+    id: "baseline-mfa-windowsazuread-baseline-scopes",
+    displayName: "GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes",
+    category: "baseline",
+    controlType: "GRANT",
+    priority: "recommended",
+    summary: "Require MFA for all users accessing Windows Azure Active Directory (Azure AD Graph)",
+    rationale:
+      "As Microsoft rolls out Low-Privilege Scope Enforcement (March–June 2026), the Azure AD Graph " +
+      "(00000002-0000-0000-c000-000000000000) becomes the CA enforcement audience for basic scopes " +
+      "(User.Read, openid, profile, email, offline_access). A dedicated policy targeting this app " +
+      "ensures all users must satisfy MFA before any Azure AD Graph token is issued, closing the " +
+      "directory enumeration gap created when 'All resources' policies have app exclusions.",
+    fingerprint: {
+      includeApps: ["00000002-0000-0000-c000-000000000000"],
+      requireSpecificApp: true,
+      targetsAllUsers: true,
+      grantControls: ["authenticationStrength"],
+    },
+    deploymentJson: {
+      displayName: "YOURORG - GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes",
+      state: "disabled",
+      conditions: {
+        users: {
+          includeUsers: ["All"],
+          excludeUsers: [],
+          includeGroups: [],
+          excludeGroups: [],
+          includeRoles: [],
+          excludeRoles: [],
+        },
+        applications: {
+          includeApplications: ["00000002-0000-0000-c000-000000000000"],
+          excludeApplications: [],
+          includeUserActions: [],
+        },
+        clientAppTypes: ["all"],
+      },
+      grantControls: {
+        operator: "OR",
+        builtInControls: [],
+        authenticationStrength: {
+          id: "00000000-0000-0000-0000-000000000002",
+          displayName: "Multifactor authentication",
+        },
+      },
+    },
+  },
+
   // ═══════════════════════════════════════════════════════════════════════
   // LEWIS BARRY STARTER SET
   // Source: https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/
@@ -2651,6 +2701,126 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
         authenticationFlows: { transferMethods: "authenticationTransfer" },
       },
       grantControls: { operator: "OR", builtInControls: ["block"] },
+    },
+  },
+
+  // ── Risk Remediation — Standard Users ──────────────────────────────────────
+  {
+    id: "p2-high-risk-user-risk-remediation",
+    displayName: "P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation",
+    category: "p2",
+    controlType: "GRANT",
+    priority: "critical",
+    summary: "Require auth strength + risk remediation + every-time SIF for high-risk users (standard population)",
+    rationale:
+      "High-risk users have confirmed compromised credentials. This policy combines " +
+      "risk remediation (password change / secure password reset) with a phishing-resistant " +
+      "authentication strength and every-time sign-in frequency to fully close the compromise " +
+      "window. The EAM group is excluded and handled by a companion policy using standard MFA " +
+      "controls instead of an auth strength object.",
+    licenseRequirement: "entraIdP2",
+    cisControls: ["6.3.2"],
+    fingerprint: {
+      includeApps: ["All"],
+      targetsAllUsers: true,
+      userRiskLevels: ["high"],
+      grantControls: ["riskRemediation"],
+      grantOperator: "AND",
+      sessionSignInFrequency: true,
+    },
+    deploymentJson: {
+      displayName: "YOURORG - P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation",
+      state: "disabled",
+      conditions: {
+        users: {
+          includeUsers: ["All"],
+          excludeUsers: [],
+          includeGroups: [],
+          excludeGroups: [],
+          includeRoles: [],
+          excludeRoles: [],
+        },
+        applications: {
+          includeApplications: ["All"],
+          excludeApplications: [],
+          includeUserActions: [],
+        },
+        clientAppTypes: ["all"],
+        userRiskLevels: ["high"],
+      },
+      grantControls: {
+        operator: "AND",
+        builtInControls: ["riskRemediation"],
+      },
+      sessionControls: {
+        signInFrequency: {
+          isEnabled: true,
+          value: null,
+          type: null,
+          frequencyInterval: "everyTime",
+          authenticationType: "primaryAndSecondaryAuthentication",
+        },
+      },
+    },
+  },
+
+  // ── Risk Remediation — EAM (External Auth Method) Users ────────────────────
+  {
+    id: "p2-eam-high-risk-user-risk-remediation",
+    displayName: "P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation",
+    category: "p2",
+    controlType: "GRANT",
+    priority: "critical",
+    summary: "Require MFA + risk remediation + every-time SIF for high-risk users in the EAM group",
+    rationale:
+      "Companion to the standard high-risk risk-remediation policy. Users enrolled in " +
+      "External Authentication Methods (EAM) cannot satisfy a custom authentication strength " +
+      "object, so this policy uses the built-in 'mfa' control combined with riskRemediation " +
+      "instead. Targets the EAM-specific inclusion group and applies the same every-time " +
+      "sign-in frequency requirement to fully close the compromise window.",
+    licenseRequirement: "entraIdP2",
+    cisControls: ["6.3.2"],
+    fingerprint: {
+      includeApps: ["All"],
+      targetsAllUsers: false,
+      userRiskLevels: ["high"],
+      grantControls: ["mfa", "riskRemediation"],
+      grantOperator: "AND",
+      sessionSignInFrequency: true,
+    },
+    deploymentJson: {
+      displayName: "YOURORG - P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation",
+      state: "disabled",
+      conditions: {
+        users: {
+          includeUsers: [],
+          excludeUsers: [],
+          includeGroups: ["<EAM-GROUP-ID>"],
+          excludeGroups: [],
+          includeRoles: [],
+          excludeRoles: [],
+        },
+        applications: {
+          includeApplications: ["All"],
+          excludeApplications: [],
+          includeUserActions: [],
+        },
+        clientAppTypes: ["all"],
+        userRiskLevels: ["high"],
+      },
+      grantControls: {
+        operator: "AND",
+        builtInControls: ["mfa", "riskRemediation"],
+      },
+      sessionControls: {
+        signInFrequency: {
+          isEnabled: true,
+          value: null,
+          type: null,
+          frequencyInterval: "everyTime",
+          authenticationType: "primaryAndSecondaryAuthentication",
+        },
+      },
     },
   },
 ];
