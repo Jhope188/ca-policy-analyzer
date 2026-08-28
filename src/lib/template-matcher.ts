@@ -129,13 +129,17 @@ function scorePolicyMatch(
  const normalizedPolicyControls = new Set([...policyControls, ...[...policyControls].map(c => GRANT_ALIASES[c]).filter(Boolean)]);
  const normalizedTemplateControls = new Set([...templateControls, ...[...templateControls].map(c => GRANT_ALIASES[c]).filter(Boolean)]);
 
- // Authentication strengths satisfy (and exceed) an "mfa" grant control requirement
+ // Authentication strengths satisfy (and exceed) an "mfa" grant control requirement.
+ // Also give full credit when the template requires "authenticationStrength" and the
+ // policy has ANY auth strength object (built-in OR custom) — the template only
+ // cares that some auth strength is present, not which specific one.
  const hasAuthStrength = grant?.authenticationStrength != null;
  const templateRequiresMfa = templateControls.has("mfa");
+ const templateRequiresAuthStrength = templateControls.has("authenticationstrength");
 
  const grantOp = fingerprint.grantOperator ?? "AND";
- if (hasAuthStrength && templateRequiresMfa) {
- // Auth strengths are a superset of MFA — full credit
+ if (hasAuthStrength && (templateRequiresMfa || templateRequiresAuthStrength)) {
+ // Auth strengths (built-in or custom) are a superset of MFA — full credit
  matchedWeight += 25;
  } else {
  const overlap = [...templateControls].filter((c) => normalizedPolicyControls.has(c));
