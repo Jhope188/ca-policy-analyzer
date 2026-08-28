@@ -45,11 +45,14 @@ function isMicrosoftManaged(pr: PolicyResult): boolean {
 /** Load the default logo from public/logo.png as a base64 data URI */
 export async function loadDefaultLogo(): Promise<string | null> {
   try {
-    // Try multiple paths to handle both local dev and GitHub Pages deployment
+    // Try multiple paths to handle both local dev and GitHub Pages deployment.
+    // logo.png in public/ is the Conditionalaccess.tech brand logo.
+    const base = `${window.location.origin}/ca-policy-analyzer`;
     const candidates = [
       `${window.location.origin}${window.location.pathname.replace(/\/[^/]*$/, "")}/logo.png`,
-      `${window.location.origin}/ca-policy-analyzer/logo.png`,
+      `${base}/logo.png`,
       `${window.location.origin}/logo.png`,
+      `${base}/docs/screenshots/Conditionalaccess.tech.png`,
     ];
 
     for (const url of candidates) {
