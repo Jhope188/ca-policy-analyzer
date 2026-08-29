@@ -174,7 +174,8 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
     checkPolicyExclusions(p, context.authStrengthPolicies)
   );
 
-  // Convert critical/high exclusion findings into the main findings list too
+  // Convert critical/high exclusion findings into the main findings list AND
+  // into the per-policy findings so they appear inline on the policy card.
   for (const ef of exclusionFindings) {
     // The "All resources" low-privilege scope change is already surfaced once by
     // the tenant-wide Low-Privilege Scope Enforcement check; don't also promote
@@ -182,7 +183,7 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
     // the exclusion-findings view).
     if (ef.exclusion.id === "all-resources-exclusion-change") continue;
     if (ef.exclusion.severity === "critical" || ef.exclusion.severity === "high") {
-      findings.push({
+      const promoted: Finding = {
         id: nextFindingId(),
         policyId: ef.policyId,
         policyName: ef.policyName,
@@ -192,7 +193,11 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
         description: ef.result.detail,
         recommendation: ef.exclusion.remediation,
         relatedIds: ef.result.impactedResources,
-      });
+      };
+      findings.push(promoted);
+      // Also surface inline on the policy card
+      const pr = policyResults.find((r) => r.policy.id === ef.policyId);
+      if (pr) pr.findings.push(promoted);
     }
   }
 
