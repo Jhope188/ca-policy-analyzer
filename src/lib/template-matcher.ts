@@ -124,27 +124,33 @@ function scorePolicyMatch(
  const policyControls = new Set((grant?.builtInControls ?? []).map((c) => c.toLowerCase()));
  const templateControls = new Set(fingerprint.grantControls.map((c) => c.toLowerCase()));
 
- // passwordChange and riskremediation are aliases (same control, different API versions)
- const GRANT_ALIASES: Record<string, string> = { passwordchange: "riskremediation", riskremediation: "passwordchange" };
- const normalizedPolicyControls = new Set([...policyControls, ...[...policyControls].map(c => GRANT_ALIASES[c]).filter(Boolean)]);
- const normalizedTemplateControls = new Set([...templateControls, ...[...templateControls].map(c => GRANT_ALIASES[c]).filter(Boolean)]);
-
  // Authentication strengths satisfy (and exceed) an "mfa" grant control requirement.
- // Also give full credit when the template requires "authenticationStrength" and the
- // policy has ANY auth strength object (built-in OR custom) — the template only
- // cares that some auth strength is present, not which specific one.
+ // Give full credit when the template requires ONLY "authenticationStrength" (or "mfa") and
+ // the policy has an auth strength object. If the template also requires other controls
+ // (e.g. riskRemediation), those must be checked independently.
  const hasAuthStrength = grant?.authenticationStrength != null;
  const templateRequiresMfa = templateControls.has("mfa");
  const templateRequiresAuthStrength = templateControls.has("authenticationstrength");
+ const templateOnlyRequiresAuthStrengthOrMfa =
+   (templateRequiresMfa || templateRequiresAuthStrength) &&
+   [...templateControls].every((c) => c === "mfa" || c === "authenticationstrength");
 
  const grantOp = fingerprint.grantOperator ?? "AND";
- if (hasAuthStrength && (templateRequiresMfa || templateRequiresAuthStrength)) {
+ if (hasAuthStrength && templateOnlyRequiresAuthStrengthOrMfa) {
  // Auth strengths (built-in or custom) are a superset of MFA — full credit
  matchedWeight += 25;
  } else {
- const overlap = [...templateControls].filter((c) => normalizedPolicyControls.has(c));
+ // For matching, treat authenticationStrength in the policy as satisfying an
+ // "authenticationstrength" or "mfa" requirement in the template, but other
+ // controls (e.g. riskRemediation, passwordChange) must match exactly.
+ const effectivePolicyControls = new Set(policyControls);
+ if (hasAuthStrength) {
+   effectivePolicyControls.add("authenticationstrength");
+   effectivePolicyControls.add("mfa");
+ }
+
+ const overlap = [...templateControls].filter((c) => effectivePolicyControls.has(c));
  const fullMatch = overlap.length === templateControls.size;
- // OR operator: having any one of the required controls is sufficient for full credit
  const orMatch = grantOp === "OR" && overlap.length >= 1;
 
  if (fullMatch || orMatch) {
