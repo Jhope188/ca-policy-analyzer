@@ -1455,79 +1455,29 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     },
   },
   {
-    id: "p2-high-risk-user",
-    displayName: "P2 - GLOBAL - GRANT - High-Risk Users",
-    category: "p2",
-    controlType: "GRANT",
-    priority: "critical",
-    summary:
-      "Require MFA and risk remediation for high-risk users",
-    rationale:
-      "High-risk users have confirmed compromised credentials (from dark web leaks or confirmed breaches). Forcing MFA + risk remediation (password change) closes the compromise. The Graph API control is 'riskremediation' — equivalent to the legacy 'passwordChange' control.",
-    licenseRequirement: "entraIdP2",
-    cisControls: ["6.3.2"],
-    fingerprint: {
-      includeApps: ["All"],
-      targetsAllUsers: true,
-      userRiskLevels: ["high"],
-      grantControls: ["mfa", "riskremediation"],
-      grantOperator: "AND",
-    },
-    deploymentJson: {
-      displayName: "YOURORG - P2 - GLOBAL - GRANT - High-Risk Users",
-      state: "disabled",
-      conditions: {
-        users: {
-          includeUsers: ["All"],
-          excludeUsers: [],
-          includeGroups: [],
-          excludeGroups: [],
-          includeRoles: [],
-          excludeRoles: [],
-        },
-        applications: {
-          includeApplications: ["All"],
-          excludeApplications: [],
-          includeUserActions: [],
-        },
-        clientAppTypes: ["all"],
-        userRiskLevels: ["high"],
-      },
-      grantControls: {
-        operator: "AND",
-        builtInControls: ["mfa", "riskremediation"],
-      },
-      sessionControls: {
-        signInFrequency: {
-          isEnabled: true,
-          value: null,
-          type: null,
-          frequencyInterval: "everyTime",
-          authenticationType: "primaryAndSecondaryAuthentication",
-        },
-      },
-    },
-  },
-  {
-    id: "p2-medium-risk-user",
-    displayName: "P2 - GLOBAL - GRANT - Medium-Risk Users",
+    id: "p2-medium-risk-user-risk-remediation",
+    displayName: "P2 - GLOBAL - GRANT - Medium-Risk Users - Risk Remediation",
     category: "p2",
     controlType: "GRANT",
     priority: "recommended",
-    summary: "Require MFA and risk remediation for medium-risk users",
+    summary:
+      "Require authentication strength and risk remediation for medium-risk users",
     rationale:
-      "Medium-risk users may have leaked credentials or suspicious activity patterns. Proactively requiring risk remediation (password change) reduces exposure.",
+      "Medium-risk users may have leaked credentials or suspicious activity patterns. " +
+      "Risk remediation (passwordChange/SSPR) supports both password-based and passwordless users — " +
+      "unlike the legacy passwordChange control which blocks FIDO2/WHfB users. " +
+      "Combined with an auth strength to ensure a phishing-resistant method is used during remediation.",
     licenseRequirement: "entraIdP2",
     cisControls: ["6.3.2"],
     fingerprint: {
       includeApps: ["All"],
       targetsAllUsers: true,
       userRiskLevels: ["medium"],
-      grantControls: ["mfa", "riskremediation"],
+      grantControls: ["authenticationStrength"],
       grantOperator: "AND",
     },
     deploymentJson: {
-      displayName: "YOURORG - P2 - GLOBAL - GRANT - Medium-Risk Users",
+      displayName: "YOURORG - P2 - GLOBAL - GRANT - Medium-Risk Users - Risk Remediation",
       state: "disabled",
       conditions: {
         users: {
@@ -1548,54 +1498,11 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       },
       grantControls: {
         operator: "AND",
-        builtInControls: ["mfa", "riskremediation"],
-      },
-    },
-  },
-  {
-    id: "p2-risk-remediation-user",
-    displayName: "P2 - GLOBAL - GRANT - UserRisk-RiskRemediation",
-    category: "p2",
-    controlType: "GRANT",
-    priority: "recommended",
-    summary:
-      "Require risk remediation for medium/high-risk users (preview)",
-    rationale:
-      "The new Require Risk Remediation grant control (preview) consolidates password-based and " +
-      "passwordless user-risk self-service remediation into a single policy, reducing CA policy sprawl. " +
-      "Replaces the legacy pattern of separate passwordChange + MFA and auth strength + sign-in frequency policies.",
-    licenseRequirement: "entraIdP2",
-    cisControls: ["6.3.2"],
-    fingerprint: {
-      includeApps: ["All"],
-      targetsAllUsers: true,
-      userRiskLevels: ["high", "medium"],
-      grantControls: ["riskRemediation"],
-      grantOperator: "AND",
-    },
-    deploymentJson: {
-      displayName: "YOURORG - P2 - GLOBAL - GRANT - UserRisk-RiskRemediation",
-      state: "disabled",
-      conditions: {
-        users: {
-          includeUsers: ["All"],
-          excludeUsers: [],
-          includeGroups: [],
-          excludeGroups: [],
-          includeRoles: [],
-          excludeRoles: [],
+        builtInControls: ["passwordChange"],
+        authenticationStrength: {
+          id: "00000000-0000-0000-0000-000000000004",
+          displayName: "Phishing-resistant MFA",
         },
-        applications: {
-          includeApplications: ["All"],
-          excludeApplications: [],
-          includeUserActions: [],
-        },
-        clientAppTypes: ["all"],
-        userRiskLevels: ["high", "medium"],
-      },
-      grantControls: {
-        operator: "AND",
-        builtInControls: ["riskRemediation"],
       },
     },
   },

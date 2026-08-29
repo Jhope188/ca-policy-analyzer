@@ -107,6 +107,24 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.16.4 — Template Category Fixes + Risk Remediation + WindowsAzureAD Templates (August 28, 2026)
+
+- **Two new P2 risk remediation templates** — `P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation` and companion `P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation` added to the P2 / Identity Protection category. The EAM variant targets users enrolled in External Authentication Methods who cannot satisfy a custom authentication strength object — uses built-in `mfa` + `riskRemediation` controls instead.
+- **New baseline template: `GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes`** — targets the Azure AD Graph app (`00000002-0000-0000-c000-000000000000`) specifically, ensuring all users satisfy MFA for the Low-Privilege Scope Enforcement audience (User.Read, openid, profile, email, offline_access scopes).
+- **Template category corrections** — `GLOBAL - BLOCK - UnsupportedDevicePlatforms` moved Foundation → Baseline (recommended hardening, not a must-have); `GLOBAL - BLOCK - Countries-NotAllowed - NoExclusions` moved Baseline → Foundation (strict geo-block with no exclusions is a critical control).
+- **Excluded apps with no alternative CA coverage** — new High severity tenant-wide gap check: detects apps excluded from "All resources" policies that have no dedicated policy covering them, leaving them completely outside the CA baseline.
+
+### v1.16.3 — Location Check Context-Aware Fix (July 22, 2026)
+
+- **Locations — "not marked as trusted" warning is now context-aware** — check #4 no longer fires for block-list locations (e.g. `_Blocked IPs`) where the `isTrusted` flag is irrelevant. Warning only fires when the tenant has at least one policy using `"All trusted locations"` — the only scenario where the flag changes user behaviour (MFA bypass, reduced sign-in frequency, risk-policy exemptions).
+
+### v1.16.2 — Offline Export Link Fix + False-Match Fingerprint Fixes (July 22, 2026)
+
+- **Offline Export Instructions link 404 fixed** — replaced plain `<a href>` with Next.js `<Link>` so `basePath` is automatically prepended on GitHub Pages. Added a **← Back to analyzer** link on the guide page.
+- **False "Present" for `APP - SESSION - O365 - TimeoutSettings`** — fingerprint now requires `sessionApplicationEnforcedRestrictions: true` and `requireSpecificApp: true`.
+- **False "Present" for `APP - BLOCK - SharePoint-OneDrive - NonTrustedLocations`** — fingerprint now sets `requireSpecificApp: true`; generic all-apps block policies no longer match.
+- **Template matcher `requireSpecificApp` flag** — when set, `includeApplications: ["All"]` does not satisfy the app requirement.
+
 ### v1.16.1 — Offline Mode (July 10, 2026) — *[@chrisfriday](https://github.com/chrisfriday)*
 
 - **Import CA policies from a PowerShell JSON export** — full analysis without direct tenant connectivity. New offline import parser handles real-world `ConvertTo-Json` quirks (PascalCase, `AdditionalProperties`, UTF-16). Redesigned opening screen with two explicit paths: *Offline import* and *Direct tenant connection*. New `/offline-export` in-app guide with step-by-step PowerShell instructions. 20 MB size limit + 40-level recursion guard.
@@ -123,22 +141,7 @@ This fixture intentionally includes edge cases that previously caused offline/li
   - Guest MFA finding: High → Info (best practice advisory, not a gap); built-in CA app groups recognised
   - All-Users policies now credit Admins + Developers in persona coverage
 
-### v1.15.21 — Joey Verlinden Baseline Updated to 2026.6.1 (June 11, 2026)
-
-- **Joey Verlinden preset updated to release [2026.6.1](https://github.com/j0eyv/ConditionalAccessBaseline/releases/tag/2026.6.1)** — preset now points at the `2026.6.1` tag instead of `main`. New release ships 38 ConditionalAccess policies (consolidated from 67), 36 exclusion groups, 3 named locations, and a MigrationTable. The CA005/CA006 app protection variants were merged, and new **CA501–CA505 Agents** policies cover Microsoft Entra Agent Identities (Workload Identities).
-
-### v1.15 — Lewis Barry Baseline, Policy Fixes & Improvements (June 2, 2026)
-
-**Major additions & changes across v1.15.x:**
-
-- **Lewis Barry built-in baseline** — 13 templates (`CA01`–`CA12` + `CA11B`) from [conditionalaccess.uk](https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/) by Lewis Barry (Microsoft MVP). Selectable from a dropdown under "Built-in baselines" alongside the existing Jon Hope baseline. Lewis Barry templates are excluded from your normal tenant coverage score — supplemental view only. The score ring, Present/Partial/Missing counts, and subtitle all update live when switching baselines.
-- **Agent identity template fix** — `AGENT - BLOCK - HighRiskAgents` fingerprint corrected to use Graph API preview fields (`agentIdRiskLevels`, `clientApplications.includeAgentIdServicePrincipals`).
-- **App exclusion count fix** — finding titles now always reflect the true number of excluded apps, including unrecognized app IDs not in the known service principal catalog.
-- **MDCA prerequisites UI** — templates with external dependencies (e.g. Defender for Cloud Apps) surface an amber ⚠ warning card before deployment.
-- **GitHub template loader** — no longer recurses into `Test/` subdirectories, preventing draft/test policies appearing in gap analysis.
-- **"Register security info" updates** — confirmed July 6–13, 2026 rollout for MC1326253 (WHfB / macOS Platform SSO registration change); safe policies now emit an info-level finding with context.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
 
 
 
@@ -171,7 +174,7 @@ All detected issues ranked Critical → Info. Expand any finding to see the full
 
 ### Templates — Gap Analysis & Persona Baselines
 
-39 best-practice templates (including Workload Identity) compared against your tenant. Each template shows whether you have a matching policy, a partial match, or a gap.
+42 best-practice templates (including Workload Identity and P2 Risk Remediation) compared against your tenant. Each template shows whether you have a matching policy, a partial match, or a gap.
 
 **Two built-in Zero Trust persona baselines** load with one click — each follows [Claus Jespersen's persona framework](https://github.com/microsoft/ConditionalAccessforZeroTrustResources):
 
@@ -251,7 +254,7 @@ The Security Posture Score is a **composite 0–100 score** built from three wei
 | Pillar | Max Points | What It Measures |
 |---|---|---|
 | **CIS Alignment** | 50 | Weighted pass rate of CIS L1/L2 benchmark controls |
-| **Template Coverage** | 25 | How well your policies match the 37 best-practice templates |
+| **Template Coverage** | 25 | How well your policies match the 42 best-practice templates |
 | **Configuration Quality** | 25 | Deductions based on severity of detected findings |
 
 ### Pillar 1: CIS Alignment (50 points)
@@ -272,7 +275,7 @@ The formula: `cisScore = (weightEarned / weightTotal) × 50`
 
 ### Pillar 2: Template Coverage (25 points)
 
-Uses a priority-weighted coverage score across the 37 best-practice policy templates. High-priority templates (MFA, legacy auth block, device compliance) contribute more to this score than optional hardening templates.
+Uses a priority-weighted coverage score across the 42 best-practice policy templates. High-priority templates (MFA, legacy auth block, device compliance) contribute more to this score than optional hardening templates.
 
 The formula: `templateScore = (coverageScore / 100) × 25`
 
@@ -310,7 +313,7 @@ Overall Score:         79 / 100  → Grade: C
 ```
 
 ---
-7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 40 best-practice templates matched against your existing policies
+7. **Suggests missing policy templates** from [Jhope188/ConditionalAccessPolicies](https://github.com/Jhope188/ConditionalAccessPolicies) — 42 best-practice templates matched against your existing policies
 8. **Measures CIS v7.0 alignment** — 17 §5.2.2 Conditional Access controls from CIS Microsoft 365 Foundations Benchmark v7.0.0 with pass/fail scoring and active advisories from M365 Message Center
 9. **Flags MS Learn documented exclusions** — 17 checks for missing exclusions that Microsoft documents as required (Surface Hub, Teams Rooms, break-glass accounts, token protection prerequisites, Azure VM sign-in, Directory Sync accounts, External Authentication Methods, approved client app retirement, etc.)
 10. **Exports full analysis as JSON** — download your results for offline review or integration with other tools
@@ -327,7 +330,7 @@ The app has nine tabs accessible after running an analysis:
 | **Dashboard** | **Zero Trust Scorecard** (Verify Explicitly / Use Least Privilege / Assume Breach — 15 weighted signals across 3 pillars), composite security posture score (0–100), severity breakdown, risk category distribution, and at-a-glance stats |
 | **Policies** | Every CA policy visualized as a flow card: Users → Conditions → Apps → Grant/Session Controls. Search, sort by **Most Findings / Name / State**, and expand any policy to see its findings inline |
 | **Findings** | All detected issues grouped by category and ranked by severity (Critical → Info) with affected policies and remediation guidance. Filter chips for All / Critical / High / Medium / Low / Info |
-| **Templates** | 39 best-practice policy templates compared against your tenant. **One-click load** of two persona-aligned Zero Trust baselines (Kenneth van Surksum 2025.10, Joey Verlinden Conditional Access Baseline 2026.6.1 including the full DCToolbox Config/ restore bundle) or compare against any public GitHub repo via URL / `owner/repo` shorthand |
+| **Templates** | 42 best-practice policy templates compared against your tenant. **One-click load** of two persona-aligned Zero Trust baselines (Kenneth van Surksum 2025.10, Joey Verlinden Conditional Access Baseline 2026.6.1 including the full DCToolbox Config/ restore bundle) or compare against any public GitHub repo via URL / `owner/repo` shorthand |
 | **Baseline Gap** | Diff the live tenant against the loaded baseline grouped by Zero Trust persona — **Missing** / **Drift** / **Tenant-only** buckets, coverage score, and a **Download deployment bundle** button that ships a ZIP of criticality-ordered README + per-policy Graph-ready JSONs for direct import |
 | **CIS** | CIS Microsoft 365 Foundations Benchmark v7.0.0 alignment — 17 Conditional Access controls in §5.2.2 (plus §1.3.2 idle session) with M365 Message Center advisories surfaced inline |
 | **Locations** | Cross-references every named location (IP ranges, countries, compliant networks) with the CA policies that include or exclude it; flags orphaned references, untrusted locations used with "All Trusted Locations", empty country lists, and overly broad IP ranges |
