@@ -1087,7 +1087,8 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "Replace 'Require password change' with 'Require risk remediation' in the grant controls. " +
       "'Require risk remediation' automatically determines the correct remediation path based on the user's " +
       "registered authentication methods — password change for password-based users, secure sign-in for passwordless users. " +
-      "See the 'P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation' template in the Templates tab.",
+      "See the 'P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation' or " +
+      "'P2 - GLOBAL - GRANT - Medium-Risk Users - Risk Remediation' template in the Templates tab.",
   },
 
   {

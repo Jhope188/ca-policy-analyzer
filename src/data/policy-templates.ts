@@ -1473,7 +1473,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       includeApps: ["All"],
       targetsAllUsers: true,
       userRiskLevels: ["medium"],
-      grantControls: ["authenticationStrength"],
+      grantControls: ["riskRemediation", "authenticationStrength"],
       grantOperator: "AND",
     },
     deploymentJson: {
@@ -1498,7 +1498,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       },
       grantControls: {
         operator: "AND",
-        builtInControls: ["passwordChange"],
+        builtInControls: ["riskRemediation"],
         authenticationStrength: {
           id: "00000000-0000-0000-0000-000000000004",
           displayName: "Phishing-resistant MFA",
