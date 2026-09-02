@@ -1172,14 +1172,19 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
 
   {
     id: "intune-grant-device-registration",
-    displayName: "INTUNE - GRANT - Device Registration from Trusted Location",
+    displayName: "INTUNE - GRANT - Device Registration (MFA)",
     category: "intune",
     controlType: "GRANT",
     priority: "recommended",
-    summary:
-      "Require MFA for device registration, restrict to trusted locations",
+    summary: "Require MFA for device registration",
     rationale:
-      "Limiting device registration to trusted network locations and requiring MFA prevents rogue device enrollment from untrusted networks or by threat actors with stolen credentials.",
+      "The Device Registration Service (01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9) only supports " +
+      "'Require multifactor authentication' as a grant control - location, compliant device, " +
+      "and hybrid-joined conditions are not evaluated for this service even though the portal " +
+      "allows configuring them. This was documented and MSRC-confirmed in research published by " +
+      "Fabian Bader (Cloudbrothers) following joint work with Dirk-jan Mollema at TROOPERS25 " +
+      "(VULN-153600). A policy requiring location or device compliance for device registration " +
+      "will appear configured but provides no actual enforcement - require MFA instead.",
     licenseRequirement: "intunePlan1",
     fingerprint: {
       includeApps: [],
@@ -1188,8 +1193,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       clientAppTypes: ["all"],
     },
     deploymentJson: {
-      displayName:
-        "YOURORG - INTUNE - GRANT - Device Registration from Trusted Location",
+      displayName: "YOURORG - INTUNE - GRANT - Device Registration (MFA)",
       state: "disabled",
       conditions: {
         users: {
@@ -1209,7 +1213,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       },
       grantControls: {
         operator: "OR",
-        builtInControls: [],
+        builtInControls: ["mfa"],
       },
     },
   },

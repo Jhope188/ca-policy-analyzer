@@ -107,6 +107,14 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.16.5 - Baseline Enforcement Graph Check + Device Registration Template Fix (September 2, 2026)
+
+- **Tenant baseline scope enforcement is now read directly from Graph** - `GET /identity/conditionalAccess/settings` is fetched during tenant load and stored on `TenantContext.conditionalAccessSettings`. A new tenant-wide "Baseline Enforcement" finding reports whether `advancedSettings.baselineScopes.resourceAppId` is unset, disabled, targeting Windows Azure AD (Azure AD Graph), or a custom app.
+- **Per-policy finding for the March 2026 scope-enforcement gap** - any enabled policy targeting "All resources" with one or more excluded apps now triggers a finding recommending a **separate** dedicated policy targeting Windows Azure Active Directory (`00000002-0000-0000-c000-000000000000`), rather than suggesting a change to the existing broad policy. The finding is suppressed once tenant baseline enforcement already covers Azure AD Graph.
+- **Templates tab reflects tenant enforcement state** - the `GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes` template badge now shows *optional* instead of *recommended* once the Graph settings confirm baseline enforcement is already correctly scoped, so a fully-covered tenant no longer sees a false gap.
+- **Removed the flawed `INTUNE - GRANT - Device Registration from Trusted Location` template** - the Device Registration Service (`01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9`) only supports "Require multifactor authentication" as a grant control. Location, compliant-device, and hybrid-joined conditions are silently **not evaluated** for this service even though the Entra portal allows configuring them without error. This was documented and MSRC-confirmed in research published by Fabian Bader (Cloudbrothers) following joint work with Dirk-jan Mollema at TROOPERS25 (VULN-153600). The template has been replaced with `INTUNE - GRANT - Device Registration (MFA)`, which requires MFA only and no longer implies location enforcement that doesn't actually happen.
+- **Advice text cleanup** - removed all em dashes from finding titles, recommendations, and template descriptions in favor of plain hyphens for cleaner, less "AI-generated" looking output.
+
 ### v1.16.4 — Template Category Fixes + Risk Remediation + WindowsAzureAD Templates (August 28, 2026)
 
 - **Two new P2 risk remediation templates** — `P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation` and companion `P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation` added to the P2 / Identity Protection category. The EAM variant targets users enrolled in External Authentication Methods who cannot satisfy a custom authentication strength object — uses built-in `mfa` + `riskRemediation` controls instead.
@@ -351,7 +359,7 @@ The app has nine tabs accessible after running an analysis:
 | **FOCI Token Sharing** | Excluded apps that belong to the Family of Client IDs — tokens interchangeable across 45+ Microsoft apps |
 | **Resource Exclusion Bypass** | Excluding ANY app from "All cloud apps" leaks Azure AD Graph & MS Graph basic scopes |
 | **CA-Immune Resources** | 6 Microsoft resources completely excluded from CA enforcement (always notApplied) |
-| **Device Registration Bypass** | Device Registration Service ignores location and device compliance — only MFA works |
+| **Device Registration Bypass** | Device Registration Service (`01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9`) ignores location and device compliance — only MFA is actually enforced (Bader/Mollema, TROOPERS25 VULN-153600) |
 | **Swiss Cheese Model** | Grant controls using OR instead of AND, missing MFA baseline layer |
 | **Legacy Authentication** | Legacy auth clients targeted but not blocked |
 | **Known CA Bypass Apps** | Apps with documented CA bypass capabilities (Azure CLI, PowerShell, AAD Connect, etc.) |
