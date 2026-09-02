@@ -197,7 +197,7 @@ export function BaselineGapView({ result, baselineLabel, templateResult }: Props
       next.add(k);
     }
     if (next.size === 0) {
-      // Don't allow zero filters — re-add the one being toggled
+      // Don't allow zero filters - re-add the one being toggled
       next.add(k);
     }
     setActive(next);

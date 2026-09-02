@@ -15,7 +15,7 @@
  *   - Persona membership is inferred from displayName (detectPersona) plus
  *     a few structural fallbacks (includeUsers=All -> global; includeRoles
  *     populated -> admins; includeGuestsOrExternalUsers -> externals).
- *   - Control detection is pragmatic, not exhaustive — it matches the
+ *   - Control detection is pragmatic, not exhaustive - it matches the
  *     shapes used by Kenneth's and Joey's baselines.
  */
 
@@ -142,7 +142,7 @@ function hasGrantBlock(p: ConditionalAccessPolicy): boolean {
 
 function hasGrantMfa(p: ConditionalAccessPolicy): boolean {
   if (grantControls(p).includes("mfa")) return true;
-  // Auth strength counts when it satisfies MFA — best effort: any auth strength
+  // Auth strength counts when it satisfies MFA - best effort: any auth strength
   // attached implies the admin meant to require MFA-equivalent auth.
   return Boolean(p.grantControls?.authenticationStrength?.id);
 }
@@ -155,7 +155,7 @@ function hasGrantCompliantDevice(p: ConditionalAccessPolicy): boolean {
 function hasSignInRisk(p: ConditionalAccessPolicy): boolean {
   // Standard sign-in risk levels (all user types)
   if ((p.conditions.signInRiskLevels?.length ?? 0) > 0) return true;
-  // Agent identity risk (Graph API preview field — agentIdRiskLevels is a
+  // Agent identity risk (Graph API preview field - agentIdRiskLevels is a
   // string like "high" rather than an array, set alongside
   // clientApplications.includeAgentIdServicePrincipals for agent CA policies).
   if (p.conditions.agentIdRiskLevels) return true;
@@ -214,7 +214,7 @@ function hasNonCorpNetworkBlock(
   if (excludesTrustedSentinel) return true;
 
   // 2. Check against actual named locations in the tenant that are marked
-  //    isTrusted — covers policies that exclude a trusted location by GUID.
+  //    isTrusted - covers policies that exclude a trusted location by GUID.
   if (ctx?.namedLocations) {
     const trustedIds = new Set(
       ctx.namedLocations
@@ -226,7 +226,7 @@ function hasNonCorpNetworkBlock(
 
   // 3. "All locations" include + any non-empty exclude + Block is a network
   //    restriction pattern (e.g. include All, exclude a specific named location
-  //    like a corp IP range — inverse allow-list).
+  //    like a corp IP range - inverse allow-list).
   if (includeIds.includes("All") && excludeIds.length > 0) return true;
 
   return false;
@@ -273,7 +273,7 @@ function policyPersonas(p: ConditionalAccessPolicy): Set<Persona> {
   const named = detectPersona(p.displayName);
   if (named !== "unknown") out.add(named);
   // A general service-account policy (corpserviceaccounts) also covers the
-  // Microsoft 365 Service Accounts persona — both need the same network
+  // Microsoft 365 Service Accounts persona - both need the same network
   // restriction control and a single "ServiceAccounts" policy satisfies both.
   if (named === "corpserviceaccounts") out.add("microsoft365serviceaccounts");
 
@@ -281,7 +281,7 @@ function policyPersonas(p: ConditionalAccessPolicy): Set<Persona> {
   const includesAllUsers = users.includeUsers.includes("All");
   if (includesAllUsers) {
     // A policy targeting all users enforces on every internal human persona:
-    // Global, Internals (employees), and also Admins and Developers — those are
+    // Global, Internals (employees), and also Admins and Developers - those are
     // users too, so a tenant-wide control genuinely covers them. Crediting them
     // here prevents a baseline control (e.g. All-Users MFA) from being falsely
     // reported as a per-persona gap for admins/developers.

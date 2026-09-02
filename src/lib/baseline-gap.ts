@@ -5,17 +5,17 @@
  * (Kenneth, Joey, custom GitHub repo, or the built-in template set) and
  * produces a focused gap report:
  *
- *   1. **Missing**    — baseline policies the tenant doesn't have
- *   2. **Drift**      — baseline policies present, but the tenant's
+ *   1. **Missing**    - baseline policies the tenant doesn't have
+ *   2. **Drift**      - baseline policies present, but the tenant's
  *                       implementation differs (lower confidence match)
- *   3. **Tenant-only** — tenant policies that don't map to any template
+ *   3. **Tenant-only** - tenant policies that don't map to any template
  *                       (shadow / custom / drift the other direction)
  *
  * Everything is grouped by Zero Trust persona so an operator sees, e.g.,
  * "Admins is missing 3 baseline policies and has 2 unaccounted-for tenant
  * policies."
  *
- * The analyzer is a *roll-up* of `TemplateAnalysisResult` — no extra Graph
+ * The analyzer is a *roll-up* of `TemplateAnalysisResult` - no extra Graph
  * calls, no template re-scanning. It just reclassifies and re-groups.
  */
 
@@ -85,7 +85,7 @@ function severityForMatch(match: TemplateMatch, context?: any): BaselineGapEntry
   // Special-case: when tenant baseline enforcement targets Windows Azure AD
   // (`00000002-0000-0000-c000-000000000000`), the dedicated baseline
   // template `baseline-mfa-windowsazuread-baseline-scopes` no longer needs
-  // to be treated as a 'recommended' high-severity gap — downgrade to
+  // to be treated as a 'recommended' high-severity gap - downgrade to
   // optional/medium so UI shows it as optional instead of recommended.
   try {
     const baselineTemplateId = "baseline-mfa-windowsazuread-baseline-scopes";
@@ -199,7 +199,7 @@ export function analyzeBaselineGaps(
   // 2) Tenant → baseline: tenant-only
   for (const policy of context.policies) {
     if (accountedFor.has(policy.id)) continue;
-    // Skip disabled policies — drift on something already off isn't actionable
+    // Skip disabled policies - drift on something already off isn't actionable
     if (policy.state === "disabled") continue;
 
     const persona = detectPersona(policy.displayName);

@@ -138,7 +138,7 @@ export const PERSONA_META: Record<Persona, PersonaMeta> = {
     emoji: "💻",
     color: "purple",
     description:
-      "Higher-privilege internal developers. Often need access to dev/test tenants and tooling — requires its own MFA + compliant device set.",
+      "Higher-privilege internal developers. Often need access to dev/test tenants and tooling - requires its own MFA + compliant device set.",
     expectedControls: [
       "require-mfa",
       "require-compliant-device",
@@ -190,7 +190,7 @@ export const PERSONA_META: Record<Persona, PersonaMeta> = {
 // ─── Detection ───────────────────────────────────────────────────────────────
 
 /**
- * Token patterns that map to each persona. Order matters — more specific
+ * Token patterns that map to each persona. Order matters - more specific
  * patterns (e.g. "GuestAdmin") are tested before broader ones ("Guest").
  *
  * Match is case-insensitive. Tokens are bounded by `(?<=^|[^A-Za-z0-9])` /
@@ -345,7 +345,7 @@ export interface KnownBaseline {
   repoUrl: string;
   /**
    * Optional fallback URL. When set, the loader fetches `repoUrl` first and
-   * fills in any missing policies (matched by `displayName`) from this URL —
+   * fills in any missing policies (matched by `displayName`) from this URL -
    * used for staged-migration repos that publish updated policies in one
    * folder while older originals remain in another.
    */
@@ -361,7 +361,7 @@ export interface KnownBaseline {
 export const KNOWN_BASELINES: KnownBaseline[] = [
   {
     id: "kennethvs",
-    label: "Kenneth van Surksum — Baseline 2025.10",
+    label: "Kenneth van Surksum - Baseline 2025.10",
     author: "Kenneth van Surksum (MVP)",
     repoUrl: "https://github.com/kennethvs/cabaseline202510",
     description:
@@ -370,7 +370,7 @@ export const KNOWN_BASELINES: KnownBaseline[] = [
   },
   {
     id: "joeyv",
-    label: "Joey Verlinden — Conditional Access Baseline 2026.6.1",
+    label: "Joey Verlinden - Conditional Access Baseline 2026.6.1",
     author: "Joey Verlinden (MVP)",
     // Point at the Config/ root so the loader picks up the full restore bundle:
     // ConditionalAccess/ (38 policies) + Groups/ (36 exclusion groups) +
@@ -383,7 +383,7 @@ export const KNOWN_BASELINES: KnownBaseline[] = [
   },
   {
     id: "jhope188",
-    label: "Jon Hope — Inforcer baseline (Updated + fallback)",
+    label: "Jon Hope - Inforcer baseline (Updated + fallback)",
     author: "Jon Hope (Inforcer)",
     // Primary: refreshed policies with the two-category guest split
     // (B2B-Guest + Mixed-Guests). Fallback fills in any policy not yet
@@ -401,16 +401,16 @@ export const KNOWN_BASELINES: KnownBaseline[] = [
 /**
  * Reference-only sources (not loaded as baselines, credited in docs).
  * Claus Jespersen's repo is the canonical framework reference but is no longer
- * actively maintained as a deployable baseline — cite for guidance only.
+ * actively maintained as a deployable baseline - cite for guidance only.
  */
 export const REFERENCE_SOURCES = [
   {
     id: "clajes",
-    label: "Claus Jespersen — Microsoft Zero Trust framework (reference)",
+    label: "Claus Jespersen - Microsoft Zero Trust framework (reference)",
     author: "Claus Jespersen (Microsoft)",
     repoUrl:
       "https://github.com/microsoft/ConditionalAccessforZeroTrustResources",
     description:
-      "Original Microsoft persona framework reference. Cite for guidance — not actively maintained as a deployable baseline.",
+      "Original Microsoft persona framework reference. Cite for guidance - not actively maintained as a deployable baseline.",
   },
 ] as const;

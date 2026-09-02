@@ -176,7 +176,7 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
   // enabled, disabled, custom, or unset. `conditionalAccessSettings` is
   // undefined only if the fetch itself failed (permissions/network); it is
   // an object with `advancedSettings: null` when the tenant simply has no
-  // selection saved yet — both cases are handled below.
+  // selection saved yet - both cases are handled below.
   const casettings = context.conditionalAccessSettings;
   const advanced = casettings?.advancedSettings ?? null;
   const baselineScope = advanced?.baselineScopes?.resourceAppId ?? null;
@@ -295,12 +295,12 @@ function checkFociExclusions(
   return findings;
 }
 
-// ─── Check: Resource Exclusion — Low-Privilege Scope Enforcement (March 2026) ─
+// ─── Check: Resource Exclusion - Low-Privilege Scope Enforcement (March 2026) ─
 // Consolidated into the tenant-wide "Low-Privilege Scope Enforcement" check in
 // checkTenantWideGaps, which reports a single rollup across all affected
 // policies (and adjusts severity based on Azure AD Graph coverage). This
-// per-policy check previously duplicated that finding — plus the MS Learn
-// "all-resources-exclusion-change" documented-exclusion entry — producing the
+// per-policy check previously duplicated that finding - plus the MS Learn
+// "all-resources-exclusion-change" documented-exclusion entry - producing the
 // same concern up to three times for one policy. No longer fires per-policy.
 
 function checkResourceExclusion(
@@ -311,7 +311,7 @@ function checkResourceExclusion(
 }
 
 // ─── Check: CA-Immune Resources ──────────────────────────────────────────────
-// Moved to tenant-wide check — no longer fires per-policy
+// Moved to tenant-wide check - no longer fires per-policy
 
 function checkCAImmuneResources(
   _policy: ConditionalAccessPolicy
@@ -325,7 +325,7 @@ function checkCAImmuneResources(
  * Controls that are considered equivalent strength when combined with OR.
  * An OR *between members of the same group* is a Microsoft-recommended pattern
  * (e.g. "require compliant device OR hybrid joined device"), not a
- * "weakest control wins" weakness — there is no weaker control to downgrade to.
+ * "weakest control wins" weakness - there is no weaker control to downgrade to.
  * Controls not listed here (mfa, passwordChange, …) are treated as their own
  * distinct strength tier so mixing them with anything still flags.
  */
@@ -375,14 +375,14 @@ function checkGrantControlOperator(
   const labels = controls.map(labelControl);
 
   if (isAcceptedEquivalentOr) {
-    // OR between controls of equivalent strength — no weakest-link downgrade.
+    // OR between controls of equivalent strength - no weakest-link downgrade.
     findings.push({
       id: nextFindingId(),
       policyId: policy.id,
       policyName: policy.displayName,
       severity: "info",
       category: "Swiss Cheese Model",
-      title: 'Grant controls use "OR" between equivalent-strength controls — accepted pattern',
+      title: 'Grant controls use "OR" between equivalent-strength controls - accepted pattern',
       description:
         `This policy requires ${labels.join(" OR ")}. ` +
         `Although it uses the OR operator, all controls are ${soleGroup} controls of equivalent strength, ` +
@@ -390,18 +390,18 @@ function checkGrantControlOperator(
         (soleGroup === "device-trust"
           ? `Requiring a **compliant device OR a Microsoft Entra hybrid joined device** is a Microsoft-recommended ` +
             `way to require a managed, trusted device while supporting both Intune-managed and hybrid-joined ` +
-            `estates. Both controls enforce device trust — neither is weaker than the other.`
+            `estates. Both controls enforce device trust - neither is weaker than the other.`
           : `Requiring an **approved client app OR an app protection policy** is Microsoft's recommended mobile ` +
             `application management (MAM) pattern. Both controls enforce app-level protection of equivalent strength.`),
       recommendation:
-        "No change required — this OR is between controls of equivalent strength and does not weaken the policy. " +
+        "No change required - this OR is between controls of equivalent strength and does not weaken the policy. " +
         "If you intend these device/app controls to be layered on top of MFA, add MFA as a separate policy or as an " +
         "AND condition; do not rely on this policy alone for the MFA layer.",
     });
     return findings;
   }
 
-  // Mixed strength tiers — a weaker control can satisfy the policy in place of a
+  // Mixed strength tiers - a weaker control can satisfy the policy in place of a
   // stronger one, which is the genuine "weakest control is effective" weakness.
   findings.push({
     id: nextFindingId(),
@@ -409,11 +409,11 @@ function checkGrantControlOperator(
     policyName: policy.displayName,
     severity: "high",
     category: "Swiss Cheese Model",
-    title: 'Grant controls use "OR" — weakest control is effective',
+    title: 'Grant controls use "OR" - weakest control is effective',
     description:
       `This policy requires ${labels.join(" OR ")}. ` +
       `With the OR operator across controls of differing strength, only the WEAKEST control needs to be ` +
-      `satisfied — an attacker satisfies the easiest one and skips the rest. ` +
+      `satisfied - an attacker satisfies the easiest one and skips the rest. ` +
       `This contradicts the Swiss cheese model of layered security.`,
     recommendation:
       'Change the operator to "AND" so ALL controls must be satisfied, or ' +
@@ -449,7 +449,7 @@ function checkDeviceRegistrationBypass(
   // The Device Registration Service is only reachable by a policy that targets
   // it explicitly (via the register-device user action or the DRS resource) or
   // that targets "All" apps. A policy scoped to other specific apps or user
-  // actions cannot affect device registration at all — so it can't be a
+  // actions cannot affect device registration at all - so it can't be a
   // registration bypass. (Note: "AllAgentIdResources" etc. are NOT "All".)
   const explicitlyTargetsRegistration =
     apps.includeApplications.includes(DEVICE_REGISTRATION_RESOURCE.resourceId) ||
@@ -469,12 +469,12 @@ function checkDeviceRegistrationBypass(
   if (!usesLocationCondition && !requiresCompliantDevice) return findings;
 
   // The DRS *does* honor MFA / authentication strength. If this policy already
-  // requires MFA, device registration is protected by it — no bypass.
+  // requires MFA, device registration is protected by it - no bypass.
   if (policyRequiresMfa(policy)) return findings;
 
   // The documented mitigation is a dedicated policy requiring MFA/auth-strength
   // for the register-device user action (or the DRS resource). If such an
-  // enabled policy exists, device registration is already protected — the
+  // enabled policy exists, device registration is already protected - the
   // location/compliance limitation of THIS policy is moot.
   const hasRegistrationMfaPolicy = context.policies.some((p) => {
     if (p.id === policy.id || p.state === "disabled") return false;
@@ -503,7 +503,7 @@ function checkDeviceRegistrationBypass(
       `Device Registration Service (${DEVICE_REGISTRATION_RESOURCE.resourceId}). Device registration is therefore ` +
       `not covered by this block and can still occur (for example from an untrusted location).`
     : `This policy relies on ${issues.join(" and ")} to grant access, but those controls are NOT evaluated for the ` +
-      `Device Registration Service (${DEVICE_REGISTRATION_RESOURCE.resourceId}) — only MFA / authentication strength is.`;
+      `Device Registration Service (${DEVICE_REGISTRATION_RESOURCE.resourceId}) - only MFA / authentication strength is.`;
 
   findings.push({
     id: nextFindingId(),
@@ -515,7 +515,7 @@ function checkDeviceRegistrationBypass(
       ? "Device registration protected only by controls the service ignores"
       : "Device Registration Service not covered by this policy's controls",
     description:
-      `${framing} The DRS only honors MFA grant controls (MSRC VULN-153600 — confirmed by-design by Microsoft). ` +
+      `${framing} The DRS only honors MFA grant controls (MSRC VULN-153600 - confirmed by-design by Microsoft). ` +
       `No separate enabled policy was found that requires MFA or authentication strength for the register-device ` +
       `user action, so device registration currently has no working control from this policy.`,
     recommendation:
@@ -569,7 +569,7 @@ function checkServicePrincipalExclusions(
     const appGroup = CA_APP_GROUP_ALIASES[appId.toLowerCase()];
 
     const name = appDesc?.displayName ?? sp?.displayName ?? bypassApp?.displayName ?? appGroup?.displayName ?? appId;
-    const purpose = appDesc?.purpose ?? bypassApp?.description ?? appGroup?.purpose ?? (sp ? `Service principal: ${sp.servicePrincipalType ?? "Application"}` : "Unrecognized app ID — not found in service principal list or known app catalog.");
+    const purpose = appDesc?.purpose ?? bypassApp?.description ?? appGroup?.purpose ?? (sp ? `Service principal: ${sp.servicePrincipalType ?? "Application"}` : "Unrecognized app ID - not found in service principal list or known app catalog.");
     const reason = appDesc?.commonExclusionReason ?? "No documented exclusion reason. Review whether this exclusion is necessary.";
     const risk = appDesc?.exclusionRisk ?? (bypassApp ? "high" : "medium");
 
@@ -601,7 +601,7 @@ function checkServicePrincipalExclusions(
       `Each excluded app bypasses the policy's controls. ` +
       (highRiskApps.length > 0
         ? `High-risk exclusions: ${highRiskApps.map((a) => a.displayName).join(", ")}.`
-        : "All exclusions are low/medium risk — expand for details on each app."),
+        : "All exclusions are low/medium risk - expand for details on each app."),
     recommendation:
       "Review each exclusion and ensure it has a documented business justification. " +
       "Consider using separate targeted policies with reduced controls instead of excluding apps.",
@@ -617,7 +617,7 @@ function checkServicePrincipalExclusions(
  * and tenant-level baseline enforcement is not already covering that app.
  *
  * This fires on ANY enabled policy that targets "All" apps and has one or
- * more excluded apps/service principals — it does NOT require the policy to
+ * more excluded apps/service principals - it does NOT require the policy to
  * specifically target the Azure AD Graph app itself. The fix is to deploy a
  * new, separate policy (the 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes'
  * template) rather than to modify the existing "All resources" policy.
@@ -668,7 +668,7 @@ export function checkBaselineEnforcement(
   if (isEnforcedForAzureAd) return findings; // tenant already enforces the Azure AD baseline audience
 
   // If we get here: policy targets "All" apps and has exclusions, but tenant
-  // baseline enforcement does not already cover the Windows Azure AD app —
+  // baseline enforcement does not already cover the Windows Azure AD app -
   // recommend deploying a dedicated, separate policy for that audience.
   findings.push({
     id: nextFindingId(),
@@ -680,9 +680,9 @@ export function checkBaselineEnforcement(
     description:
       `This policy targets "All" resources but has ${excluded.length} excluded app(s). ` +
       `Tenant baseline enforcement does not currently cover the Windows Azure AD app (tenant setting: ${baselineScope ?? "unset/null"}). ` +
-      `Once Microsoft's Low-Privilege Scope Enforcement change is rolled out, "All resources" policies with exclusions no longer automatically cover low-privilege scopes (User.Read, openid, profile, email, offline_access) for the Windows Azure AD (Azure AD Graph) audience — the excluded apps can bypass protection unless a dedicated policy covers it.`,
+      `Once Microsoft's Low-Privilege Scope Enforcement change is rolled out, "All resources" policies with exclusions no longer automatically cover low-privilege scopes (User.Read, openid, profile, email, offline_access) for the Windows Azure AD (Azure AD Graph) audience - the excluded apps can bypass protection unless a dedicated policy covers it.`,
     recommendation:
-      "Deploy a separate, dedicated Conditional Access policy scoped specifically to the Windows Azure AD (Azure AD Graph, 00000002-0000-0000-c000-000000000000) app — do not modify this 'All resources' policy. See the recommended baseline template 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' in the Templates tab for a ready-to-deploy configuration.",
+      "Deploy a separate, dedicated Conditional Access policy scoped specifically to the Windows Azure AD (Azure AD Graph, 00000002-0000-0000-c000-000000000000) app - do not modify this 'All resources' policy. See the recommended baseline template 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' in the Templates tab for a ready-to-deploy configuration.",
     relatedIds: excluded.concat(["baseline-mfa-windowsazuread-baseline-scopes"]),
   });
 
@@ -703,12 +703,12 @@ function checkMissingMFA(policy: ConditionalAccessPolicy): Finding[] {
   if (requiresMfa) return findings;
 
   // Agent / workload-identity policies (e.g. `includeUsers: ["None"]` targeting
-  // agent identities) cannot perform interactive MFA — requiring it of them is
+  // agent identities) cannot perform interactive MFA - requiring it of them is
   // not meaningful.
   if (!policyTargetsUsers(policy)) return findings;
 
   // A policy whose grant controls are ALL strong device-trust / app-protection
-  // controls is not "missing MFA" in a weak sense — requiring a compliant/hybrid
+  // controls is not "missing MFA" in a weak sense - requiring a compliant/hybrid
   // device or app protection is a legitimate standalone control, typically
   // layered on top of a separate MFA baseline. (The "no MFA anywhere in the
   // tenant" case is covered by the tenant-wide MFA-coverage check.)
@@ -753,7 +753,7 @@ function checkAllUsersAllApps(
 
   // Break-glass exclusions are expected best practice (Microsoft recommends
   // excluding emergency-access accounts from every CA policy) and are already
-  // surfaced by the dedicated Break-Glass check — which flags a positive
+  // surfaced by the dedicated Break-Glass check - which flags a positive
   // "Break-glass excluded ✓". Counting them here as a "gap" both contradicts
   // that finding and buries real exclusions in noise. Exclude the identified
   // break-glass account/group from the tally.
@@ -766,7 +766,7 @@ function checkAllUsersAllApps(
     users.excludeRoles.filter((id) => !isBreakGlass(id)).length;
   const appExclusions = applications.excludeApplications.length;
 
-  // Only break-glass (or nothing) excluded — expected hygiene, not a gap.
+  // Only break-glass (or nothing) excluded - expected hygiene, not a gap.
   if (nonBgUserExclusions === 0 && appExclusions === 0) return findings;
 
   // App exclusions are a genuine bypass surface and keep Medium; user/group/role
@@ -784,15 +784,15 @@ function checkAllUsersAllApps(
     policyName: policy.displayName,
     severity,
     category: "Policy Scope",
-    title: "Broad policy with exclusions — review for gaps",
+    title: "Broad policy with exclusions - review for gaps",
     description:
       `This policy targets All Users and All Cloud Apps but has exclusions beyond break-glass. ` +
       `Non-break-glass user/group/role exclusions: ${nonBgUserExclusions}, ` +
       `App exclusions: ${appExclusions}.${bgNote} ` +
       `Exclusions create potential bypass paths.`,
     recommendation:
-      "Regularly audit exclusions. Ensure every excluded entity — other than documented " +
-      "break-glass accounts — has a business justification and is covered by a compensating policy.",
+      "Regularly audit exclusions. Ensure every excluded entity - other than documented " +
+      "break-glass accounts - has a business justification and is covered by a compensating policy.",
   });
 
   return findings;
@@ -912,7 +912,7 @@ function checkLocationConditions(
     }
   }
 
-  // 3) Orphaned location reference — policy references a location ID that doesn't exist
+  // 3) Orphaned location reference - policy references a location ID that doesn't exist
   for (const locId of [...allInclude, ...allExclude]) {
     if (locId === "AllTrusted" || locId === "All") continue;
     const exists = context.namedLocations.some((l) => l.id === locId);
@@ -927,7 +927,7 @@ function checkLocationConditions(
         description:
           `This policy references named location ID "${locId}" which does not exist. ` +
           `The location may have been deleted. This stale reference will never match any traffic, ` +
-          `which could silently change the policy's effective behavior — potentially blocking or ` +
+          `which could silently change the policy's effective behavior - potentially blocking or ` +
           `allowing access unintentionally.`,
         recommendation:
           "Remove the stale location reference from this policy and replace it with a valid named location if needed.",
@@ -935,7 +935,7 @@ function checkLocationConditions(
     }
   }
 
-  // 4) Country-based location with no countries — will never match
+  // 4) Country-based location with no countries - will never match
   for (const locId of [...allInclude, ...allExclude]) {
     if (locId === "AllTrusted" || locId === "All") continue;
     const loc = context.namedLocations.find((l) => l.id === locId);
@@ -1014,7 +1014,7 @@ function checkCABypassApps(
 // platform-specific CA policies can be bypassed by spoofing the UA.
 
 /**
- * Whether a policy blocks access from unknown/unsupported device platforms —
+ * Whether a policy blocks access from unknown/unsupported device platforms -
  * the recommended companion control that closes the user-agent-spoofing path.
  * The canonical pattern includes "all" platforms, excludes the recognized ones,
  * and blocks, so anything unrecognized is denied. Requires broad scope (All
@@ -1060,7 +1060,7 @@ function checkUserAgentBypass(
 
       if (requiresMfa || requiresCompliance) {
         // If a broad block-unknown-platforms policy exists, the spoofing path to
-        // an *unrecognized* platform is already closed — downgrade to info and
+        // an *unrecognized* platform is already closed - downgrade to info and
         // name the companion policy instead of flagging High.
         const companion = context.policies.find(
           (p) => p.id !== policy.id && isBlockUnknownPlatformsPolicy(p)
@@ -1073,14 +1073,14 @@ function checkUserAgentBypass(
             policyName: policy.displayName,
             severity: "info",
             category: "User-Agent Bypass",
-            title: `Platform condition targets ${targeted.join(", ")} — unknown-platform bypass covered by companion policy`,
+            title: `Platform condition targets ${targeted.join(", ")} - unknown-platform bypass covered by companion policy`,
             description:
               `This policy enforces controls only for platforms: ${targeted.join(", ")}. ` +
               `On its own that would allow a user-agent-spoofing bypass to an unrecognized platform, but ` +
               `**${companion.displayName}** blocks access from unknown/unsupported platforms tenant-wide, ` +
               `which closes that path.`,
             recommendation:
-              `No action required for the unknown-platform bypass — it is covered by **${companion.displayName}**. ` +
+              `No action required for the unknown-platform bypass - it is covered by **${companion.displayName}**. ` +
               `Do verify that any recognized platforms you intentionally do not target here (e.g. iOS/Android) are ` +
               `covered by another policy such as app protection / MAM.`,
           });
@@ -1091,7 +1091,7 @@ function checkUserAgentBypass(
             policyName: policy.displayName,
             severity: "high",
             category: "User-Agent Bypass",
-            title: `Platform condition only targets ${targeted.join(", ")} — user-agent spoofing risk`,
+            title: `Platform condition only targets ${targeted.join(", ")} - user-agent spoofing risk`,
             description:
               `This policy enforces controls only for platforms: ${targeted.join(", ")}. ` +
               `An attacker can spoof their user-agent string to appear as an unrecognized platform ` +
@@ -1149,7 +1149,7 @@ function checkUserAgentBypass(
 // Admin, etc.) are excluded from CA policies, creating a gap that attackers
 // can exploit after compromising a privileged account.
 
-/** Roles considered high-privilege — excluding these from CA is a critical gap */
+/** Roles considered high-privilege - excluding these from CA is a critical gap */
 const HIGH_PRIVILEGE_ROLE_IDS: Record<string, string> = {
   [ADMIN_ROLE_IDS.globalAdmin]: "Global Administrator",
   [ADMIN_ROLE_IDS.privilegedRoleAdmin]: "Privileged Role Administrator",
@@ -1167,7 +1167,7 @@ const HIGH_PRIVILEGE_ROLE_IDS: Record<string, string> = {
   [ADMIN_ROLE_IDS.intunAdmin]: "Intune Administrator",
 };
 
-/** Subset that is ultra-critical — Global Admin + Privileged Role Admin */
+/** Subset that is ultra-critical - Global Admin + Privileged Role Admin */
 const CRITICAL_ROLE_IDS = new Set([
   ADMIN_ROLE_IDS.globalAdmin.toLowerCase(),
   ADMIN_ROLE_IDS.privilegedRoleAdmin.toLowerCase(),
@@ -1259,7 +1259,7 @@ function checkPrivilegedRoleExclusions(
   } else if (requiresMfa && targetsAllApps) {
     attackScenario =
       `This policy requires MFA for all apps but excludes: ${allNames.join(", ")}. ` +
-      `These admins can access all cloud apps without MFA — the highest-value accounts ` +
+      `These admins can access all cloud apps without MFA - the highest-value accounts ` +
       `have the weakest protection.`;
   } else {
     attackScenario =
@@ -1286,7 +1286,7 @@ function checkPrivilegedRoleExclusions(
     policyName: policy.displayName,
     severity,
     category: "Privileged Role Exclusion",
-    title: `${excludedHighPriv.length} privileged role(s) excluded${hasCritical ? " — includes critical admin roles" : ""}${coveringPolicy ? " (covered by separate policy)" : ""}`,
+    title: `${excludedHighPriv.length} privileged role(s) excluded${hasCritical ? " - includes critical admin roles" : ""}${coveringPolicy ? " (covered by separate policy)" : ""}`,
     description: attackScenario + coveredNote,
     recommendation: coveringPolicy
       ? `The excluded admin roles appear covered by **${coveringPolicy.displayName}**. ` +
@@ -1426,7 +1426,7 @@ function checkGuestExternalUserExclusions(
   }
   if (homeTenantOnly.length > 0) {
     enforcementDetail += `\n\n**Home tenant only (excluded from this policy):** ${GUEST_TYPE_LABELS["b2bDirectConnectUser"]}. ` +
-      `These users authenticate entirely in their home tenant — your CA policies are NOT enforced. ` +
+      `These users authenticate entirely in their home tenant - your CA policies are NOT enforced. ` +
       `You cannot directly require MFA for B2B Direct Connect users, but you can require their home tenant has equivalent policies via trust settings.`;
   }
   if (otherTypes.length > 0) {
@@ -1463,7 +1463,7 @@ function checkGuestExternalUserExclusions(
 
   if (!hasGuestCoveragePolicy) {
     context_detail += ` No separate policy was found covering guest/external users for ` +
-      `comparable controls — this creates an unprotected gap.`;
+      `comparable controls - this creates an unprotected gap.`;
   }
 
   findings.push({
@@ -1472,7 +1472,7 @@ function checkGuestExternalUserExclusions(
     policyName: policy.displayName,
     severity,
     category: "Guest/External User Exclusion",
-    title: `${excludesAllTypes ? "All" : excludedGuestTypes.length} guest/external user type(s) excluded${!hasGuestCoveragePolicy ? " — no compensating policy found" : ""}`,
+    title: `${excludesAllTypes ? "All" : excludedGuestTypes.length} guest/external user type(s) excluded${!hasGuestCoveragePolicy ? " - no compensating policy found" : ""}`,
     description:
       context_detail +
       (excludedGuestTypes.length > 0 && !excludesGuestsSimple
@@ -1491,7 +1491,7 @@ function checkGuestExternalUserExclusions(
           `**For B2B Collaboration guests (b2bCollaborationGuest, b2bCollaborationMember):** Enable MFA trust in ` +
           `Cross-Tenant Access Settings (Entra Admin Center → External Identities → Cross-tenant access settings → ` +
           `Inbound access settings → Trust settings → "Trust multi-factor authentication from Azure AD tenants"). ` +
-          `**For B2B Direct Connect users:** Your CA policies do not apply — require equivalent policies in the partner tenant via trust settings.`
+          `**For B2B Direct Connect users:** Your CA policies do not apply - require equivalent policies in the partner tenant via trust settings.`
         : `Create a dedicated CA policy for guest/external users with appropriate controls, or ` +
           `remove the guest exclusion from this policy. Per CIS and Microsoft Zero Trust guidance, ` +
           `guest accounts should be subject to at least MFA and ideally session time restrictions. ` +
@@ -1500,7 +1500,7 @@ function checkGuestExternalUserExclusions(
           `"GLOBAL - GRANT - MFA - Mixed-Guests" (for b2bCollaborationGuest, otherExternalUser) to ensure coverage. ` +
           `**For B2B Collaboration guests (b2bCollaborationGuest, b2bCollaborationMember):** Enable MFA trust in ` +
           `Cross-Tenant Access Settings to require guests complete MFA in their home tenant before accessing your resources. ` +
-          `**For B2B Direct Connect users:** These users authenticate in their home tenant only — your CA policies do NOT apply. ` +
+          `**For B2B Direct Connect users:** These users authenticate in their home tenant only - your CA policies do NOT apply. ` +
           `Require the partner organization has equivalent policies via Cross-Tenant Access Settings trust configuration.`,
   });
 
@@ -1510,7 +1510,7 @@ function checkGuestExternalUserExclusions(
 // ─── Check: Credential Registration Constraints (July 2026) ───────────────────
 // Per Microsoft Message Center post MC1326253, Conditional Access policies
 // scoped to "Register security info" will be evaluated during Windows Hello for
-// Business (WHfB) and macOS Platform SSO (PSSO) credential registration —
+// Business (WHfB) and macOS Platform SSO (PSSO) credential registration -
 // closing the gap where these flows previously enforced MFA but did NOT evaluate
 // registration-targeting CA policies (authentication strength, trusted
 // locations, other Grant controls). This check flags policies that may prevent
@@ -1606,13 +1606,13 @@ function checkCredentialRegistrationConstraints(
     );
   }
 
-  // No blocking constraints detected — emit an informational finding so the
+  // No blocking constraints detected - emit an informational finding so the
   // policy still surfaces the MC1326253 change context and confirms it looks
   // safe to apply during WHfB / macOS Platform SSO registration.
   if (issues.length === 0) {
     const stateNote =
       policy.state === "enabledForReportingButNotEnforced"
-        ? `This policy is currently in **report-only** mode — switch it to **On** before July 6, 2026 if you want it enforced during registration.`
+        ? `This policy is currently in **report-only** mode - switch it to **On** before July 6, 2026 if you want it enforced during registration.`
         : `This policy is **enabled**, so it will begin applying during registration automatically as the rollout reaches your tenant.`;
 
     findings.push({
@@ -1621,23 +1621,23 @@ function checkCredentialRegistrationConstraints(
       policyName: policy.displayName,
       severity: "info",
       category: "Credential Registration Constraints",
-      title: 'Targets "Register security info" — will apply to WHfB / Platform SSO registration (July 2026)',
+      title: 'Targets "Register security info" - will apply to WHfB / Platform SSO registration (July 2026)',
       description:
         `**From July 6, 2026** (rollout complete July 13, 2026), this policy will be evaluated during Windows Hello for Business ` +
-        `and macOS Platform SSO credential registration — not just sign-in. Today these flows enforce MFA but do not evaluate your ` +
+        `and macOS Platform SSO credential registration - not just sign-in. Today these flows enforce MFA but do not evaluate your ` +
         `registration-targeting Conditional Access policies; this change (Microsoft Message Center post **MC1326253**) closes that gap.\n\n` +
         `**Good news:** this policy requires only **MFA / authentication strength** with no device-compliance, trusted-location, ` +
-        `approved/protected-app, or device-filter constraints — so it should **not** block users provisioning a new device. ` +
+        `approved/protected-app, or device-filter constraints - so it should **not** block users provisioning a new device. ` +
         `This is the recommended configuration for a registration-targeting policy.\n\n` +
         stateNote,
       recommendation:
         `No changes required. Before the rollout reaches your tenant (July 6–13, 2026):\n\n` +
-        `1. **Confirm the grant control is achievable on a new device** — e.g. a user enrolling WHfB can satisfy your ` +
+        `1. **Confirm the grant control is achievable on a new device** - e.g. a user enrolling WHfB can satisfy your ` +
         `authentication strength (FIDO2 key, Authenticator push, or a Temporary Access Pass) without already holding the ` +
         `credential they're about to register.\n\n` +
-        `2. **Keep it free of device/location constraints** — adding device compliance or a trusted-location requirement here ` +
+        `2. **Keep it free of device/location constraints** - adding device compliance or a trusted-location requirement here ` +
         `would block first-time setup from new or remote devices.\n\n` +
-        `3. **Update helpdesk docs** — users may see a new authentication prompt during device setup.\n\n` +
+        `3. **Update helpdesk docs** - users may see a new authentication prompt during device setup.\n\n` +
         `Reference: MC1326253 / [Require MFA for security info registration](https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-security-info-registration).`,
     });
     return findings;
@@ -1658,7 +1658,7 @@ function checkCredentialRegistrationConstraints(
     title: "Policy may block Windows Hello / Platform SSO setup on new devices (July 2026 enforcement)",
     description:
       `**From July 6, 2026** (rollout complete July 13, 2026), this policy will be enforced during Windows Hello for Business and macOS Platform SSO ` +
-      `credential registration — not just sign-in. Today these flows enforce MFA but do not evaluate your ` +
+      `credential registration - not just sign-in. Today these flows enforce MFA but do not evaluate your ` +
       `registration-targeting Conditional Access policies; this change closes that gap. This policy has the following ` +
       `constraints that may prevent users from completing device setup:\n\n` +
       issues.map((i) => `• ${i}`).join("\n") +
@@ -1677,7 +1677,7 @@ function checkCredentialRegistrationConstraints(
           `3. **Location bypass**: Allow registration from trusted corporate networks only (where IT can assist)\n\n` +
           `4. **Report-only mode**: Enable report-only mode BEFORE July 6, 2026 to see impact without blocking users\n\n` +
           `Recommended grant controls for registration policies: MFA + authentication strength (phishing-resistant) ` +
-          `— avoid device compliance/location requirements.`
+          `- avoid device compliance/location requirements.`
         : hasLocationConditions
         ? `**Review Recommended**: If users commonly set up new devices from home/remote locations, consider:\n\n` +
           `1. Allow "All locations" for registration (even if blocking specific locations for sign-in)\n\n` +
@@ -1723,11 +1723,11 @@ function checkMicrosoftManagedPolicy(
     policyName: policy.displayName,
     severity: "info",
     category: "Microsoft-Managed Policies",
-    title: "MC1246002: Disabled managed policy — possible Baseline Security Mode phantom draft",
+    title: "MC1246002: Disabled managed policy - possible Baseline Security Mode phantom draft",
     description:
       "Between Nov 2025 and Feb 2026, Baseline Security Mode accidentally created " +
       "disabled draft CA policies in some tenants (MC1246002). These phantom policies are not a " +
-      "security risk — Microsoft is removing unintended drafts automatically. If you did not " +
+      "security risk - Microsoft is removing unintended drafts automatically. If you did not " +
       "intentionally disable this managed policy, this is likely the cause.",
     recommendation:
       "No action required if this was created by Baseline Security Mode. Microsoft will clean up " +
@@ -1779,7 +1779,7 @@ function checkGuestAuthenticationStrength(
   }
 
   // Requiring MFA / authentication strength for guests is best practice, not a
-  // weakness — this finding is an *operational advisory* that Cross-Tenant
+  // weakness - this finding is an *operational advisory* that Cross-Tenant
   // Access Settings (inbound MFA trust) must be configured so guests aren't
   // unexpectedly blocked. Report it as informational, not High/Medium.
   const severity: Severity = "info";
@@ -1831,7 +1831,7 @@ function checkGuestAuthenticationStrength(
     policyName: policy.displayName,
     severity: severity,
     category: "Guest Authentication Requirements",
-    title: `Guest users required to satisfy ${strengthType} — may need Cross-Tenant Access Settings`,
+    title: `Guest users required to satisfy ${strengthType} - may need Cross-Tenant Access Settings`,
     description:
       `This policy requires **${strengthType}** for **${guestTypeText}**. ` +
       `\n\n**Important:** Guest users authenticate in their **home tenant**, not in your resource tenant. ` +
@@ -1841,7 +1841,7 @@ function checkGuestAuthenticationStrength(
       `3. The home tenant must present an MFA claim that satisfies your authentication strength requirement\n\n` +
       `**B2B Collaboration guests** can satisfy MFA requirements if their home tenant presents MFA claims ` +
       `AND you trust those claims in Cross-Tenant Access Settings.\n\n` +
-      `**B2B Direct Connect users** authenticate entirely in their home tenant — your policy requirements ` +
+      `**B2B Direct Connect users** authenticate entirely in their home tenant - your policy requirements ` +
       `are not directly enforced, but you can require that their home tenant has equivalent policies.\n\n` +
       `${
         requiresAuthStrength && strengthType.includes("Phishing-resistant")
@@ -2002,7 +2002,7 @@ function checkProtectedActions(
         policyName: policy.displayName,
         severity: "info",
         category: "Protected Actions Configuration",
-        title: `Protected Actions using "${authStrengthName}" — consider phishing-resistant MFA`,
+        title: `Protected Actions using "${authStrengthName}" - consider phishing-resistant MFA`,
         description:
           `This policy protects sensitive admin actions (${protectedActions.join(", ")}) using the ` +
           `"${authStrengthName}" authentication strength.\n\n` +
@@ -2023,7 +2023,7 @@ function checkProtectedActions(
           `1. **Deploy phishing-resistant credentials** to admins who perform protected actions\n` +
           `2. **Update this policy** to use the "Phishing-resistant MFA" authentication strength\n` +
           `3. **Use Temporary Access Pass (TAP)** to bootstrap phishing-resistant credential registration\n\n` +
-          `This is informational only — your current configuration meets minimum requirements. ` +
+          `This is informational only - your current configuration meets minimum requirements. ` +
           `Upgrading to phishing-resistant provides defense-in-depth against sophisticated attacks.\n\n` +
           `**Learn more:**\n` +
           `- [Phishing-resistant authentication methods](https://learn.microsoft.com/entra/identity/authentication/concept-authentication-strengths#built-in-authentication-strengths)\n` +
@@ -2040,7 +2040,7 @@ function checkProtectedActions(
       policyName: policy.displayName,
       severity: "info",
       category: "Protected Actions Configuration",
-      title: "Protected Actions policy in report-only mode — consider enabling for enforcement",
+      title: "Protected Actions policy in report-only mode - consider enabling for enforcement",
       description:
         `This Protected Actions policy is currently in **report-only mode**. While this is the recommended ` +
         `initial deployment state, once you've validated that admins can satisfy the requirements, the policy ` +
@@ -2072,7 +2072,7 @@ function checkProtectedActions(
       policyName: policy.displayName,
       severity: "medium",
       category: "Protected Actions Configuration",
-      title: "Protected Actions policy has no user exclusions — ensure break-glass access",
+      title: "Protected Actions policy has no user exclusions - ensure break-glass access",
       description:
         `This policy protects sensitive admin actions but does not exclude any users (such as break-glass accounts). ` +
         `\n\n**Risk:** If the authentication strength requirement fails (e.g., FIDO2 not working, auth service outage), ` +
@@ -2156,13 +2156,13 @@ function identifyBreakGlass(context: TenantContext): BreakGlassCandidate | null 
  * Whether a policy targets real (human) user principals.
  *
  * Agent-identity and other workload-only policies use the sentinel
- * `includeUsers: ["None"]`, which has array length 1 but targets no users — a
+ * `includeUsers: ["None"]`, which has array length 1 but targets no users - a
  * naive `includeUsers.length > 0` check misreads it as user-targeting.
  * Break-glass is a human emergency-access group, so it is irrelevant to these
  * policies and they must be excluded from break-glass evaluation.
  *
  * Guest/external-only policies (`includeGuestsOrExternalUsers`) are treated as
- * NOT user-targeting here, preserving prior behavior — an internal break-glass
+ * NOT user-targeting here, preserving prior behavior - an internal break-glass
  * group does not belong on a guest-scoped policy.
  */
 function policyTargetsUsers(policy: ConditionalAccessPolicy): boolean {
@@ -2196,7 +2196,7 @@ function checkBreakGlassPerPolicy(
       : policy.conditions.users.excludeGroups.includes(breakGlass.id);
 
   // Skip workload-identity-only policies (e.g. agent-identity policies using the
-  // `includeUsers: ["None"]` sentinel) — break-glass is a human group and does
+  // `includeUsers: ["None"]` sentinel) - break-glass is a human group and does
   // not apply to them.
   if (!policyTargetsUsers(policy)) return [];
 
@@ -2242,7 +2242,7 @@ function checkBreakGlassPerPolicy(
       severity = "medium";
     }
 
-    // Microsoft managed & disabled — just informational
+    // Microsoft managed & disabled - just informational
     const isMicrosoftManaged =
       policy.displayName.toLowerCase().includes("microsoft managed") || policy.templateId != null;
     if (isMicrosoftManaged && policy.state === "disabled") {
@@ -2264,7 +2264,7 @@ function checkBreakGlassPerPolicy(
       ];
     }
 
-    // Report-only — medium: will block break-glass once switched to enabled
+    // Report-only - medium: will block break-glass once switched to enabled
     if (policy.state === "enabledForReportingButNotEnforced") {
       return [
         {
@@ -2285,7 +2285,7 @@ function checkBreakGlassPerPolicy(
       ];
     }
 
-    // Disabled non-managed — low: will block break-glass if enabled without adding exclusion
+    // Disabled non-managed - low: will block break-glass if enabled without adding exclusion
     if (policy.state === "disabled") {
       return [
         {
@@ -2358,7 +2358,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
   if (!hasMfaForAll) {
     if (reportOnlyMfaForAll) {
       // A report-only policy already covers MFA for all users. Downgrade the
-      // finding from critical to medium — the rule exists, it just isn't
+      // finding from critical to medium - the rule exists, it just isn't
       // enforced yet.
       findings.push({
         id: nextFindingId(),
@@ -2389,7 +2389,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
           "This means there may be users who can authenticate without MFA.",
         recommendation:
           "Create a baseline policy requiring MFA for All Users and All Cloud Apps. " +
-          "This is the foundation of the Swiss cheese model — MFA is the bare minimum.",
+          "This is the foundation of the Swiss cheese model - MFA is the bare minimum.",
       });
     }
   }
@@ -2656,7 +2656,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
       description:
         `${guestExcludingPolicies.length} enabled policy(ies) exclude guest/external users, and no dedicated ` +
         `policy was found requiring MFA specifically for guests. Guest accounts are a common lateral ` +
-        `movement target — B2B collaboration accounts, external partners, and service providers should ` +
+        `movement target - B2B collaboration accounts, external partners, and service providers should ` +
         `all be subject to at least MFA controls. Policies excluding guests: ` +
         `${guestExcludingPolicies.map((p) => p.displayName).join(", ")}.`,
       recommendation:
@@ -2691,7 +2691,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         `${policiesExcludingCritRoles.length} enabled policy(ies) exclude one or more critical admin roles from ` +
         `their controls: ${affectedNames.join(", ")}. Global Administrators and Privileged Role Administrators ` +
         `are the highest-value targets for attackers. Excluding them from CA policies means these ` +
-        `accounts have WEAKER protection than regular users — the opposite of Zero Trust principles. ` +
+        `accounts have WEAKER protection than regular users - the opposite of Zero Trust principles. ` +
         `Break-glass access should use dedicated accounts excluded by user ID, not entire admin roles.`,
       recommendation:
         "Remove admin role exclusions from all CA policies. Instead: " +
@@ -2930,7 +2930,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
     });
   }
 
-  // CA-Immune resources — single tenant-wide awareness finding
+  // CA-Immune resources - single tenant-wide awareness finding
   const allAppsPolicies = context.policies.filter(
     (p) =>
       p.state !== "disabled" &&
@@ -2995,7 +2995,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
 
     detail +=
       "Microsoft-managed policies auto-adapt to tenant changes and cannot be renamed or deleted. " +
-      "They may overlap with your custom policies — review for redundancy or conflicts. ";
+      "They may overlap with your custom policies - review for redundancy or conflicts. ";
 
     findings.push({
       id: nextFindingId(),
@@ -3041,7 +3041,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
       policyName: "Tenant-Wide Analysis",
       severity: hasAzureADGraphPolicy ? "info" : "medium",
       category: "Low-Privilege Scope Enforcement",
-      title: `${policiesWithResourceExclusions.length} "All resources" policy(ies) with exclusions — affected by March 2026 enforcement change`,
+      title: `${policiesWithResourceExclusions.length} "All resources" policy(ies) with exclusions - affected by March 2026 enforcement change`,
       description:
         `**${policiesWithResourceExclusions.length} enabled policy(ies) target "All resources" with a combined ` +
         `${totalExclusions} app exclusion(s):** ${policyNames}.\n\n` +
@@ -3052,14 +3052,14 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         `**What's changing:**\n` +
         `These scopes are now mapped to **Azure AD Graph** (Windows Azure Active Directory, ` +
         `ID: 00000002-0000-0000-c000-000000000000) as the enforcement audience. ` +
-        `Any "All resources" policy — even with exclusions — will enforce on these scopes.\n\n` +
+        `Any "All resources" policy - even with exclusions - will enforce on these scopes.\n\n` +
         `**Confidential client impact:**\n` +
         `Confidential client apps (server-to-server) that were excluded from your policies and relied on ` +
         `low-privilege scopes had an even broader set of unprotected scopes:\n` +
-        `- \`User.Read.All\`, \`User.ReadBasic.All\` — enumerate directory users\n` +
-        `- \`People.Read.All\` — read organizational relationships\n` +
-        `- \`GroupMember.Read.All\` — enumerate security group memberships\n` +
-        `- \`Member.Read.Hidden\` — read hidden group memberships\n\n` +
+        `- \`User.Read.All\`, \`User.ReadBasic.All\` - enumerate directory users\n` +
+        `- \`People.Read.All\` - read organizational relationships\n` +
+        `- \`GroupMember.Read.All\` - enumerate security group memberships\n` +
+        `- \`Member.Read.Hidden\` - read hidden group memberships\n\n` +
         `These scopes will now also face CA enforcement, closing the directory enumeration bypass.` +
         (hasAzureADGraphPolicy
           ? `\n\n✅ **You have a policy explicitly targeting Azure AD Graph**, which provides coverage for the enforcement audience.`
@@ -3094,7 +3094,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
   // "Microsoft recommends creating a baseline MFA policy targeting all users and
   //  all resources WITHOUT any resource exclusions."
   // When an app is excluded from an "All resources" policy it MUST have its own
-  // dedicated CA policy — otherwise it has zero Conditional Access coverage.
+  // dedicated CA policy - otherwise it has zero Conditional Access coverage.
   // Some apps also cannot be individually targeted (they only appear via "All
   // resources"), so excluding them creates an uncloseable gap.
   {
@@ -3159,13 +3159,13 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
         title: `${uncoveredExclusions.length} app(s) excluded from "All resources" policies with no alternative CA coverage`,
         description:
           `**${uncoveredExclusions.length} application(s) are excluded from your "All resources" Conditional Access ` +
-          `policies and have no dedicated policy covering them — they receive zero CA enforcement:**\n\n` +
+          `policies and have no dedicated policy covering them - they receive zero CA enforcement:**\n\n` +
           `${appList}\n\n` +
           `Per Microsoft documentation, when an app is excluded from an "All resources" (All cloud apps) policy, ` +
           `it falls completely outside your CA baseline. Microsoft's recommendation is clear:\n\n` +
           `> *"Microsoft recommends creating a baseline multifactor authentication policy targeting all users and ` +
           `all resources without any resource exclusions."*\n\n` +
-          `Additionally, **some applications cannot be individually targeted in the CA app picker** — ` +
+          `Additionally, **some applications cannot be individually targeted in the CA app picker** - ` +
           `the only way to protect them is via an "All resources" policy. Excluding them creates an uncloseable gap ` +
           `unless you remove the exclusion.`,
         recommendation:
@@ -3180,7 +3180,7 @@ function checkTenantWideGaps(context: TenantContext): Finding[] {
           `2. Users: All users (or scoped to the app's user population)\n` +
           `3. Grant: Require MFA or appropriate controls\n` +
           `4. Enable in report-only first to validate impact\n\n` +
-          `**Important:** Some apps (not individually targetable) can only be protected via "All resources" — ` +
+          `**Important:** Some apps (not individually targetable) can only be protected via "All resources" - ` +
           `for those, **Option A is the only option**. Check if the app ID appears in the Entra app picker; ` +
           `if not, remove the exclusion instead.\n\n` +
           `**Learn more:**\n` +
@@ -3366,9 +3366,9 @@ function calculateScore(summary: TenantSummary): number {
 // ─── Composite Scoring ──────────────────────────────────────────────────────
 //
 // Three-pillar model:
-//   CIS Alignment    (50 pts) — weighted pass rate of CIS L1/L2 controls
-//   Template Coverage (25 pts) — weighted best-practice template coverage
-//   Config Quality    (25 pts) — finding-severity deductions with per-tier caps
+//   CIS Alignment    (50 pts) - weighted pass rate of CIS L1/L2 controls
+//   Template Coverage (25 pts) - weighted best-practice template coverage
+//   Config Quality    (25 pts) - finding-severity deductions with per-tier caps
 //
 // This ensures tenants that pass CIS checks and have matching policies always
 // get credit, instead of the old model that only subtracted from 100.

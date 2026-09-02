@@ -29,7 +29,7 @@ export interface PolicyReference {
   policyId: string;
   policyName: string;
   policyState: string;
-  /** "include" or "exclude" — how the location is used in the policy */
+  /** "include" or "exclude" - how the location is used in the policy */
   usage: "include" | "exclude";
 }
 
@@ -136,7 +136,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
             usage,
           });
         } else {
-          // Orphaned — policy references a location that doesn't exist
+          // Orphaned - policy references a location that doesn't exist
           orphanedReferences.push({
             locationId: id,
             policyId: policy.id,
@@ -179,7 +179,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
     if (!loc.isTrusted && policiesUsingAllTrusted.length > 0 && allRefs.length === 0) {
       // Only warn if this location has direct refs from policies OR is the kind of
       // location you'd expect to be trusted (IP ranges, country locations)
-      // Actually — the more important case is direct references + not trusted.
+      // Actually - the more important case is direct references + not trusted.
       // We handle that below.
     }
 
@@ -214,12 +214,12 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
       }
     }
 
-// 4) Named location is not trusted — warn only when it actually matters:
+// 4) Named location is not trusted - warn only when it actually matters:
       //    the tenant must have at least one policy using "All trusted locations".
       //    If no policies use AllTrusted, the isTrusted flag has no behavioural
       //    effect, so flagging every unreferenced location is noise (e.g. a
       //    "_Blocked IPs" list included in a block policy should never be
-      //    trusted — raising Medium there is misleading).
+      //    trusted - raising Medium there is misleading).
       //    Country locations do NOT have a trusted toggle, so skip them here.
       if (
         !loc.isTrusted &&
@@ -235,7 +235,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
             detail:
               `"${loc.displayName}" is referenced by ${enabledRefs.length} enabled policy(ies) but is not marked ` +
               `as trusted. This tenant has ${policiesUsingAllTrusted.length} policy(ies) that condition on ` +
-              `"All trusted locations" — because this location is NOT trusted, users signing in from ` +
+              `"All trusted locations" - because this location is NOT trusted, users signing in from ` +
               `its IP ranges will NOT benefit from trusted-location exclusions (e.g. MFA bypass, ` +
               `reduced sign-in frequency, or risk-policy exemptions).`,
             recommendation:
@@ -250,7 +250,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
     if (loc["@odata.type"] === "#microsoft.graph.countryNamedLocation") {
       // GPS lookup method warning
       if (loc.countryLookupMethod === "clientIpAddress") {
-        // IP-based lookup is the default and most common — no warning needed
+        // IP-based lookup is the default and most common - no warning needed
       } else if (loc.countryLookupMethod === "authenticatorAppGps") {
         analysis.warnings.push({
           level: "info",
@@ -361,7 +361,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
       detail:
         `${orphanedReferences.length} policy reference(s) point to named location IDs that no longer exist: ` +
         `${uniqueLocIds.join(", ")}. These stale references may cause the policy's location condition ` +
-        `to behave unexpectedly — the missing location will never match, potentially blocking or ` +
+        `to behave unexpectedly - the missing location will never match, potentially blocking or ` +
         `allowing access in ways you don't intend.`,
       recommendation:
         "Update or remove the stale location references from the affected policies. " +
@@ -377,7 +377,7 @@ export function analyzeNamedLocations(context: TenantContext): LocationAnalysisR
       detail:
         `${policiesUsingLocations} policy(ies) use location conditions, but no named locations ` +
         `are configured in the tenant. This likely means the policies reference "All trusted locations" ` +
-        `with an empty trust set, which will never match — potentially blocking all users.`,
+        `with an empty trust set, which will never match - potentially blocking all users.`,
       recommendation:
         "Define named locations for your corporate networks, VPN exit points, and trusted countries, " +
         "then mark them as trusted.",
@@ -432,5 +432,5 @@ export function getLocationSummary(loc: NamedLocation): string {
   if (loc["@odata.type"] === "#microsoft.graph.compliantNetworkNamedLocation") {
     return "Global Secure Access compliant network";
   }
-  return "—";
+  return "-";
 }

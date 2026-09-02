@@ -1,7 +1,7 @@
 /**
  * MS Learn Exclusions View
  *
- * Displays documented Microsoft Learn exclusion findings —
+ * Displays documented Microsoft Learn exclusion findings -
  * policies that are missing required exclusions or have misconfigurations
  * per official MS documentation.
  *
@@ -279,7 +279,7 @@ export function ExclusionsView({ findings }: ExclusionsViewProps) {
 
                 {isOpen && (
                   <div className="mt-4 ml-7 space-y-4 border-t border-gray-800 pt-4">
-                    {/* Assessment — always shown once at the top */}
+                    {/* Assessment - always shown once at the top */}
                     <div>
                       <h5 className="text-xs font-semibold text-gray-400 uppercase mb-1">
                         Assessment
@@ -289,7 +289,7 @@ export function ExclusionsView({ findings }: ExclusionsViewProps) {
                       </p>
                     </div>
 
-                    {/* Affected policies — names only, compact list */}
+                    {/* Affected policies - names only, compact list */}
                     <div>
                       <h5 className="text-xs font-semibold text-gray-400 uppercase mb-1">
                         <Shield className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />

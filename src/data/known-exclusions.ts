@@ -783,7 +783,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
     id: "all-resources-exclusion-change",
     title: "All Resources: Ensure Windows Azure AD baseline scopes are covered",
     appliesWhen:
-      'Policy targets "All resources" (All cloud apps) — with or without app exclusions',
+      'Policy targets "All resources" (All cloud apps) - with or without app exclusions',
     requirement:
       "When a Conditional Access policy targets 'All cloud apps' and has app exclusions, Microsoft's " +
       "legacy behavior automatically exempted low-privilege scopes (User.Read, openid, profile, email, " +
@@ -802,11 +802,11 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       return {
         detail:
           'This policy targets "All cloud apps" with app exclusions. Since March 2026, the ' +
-          "low-privilege scope exemption has been removed — User.Read, openid, profile, email, and " +
+          "low-privilege scope exemption has been removed - User.Read, openid, profile, email, and " +
           "offline_access are now enforced via the Windows Azure Active Directory app " +
           "(00000002-0000-0000-c000-000000000000) as the enforcement audience. " +
           "Without a dedicated policy covering this app, users accessing apps that only request " +
-          "these basic scopes may receive unexpected CA challenges — or may bypass enforcement entirely " +
+          "these basic scopes may receive unexpected CA challenges - or may bypass enforcement entirely " +
           "depending on your tenant's rollout state.",
         impactedResources: [
           "Windows Azure Active Directory (00000002-0000-0000-c000-000000000000)",
@@ -864,7 +864,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
         detail:
           "This MFA policy excludes the Directory Synchronization Accounts role. " +
           "If your organization is running Entra Connect v2.5.76.0 or later, this exclusion " +
-          "may no longer be necessary — v2.5.76.0 introduced application-based authentication " +
+          "may no longer be necessary - v2.5.76.0 introduced application-based authentication " +
           "for the sync engine, meaning the sync service principal can authenticate without " +
           "a traditional user account. Review your Entra Connect version and migrate to " +
           "app-based auth to eliminate this MFA gap.",
@@ -886,7 +886,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "If still on an older version, upgrade to v2.5.76.0+ and then migrate to app-based auth.",
   },
   // ═══════════════════════════════════════════════════════════════════════
-  // EXTERNAL AUTHENTICATION METHOD (EAM) — DUO, THIRD-PARTY MFA
+  // EXTERNAL AUTHENTICATION METHOD (EAM) - DUO, THIRD-PARTY MFA
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "eam-external-user-impact",
@@ -945,7 +945,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
 
       const detail = excludesGuests
         ? `This policy requires ${eamSource} for MFA. While guest users ` +
-          "appear to be excluded, verify that ALL external identities are covered by the exclusion — " +
+          "appear to be excluded, verify that ALL external identities are covered by the exclusion - " +
           "B2B direct connect users, service provider accounts, and cross-tenant sync accounts may " +
           "still be impacted if not explicitly excluded."
         : `This policy requires ${eamSource} for MFA and targets ` +
@@ -962,7 +962,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
           "Cross-tenant collaboration partners",
           "Managed service provider (MSP) accounts",
           ...(excludesGuests ? ["Verify: B2B direct connect and cross-tenant sync accounts"] : []),
-          ...(hasEamViaAuthStrength ? [`Auth Strength: "${authStrengthName}" — ${externalMethods.length} external method combination(s)`] : []),
+          ...(hasEamViaAuthStrength ? [`Auth Strength: "${authStrengthName}" - ${externalMethods.length} external method combination(s)`] : []),
         ],
       };
     },
@@ -983,7 +983,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
   {
     id: "approved-client-app-retirement",
     title:
-      "Approved Client App grant retiring — migrate to App Protection Policy",
+      "Approved Client App grant retiring - migrate to App Protection Policy",
     appliesWhen:
       "Policy uses the 'Require approved client app' grant control without the 'Require app protection policy' control",
     requirement:
@@ -998,7 +998,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
 
       // Only flag if using approved app without app protection policy
       if (hasAppProtection && policy.grantControls?.operator === "OR") {
-        return null; // Already using both with OR — compliant migration path
+        return null; // Already using both with OR - compliant migration path
       }
 
       if (hasAppProtection && policy.grantControls?.operator === "AND") {
@@ -1037,12 +1037,12 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // USER RISK — DEPRECATED passwordChange + EAM COVERAGE GAP
+  // USER RISK - DEPRECATED passwordChange + EAM COVERAGE GAP
   // Ref: https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-policies
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "user-risk-password-change-deprecated",
-    title: "User Risk: 'Require password change' is deprecated — migrate to 'Require risk remediation'",
+    title: "User Risk: 'Require password change' is deprecated - migrate to 'Require risk remediation'",
     appliesWhen:
       "User risk policy uses the legacy 'passwordChange' grant control",
     requirement:
@@ -1071,7 +1071,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
           "(FIDO2, Windows Hello for Business, External Authentication Methods such as Duo). " +
           "Passwordless users flagged as high risk will be unable to self-remediate and will remain blocked. " +
           (usesRiskRemediation
-            ? "The policy also has 'riskRemediation' — consider removing 'passwordChange' and keeping only 'riskRemediation'."
+            ? "The policy also has 'riskRemediation' - consider removing 'passwordChange' and keeping only 'riskRemediation'."
             : "Replace with 'Require risk remediation' to support all authentication method types."),
         impactedResources: [
           "Passwordless users (FIDO2, Windows Hello for Business)",
@@ -1086,20 +1086,20 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
     remediation:
       "Replace 'Require password change' with 'Require risk remediation' in the grant controls. " +
       "'Require risk remediation' automatically determines the correct remediation path based on the user's " +
-      "registered authentication methods — password change for password-based users, secure sign-in for passwordless users. " +
+      "registered authentication methods - password change for password-based users, secure sign-in for passwordless users. " +
       "See the 'P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation' or " +
       "'P2 - GLOBAL - GRANT - Medium-Risk Users - Risk Remediation' template in the Templates tab.",
   },
 
   {
     id: "user-risk-remediation-no-eam-companion",
-    title: "User Risk: 'Require risk remediation' uses auth strength — EAM users (e.g. Duo) need a companion policy",
+    title: "User Risk: 'Require risk remediation' uses auth strength - EAM users (e.g. Duo) need a companion policy",
     appliesWhen:
       "User risk policy uses 'Require risk remediation' with an authentication strength object",
     requirement:
       "When 'Require risk remediation' is combined with a custom authentication strength, " +
       "users enrolled in External Authentication Methods (EAM) such as Duo, Okta Verify, or Ping " +
-      "cannot satisfy the auth strength requirement — EAM is not supported in authentication strength objects. " +
+      "cannot satisfy the auth strength requirement - EAM is not supported in authentication strength objects. " +
       "A companion policy targeting the EAM group using the built-in 'Require MFA' control instead of " +
       "an auth strength must exist to allow EAM users to complete risk remediation.",
     detect: (policy) => {
@@ -1123,7 +1123,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
           `Policy "${policy.displayName}" combines 'Require risk remediation' with an authentication strength object. ` +
           "Authentication strength objects do NOT support External Authentication Methods (EAM) such as Duo, Okta Verify, or Ping. " +
           "Users enrolled in EAM who are flagged as high risk will be unable to complete the remediation challenge and will remain blocked indefinitely. " +
-          "A companion policy targeting only EAM-enrolled users — using the built-in 'Require MFA' control instead of an auth strength — is required to close this gap.",
+          "A companion policy targeting only EAM-enrolled users - using the built-in 'Require MFA' control instead of an auth strength - is required to close this gap.",
         impactedResources: [
           "Users enrolled in External Authentication Methods (Duo, Okta Verify, Ping, etc.)",
           "Any tenant using a third-party MFA provider as EAM",
@@ -1136,7 +1136,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-policies",
     remediation:
       "Create a companion user risk policy scoped to your EAM user group:\n\n" +
-      "• Users: Include — EAM users group only (exclude from the main policy)\n" +
+      "• Users: Include - EAM users group only (exclude from the main policy)\n" +
       "• Conditions: User risk = High (same as primary policy)\n" +
       "• Grant: Require MFA (built-in, NOT an authentication strength object) + Require risk remediation\n\n" +
       "This allows EAM users (Duo, Okta, Ping) to satisfy the MFA challenge using their third-party method " +

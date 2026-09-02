@@ -94,7 +94,7 @@ function stateLabel(state: string): string {
 }
 
 function joinOrNone(arr: string[] | undefined): string {
-  return arr && arr.length > 0 ? arr.join(", ") : "—";
+  return arr && arr.length > 0 ? arr.join(", ") : "-";
 }
 
 function datestamp(): string {
@@ -119,9 +119,9 @@ export function exportToExcel(
   // ── Sheet 1: Summary ────────────────────────────────────────────────
   const s = analysis.tenantSummary;
   const summaryData = [
-    ["CA Policy Analyzer — Export", ""],
-    ["Tenant", options?.tenantDisplayName ?? "—"],
-    ["Tenant ID", options?.tenantId ?? "—"],
+    ["CA Policy Analyzer - Export", ""],
+    ["Tenant", options?.tenantDisplayName ?? "-"],
+    ["Tenant ID", options?.tenantId ?? "-"],
     ["Generated", new Date().toLocaleString()],
     [""],
     ["Policy Summary", ""],
@@ -302,10 +302,10 @@ export async function exportToPowerPoint(
   const titleSlide = pptx.addSlide();
   titleSlide.background = { color: COLORS.bg };
 
-  // Logo — top-right corner. Logo is 1024×1024 (square) so keep 1:1 aspect ratio.
+  // Logo - top-right corner. Logo is 1024×1024 (square) so keep 1:1 aspect ratio.
   // Slide width = 10" (pptxgenjs default). Logo at 1.8" square, 0.3" from right/top edge.
   const logoData = options?.logoBase64;
-  const LOGO_SIZE = 1.8; // inches — square
+  const LOGO_SIZE = 1.8; // inches - square
   if (logoData) {
     titleSlide.addImage({
       data: logoData,
@@ -554,7 +554,7 @@ export async function exportToPowerPoint(
   // ── Persona × Control Coverage ─────────────────────────────────────
   if (options?.personaResult) {
     addPersonaCoverageSlide(pptx, options.personaResult);
-    // Per-persona detail slides — one slide per persona with assigned policies
+    // Per-persona detail slides - one slide per persona with assigned policies
     addPerPersonaSlides(pptx, options.personaResult, options?.baselineGap ?? undefined);
   }
 
@@ -691,7 +691,7 @@ function addPolicySlide(pptx: PptxGenJS, pr: PolicyResult, maps?: GuidResolverMa
     ["Platforms", joinOrNone(policy.conditions.platforms?.includePlatforms)],
     ["User Risk", joinOrNone(policy.conditions.userRiskLevels)],
     ["Sign-in Risk", joinOrNone(policy.conditions.signInRiskLevels)],
-  ].filter((row) => row[1] !== "—");
+  ].filter((row) => row[1] !== "-");
 
   if (details.length > 0) {
     slide.addText("Condition Details", {
@@ -1208,7 +1208,7 @@ function addPersonaDetailSlide(
     const statusText =
       c.status === "present" ? "✓ Present" :
       c.status === "partial" ? "⚠ Partial" :
-      c.status === "missing" ? "✗ Missing" : "— n/a";
+      c.status === "missing" ? "✗ Missing" : "- n/a";
     controlRows.push([
       { text: statusText, options: { color: statusColor, bold: true } },
       { text: c.label, options: { color: COLORS.text } },
@@ -1262,7 +1262,7 @@ function addPersonaDetailSlide(
       });
     });
 
-    // Top entries — sort by severity, take 6
+    // Top entries - sort by severity, take 6
     const sevRank: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     const topEntries = [...bucket.entries]
       .sort((a, b) => (sevRank[a.severity] ?? 9) - (sevRank[b.severity] ?? 9))

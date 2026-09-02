@@ -63,7 +63,7 @@ export interface ConditionalAccessPolicy {
       includeAgentIdServicePrincipals?: string[];
       excludeAgentIdServicePrincipals?: string[];
     };
-    /** Agent identity risk levels (Preview) — separate from signInRiskLevels */
+    /** Agent identity risk levels (Preview) - separate from signInRiskLevels */
     agentIdRiskLevels?: string;
     insiderRiskLevels?: string;
     authenticationFlows?: {
@@ -148,9 +148,9 @@ const SERVICE_PLAN_IDS: Record<string, string> = {
   entraIdP1: "41781fb2-bc02-4b7c-bd55-b576c07bb09d",
   entraIdP2: "eec0eb4f-6444-4f95-aba0-50c24d67f998",
   intunePlan1: "c1ec4a95-1f05-45b3-a911-aa3fa01094f5",
-  // AAD_WRKLDID_P1 — included in Workload_Identities_Premium_CN SKU
+  // AAD_WRKLDID_P1 - included in Workload_Identities_Premium_CN SKU
   workloadIdPremiumP1: "84c289f0-efcb-486f-8581-07f44fc9efad",
-  // AAD_WRKLDID_P2 — included in Workload_Identities_P2 and Workload_Identities_Premium_CN SKUs
+  // AAD_WRKLDID_P2 - included in Workload_Identities_P2 and Workload_Identities_Premium_CN SKUs
   workloadIdPremiumP2: "7dc0e92d-bf15-401d-907e-0884efe7c760",
 };
 
@@ -164,7 +164,7 @@ export interface TenantContext {
   servicePrincipals: Map<string, ServicePrincipal>;
   directoryObjects: Map<string, DirectoryObject>;
   licenses: TenantLicenses;
-  /** Authentication strength policies (built-in + custom) — used to detect EAM usage */
+  /** Authentication strength policies (built-in + custom) - used to detect EAM usage */
   authStrengthPolicies: Map<string, AuthenticationStrengthPolicy>;
   /**
    * Tenant-wide Conditional Access settings (identity/conditionalAccess/settings).
@@ -175,7 +175,7 @@ export interface TenantContext {
 }
 
 /**
- * GET /identity/conditionalAccess/settings (beta) — single $entity, not a
+ * GET /identity/conditionalAccess/settings (beta) - single $entity, not a
  * collection. advancedSettings.baselineScopes.resourceAppId indicates the
  * Low-Privilege Scope Enforcement ("baseline") audience:
  *   - 00000002-0000-0000-c000-000000000000 => enforcement enabled for
@@ -295,7 +295,7 @@ export async function fetchAuthenticationStrengthPolicies(
 }
 
 /**
- * GET /identity/conditionalAccess/settings (beta) — returns a single $entity
+ * GET /identity/conditionalAccess/settings (beta) - returns a single $entity
  * describing tenant-wide baseline enforcement (Low-Privilege Scope
  * Enforcement) status. Requires Policy.Read.All. No query params/paging.
  */
@@ -395,7 +395,7 @@ async function fetchSubscribedSkus(
     };
   } catch (e) {
     console.warn(
-      "Could not fetch subscribedSkus — falling back to policy-based inference.",
+      "Could not fetch subscribedSkus - falling back to policy-based inference.",
       e
     );
     return inferLicensesFromPolicies([]);
@@ -460,7 +460,7 @@ export function isLicensed(
 
 // ─── Normalization ───────────────────────────────────────────────────────────
 
-/** Ensure all expected array fields exist — beta API may return null/undefined */
+/** Ensure all expected array fields exist - beta API may return null/undefined */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalizePolicy(p: any): ConditionalAccessPolicy {
   const raw = p as Partial<ConditionalAccessPolicy> & { id: string; displayName: string; state: string };
@@ -548,7 +548,7 @@ export async function loadTenantContext(
     const aspList = await fetchAuthenticationStrengthPolicies(client);
     authStrengthPolicies = new Map(aspList.map((asp) => [asp.id, asp]));
   } catch {
-    // Permission may not be granted — degrade gracefully
+    // Permission may not be granted - degrade gracefully
   }
 
   onProgress?.("Loading Conditional Access baseline settings…");
@@ -557,7 +557,7 @@ export async function loadTenantContext(
     conditionalAccessSettings = await fetchConditionalAccessSettings(client);
   } catch {
     // Permission may not be granted (Policy.Read.All) or tenant doesn't
-    // expose this preview endpoint — degrade gracefully to null.
+    // expose this preview endpoint - degrade gracefully to null.
   }
 
   onProgress?.("Resolving directory objects…");

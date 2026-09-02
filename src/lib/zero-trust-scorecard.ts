@@ -4,19 +4,19 @@
  * Aggregates existing analyzer signals into Microsoft's three Zero Trust
  * principles:
  *
- *   1. Verify Explicitly  — strong auth (MFA, phishing-resistant), device
+ *   1. Verify Explicitly  - strong auth (MFA, phishing-resistant), device
  *                           compliance, location/risk signals used as trust
  *                           inputs on every access decision.
- *   2. Use Least Privilege — policies are scoped (admins vs internals vs
+ *   2. Use Least Privilege - policies are scoped (admins vs internals vs
  *                           guests), excluded users/groups are minimal and
  *                           justified, break-glass is identified, and
  *                           privileged roles aren't bypassed.
- *   3. Assume Breach     — sign-in/user risk policies, session controls
+ *   3. Assume Breach     - sign-in/user risk policies, session controls
  *                           (SIF, persistent browser), legacy auth blocked,
  *                           and high-risk apps blocked.
  *
  * The scorecard is intentionally a *roll-up* of evidence the analyzer has
- * already collected — it does not re-walk every policy. Each pillar exposes
+ * already collected - it does not re-walk every policy. Each pillar exposes
  * 4–5 weighted signals, each scored 0–100, and the pillar score is the
  * weighted average. The overall posture is the simple average of pillars.
  */
@@ -127,7 +127,7 @@ function buildVerifyExplicitly(
   // Signal 2: Phishing-resistant MFA presence. Resolves the policy's
   // `authenticationStrength.id` against the tenant's authentication-strength
   // catalog (`context.authStrengthPolicies`) and inspects `allowedCombinations`
-  // — that's how a custom strength named e.g. "Modern MFA + TAP" that *contains*
+  // - that's how a custom strength named e.g. "Modern MFA + TAP" that *contains*
   // FIDO2 / WHfB / x509 cert MFA is correctly recognised as phishing-resistant.
   const prPolicies = enabled.filter((p) => policyUsesPhishingResistant(p, context));
   const prCount = prPolicies.length;
@@ -214,7 +214,7 @@ function buildVerifyExplicitly(
       weight: 3,
       evidence:
         adminsMfaScore < 0
-          ? "No policies assigned to the Admins persona — N/A."
+          ? "No policies assigned to the Admins persona - N/A."
           : `Admins persona MFA control: ${adminsMfa?.status}.`,
       status: adminsMfaScore < 0 ? "n/a" : statusFromScore(adminsMfaScore),
     },
@@ -245,7 +245,7 @@ function buildLeastPrivilege(
   const segScore = Math.min(100, segmentedPersonas * 25);
 
   // Signal 2: Privileged-role exclusion findings (critical/high). Inverse
-  // score — fewer findings = higher score.
+  // score - fewer findings = higher score.
   const privExclFindings = result.findings.filter((f) =>
     f.category.toLowerCase().includes("privileged role") ||
     /admin.?role|priv/i.test(f.title)
@@ -253,7 +253,7 @@ function buildLeastPrivilege(
   const privCrit = countFindings(privExclFindings, ["critical", "high"]);
   const privScore = privCrit === 0 ? 100 : Math.max(0, 100 - privCrit * 20);
 
-  // Signal 3: Scope discipline — penalize "All users + All apps + no MFA"
+  // Signal 3: Scope discipline - penalize "All users + All apps + no MFA"
   // policies, which are typically misconfigured tenant-wide blockers.
   const blanketCount = enabled.filter((p) => {
     const u = p.conditions.users.includeUsers ?? [];
@@ -328,7 +328,7 @@ function buildLeastPrivilege(
       weight: 2,
       evidence: bgEvidence
         ? "Break-glass account detected and annotated across policies."
-        : "No break-glass account identified — verify emergency access design.",
+        : "No break-glass account identified - verify emergency access design.",
       status: statusFromScore(bgScore),
     },
     {
@@ -364,7 +364,7 @@ function buildAssumeBreach(
 ): PillarScore {
   const enabled = context.policies.filter(isEnabled);
 
-  // Signal 1: Legacy auth block — Global persona must have block-legacy-auth.
+  // Signal 1: Legacy auth block - Global persona must have block-legacy-auth.
   const globalRow = persona.rows.find((r) => r.persona === "global");
   const legacy = globalRow?.controls.find((c) => c.control === "block-legacy-auth");
   const legacyScore =
@@ -405,7 +405,7 @@ function buildAssumeBreach(
         legacy?.status === "present"
           ? "Global persona has an enforced legacy-auth block policy."
           : legacy?.status === "partial"
-            ? "Legacy-auth block is report-only — not enforced."
+            ? "Legacy-auth block is report-only - not enforced."
             : "No enabled legacy-auth block policy detected at the Global persona.",
       status: legacyScore < 0 ? "n/a" : statusFromScore(legacyScore),
     },

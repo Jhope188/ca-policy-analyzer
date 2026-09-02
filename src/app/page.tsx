@@ -433,7 +433,7 @@ export default function Home() {
 
       {/* Tab Bar + Actions */}
       <div className="space-y-2">
-        {/* Scrollable tab strip — icons only on mobile, icons + labels on sm+ */}
+        {/* Scrollable tab strip - icons only on mobile, icons + labels on sm+ */}
         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide">
           <div className="inline-flex gap-1 rounded-lg bg-gray-900 p-1">
             {tabs.map((tab) => {
@@ -458,7 +458,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Action buttons — icon-only on mobile */}
+        {/* Action buttons - icon-only on mobile */}
         <div className="flex flex-wrap gap-2">
           <button
             onClick={runAnalysis}

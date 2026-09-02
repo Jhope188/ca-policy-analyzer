@@ -60,7 +60,7 @@ function LicenseBadge({ label, detected }: { label: string; detected: boolean })
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", detected ? "bg-emerald-400" : "bg-gray-600")} />
       {label}
-      {detected ? "" : " — not detected"}
+      {detected ? "" : " - not detected"}
     </span>
   );
 }
@@ -82,9 +82,9 @@ export function Dashboard({
   return (
     <div className="space-y-6">
       {scorecard && <ZeroTrustScorecardCard scorecard={scorecard} />}
-      {/* Top Row — Score + Summary Stats */}
+      {/* Top Row - Score + Summary Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        {/* Score Ring + Breakdown — spans 2 cols */}
+        {/* Score Ring + Breakdown - spans 2 cols */}
         <div className="flex flex-col items-center justify-center rounded-xl border border-gray-800 bg-gray-900 p-6 sm:col-span-2">
           <ScoreRing score={score} />
           <p className="mt-3 text-sm text-gray-400">Security Posture Score</p>

@@ -376,7 +376,7 @@ function buildFingerprint(
   if (includeUsers.includes("All")) fp.targetsAllUsers = true;
   if (includeRoles.length > 0) fp.targetRoles = includeRoles;
 
-  // Agent identity targeting — check both older clientApplications field and
+  // Agent identity targeting - check both older clientApplications field and
   // newer conditions.agents.includeAgentUsers field (used by Joey's 2026 policies)
   const clientApplications = conditions?.clientApplications as Record<string, unknown> | undefined;
   const agentIdPrincipals = (clientApplications?.includeAgentIdServicePrincipals as string[]) ?? [];
@@ -384,7 +384,7 @@ function buildFingerprint(
   const includeAgentUsers = (agentsBlock?.includeAgentUsers as string[]) ?? [];
   if (agentIdPrincipals.length > 0 || includeAgentUsers.length > 0) fp.targetsAgentIdentities = true;
 
-  // Agent identity risk level — may be a single value ("high") or
+  // Agent identity risk level - may be a single value ("high") or
   // comma-separated ("medium,high"); always split so each level is its own element.
   const agentIdRisk = conditions?.agentIdRiskLevels as string | undefined;
   if (agentIdRisk) {
@@ -547,7 +547,7 @@ export async function fetchGitHubTemplates(
   }
 
   // Fetch and parse each JSON file (in parallel, batched). Files may be CA
-  // policies, Group exports, NamedLocation exports, or a MigrationTable —
+  // policies, Group exports, NamedLocation exports, or a MigrationTable -
   // classify each one and route to the appropriate bucket.
   const templates: PolicyTemplate[] = [];
   const errors: string[] = [];
@@ -663,7 +663,7 @@ export async function fetchGitHubTemplates(
  * the older originals remain in another (e.g. Jhope188's
  * `Updated/Policies/` + `Policies/` layout).
  *
- * Dedup key is the normalized policy `displayName` — we strip a leading
+ * Dedup key is the normalized policy `displayName` - we strip a leading
  * vendor prefix (anything before the first " - ") and lowercase the rest, so
  * "IAC - GLOBAL - GRANT - MFA - AllAdmins" and
  * "ACME - GLOBAL - GRANT - MFA - AllAdmins" collapse to the same logical

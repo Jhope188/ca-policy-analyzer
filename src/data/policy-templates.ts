@@ -2,7 +2,7 @@
  * Policy Templates from Jhope188/ConditionalAccessPolicies
  *
  * These are recommended Conditional Access policy templates organized by category.
- * Each template defines the KEY structural elements that identify the policy —
+ * Each template defines the KEY structural elements that identify the policy -
  * the matcher uses these to compare against a tenant's existing policies.
  *
  * Source: https://github.com/Jhope188/ConditionalAccessPolicies
@@ -46,9 +46,9 @@ export interface PolicyTemplate {
   prerequisites?: string;
   /** CIS benchmark control IDs this template satisfies (if any) */
   cisControls?: string[];
-  /** License required for this template (P2 or Intune) — if absent, P1 is enough */
+  /** License required for this template (P2 or Intune) - if absent, P1 is enough */
   licenseRequirement?: LicenseRequirement;
-  /** The matching fingerprint — used to detect if the tenant already has this */
+  /** The matching fingerprint - used to detect if the tenant already has this */
   fingerprint: TemplateFingerprint;
   /** Full Graph-compatible JSON for deployment */
   deploymentJson: DeploymentPolicy;
@@ -59,7 +59,7 @@ export interface TemplateFingerprint {
   includeApps: string[];
   /**
    * When true, a policy that targets "All" apps does NOT satisfy this
-   * template's app requirement — the policy must specifically include one of
+   * template's app requirement - the policy must specifically include one of
    * the `includeApps`. Use for app-specific templates (e.g. SharePoint,
    * O365, AVD) so a broad tenant-wide policy is not mistaken for a targeted one.
    */
@@ -91,7 +91,7 @@ export interface TemplateFingerprint {
   authenticationFlows?: string[];
   /** User actions */
   includeUserActions?: string[];
-  /** Agent identity risk levels — matches conditions.agentIdRiskLevels (Preview) */
+  /** Agent identity risk levels - matches conditions.agentIdRiskLevels (Preview) */
   agentIdRiskLevels?: string[];
   /** Policy targets agent identities via clientApplications.includeAgentIdServicePrincipals */
   targetsAgentIdentities?: boolean;
@@ -99,7 +99,7 @@ export interface TemplateFingerprint {
   usesLocationCondition?: boolean;
   /** Targets guests/external users */
   targetsGuests?: boolean;
-  /** Targets specific groups (conceptual — by group purpose, not ID) */
+  /** Targets specific groups (conceptual - by group purpose, not ID) */
   targetGroupPurpose?: string;
 }
 
@@ -132,7 +132,7 @@ export interface DeploymentPolicy {
     };
     userRiskLevels?: string[];
     signInRiskLevels?: string[];
-    /** Agent identity risk level (Preview) — value is a single string e.g. "high" */
+    /** Agent identity risk level (Preview) - value is a single string e.g. "high" */
     agentIdRiskLevels?: string;
     authenticationFlows?: { transferMethods?: string };
   };
@@ -414,7 +414,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Block access from non-allowed countries",
     rationale:
-      "Geo-blocking reduces your attack surface significantly. Most organizations operate in a small number of countries — block everything else.",
+      "Geo-blocking reduces your attack surface significantly. Most organizations operate in a small number of countries - block everything else.",
     cisControls: ["6.2.5"],
     fingerprint: {
       includeApps: ["All"],
@@ -508,10 +508,10 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
   // naturally into two operational buckets that often warrant different
   // controls in production:
   //
-  //   1. B2B-Guest — first-party B2B partners + service providers we control
+  //   1. B2B-Guest - first-party B2B partners + service providers we control
   //      (internalGuest, b2bCollaborationMember, b2bDirectConnectUser,
   //      serviceProvider).
-  //   2. Mixed-Guests — invited collaboration guests + ad-hoc external users
+  //   2. Mixed-Guests - invited collaboration guests + ad-hoc external users
   //      (b2bCollaborationGuest, otherExternalUser).
   //
   // Together these cover all six external-user types. Splitting them lets
@@ -525,7 +525,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "recommended",
     summary: "Require MFA for B2B partners and service providers",
     rationale:
-      "First-party B2B collaboration members, direct-connect users, internal guests and trusted service providers all access tenant resources via federated identity. Always require MFA — these accounts often have elevated standing access to specific apps and should never be exempted.",
+      "First-party B2B collaboration members, direct-connect users, internal guests and trusted service providers all access tenant resources via federated identity. Always require MFA - these accounts often have elevated standing access to specific apps and should never be exempted.",
     cisControls: ["6.2.2"],
     fingerprint: {
       includeApps: ["All"],
@@ -572,7 +572,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "recommended",
     summary: "Require MFA for invited collaboration guests and ad-hoc external users",
     rationale:
-      "B2B collaboration guests (invite-redemption guests) and otherExternalUser identities are the highest-churn external population — they redeem invites from many home tenants you don't control. Requiring MFA on every sign-in keeps the assurance level consistent regardless of the home tenant's security posture.",
+      "B2B collaboration guests (invite-redemption guests) and otherExternalUser identities are the highest-churn external population - they redeem invites from many home tenants you don't control. Requiring MFA on every sign-in keeps the assurance level consistent regardless of the home tenant's security posture.",
     cisControls: ["6.2.2"],
     fingerprint: {
       includeApps: ["All"],
@@ -1223,7 +1223,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     summary:
       "Block file downloads from Office 365 on unmanaged (non-compliant) devices",
     rationale:
-      "Preventing file downloads on unmanaged devices limits data exfiltration risk while still allowing browser-based viewing of corporate data for BYOD users. The 'Block downloads (Preview)' session control uses Conditional Access App Control and works instantly for featured apps (Exchange Online, SharePoint Online, Teams) — no separate MDCA deployment is required. Any app can be self-onboarded via the CA App Control proxy.",
+      "Preventing file downloads on unmanaged devices limits data exfiltration risk while still allowing browser-based viewing of corporate data for BYOD users. The 'Block downloads (Preview)' session control uses Conditional Access App Control and works instantly for featured apps (Exchange Online, SharePoint Online, Teams) - no separate MDCA deployment is required. Any app can be self-onboarded via the CA App Control proxy.",
     licenseRequirement: "intunePlan1",
     fingerprint: {
       includeApps: ["Office365"],
@@ -1269,7 +1269,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     summary:
       "Enforce sign-in frequency and disable persistent browser for BYOD / non-compliant devices",
     rationale:
-      "BYOD devices are higher risk — disabling persistent browser sessions and enforcing re-authentication every 9 hours limits the window of exposure if a session token is compromised.",
+      "BYOD devices are higher risk - disabling persistent browser sessions and enforcing re-authentication every 9 hours limits the window of exposure if a session token is compromised.",
     licenseRequirement: "intunePlan1",
     fingerprint: {
       includeApps: ["All"],
@@ -1464,7 +1464,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       "Require authentication strength and risk remediation for medium-risk users",
     rationale:
       "Medium-risk users may have leaked credentials or suspicious activity patterns. " +
-      "Risk remediation (passwordChange/SSPR) supports both password-based and passwordless users — " +
+      "Risk remediation (passwordChange/SSPR) supports both password-based and passwordless users - " +
       "unlike the legacy passwordChange control which blocks FIDO2/WHfB users. " +
       "Combined with an auth strength to ensure a phishing-resistant method is used during remediation.",
     licenseRequirement: "entraIdP2",
@@ -1515,7 +1515,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     summary:
       "Block risky users from registering new security info (MFA methods)",
     rationale:
-      "If a user is flagged as medium/high risk, they should not be able to register new MFA methods — an attacker could register their own authenticator on a compromised account.",
+      "If a user is flagged as medium/high risk, they should not be able to register new MFA methods - an attacker could register their own authenticator on a compromised account.",
     licenseRequirement: "entraIdP2",
     fingerprint: {
       includeApps: [],
@@ -1744,7 +1744,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       "Entra Connect's Application-Based Authentication (ABA) uses service principals with powerful sync API permissions (ADSynchronization.ReadWrite.All). " +
       "An attacker who compromises the certificate or Hybrid Identity Admin role can replay tokens from any IP. " +
       "Restricting workload identity sign-in to trusted Entra Connect server IPs limits lateral movement from on-premises compromise. " +
-      "Source: Cloud-Architekt/AzureAD-Attack-Defense — EntraSyncAba.md",
+      "Source: Cloud-Architekt/AzureAD-Attack-Defense - EntraSyncAba.md",
     licenseRequirement: "workloadIdPremium",
     fingerprint: {
       includeApps: ["All"],
@@ -1793,8 +1793,8 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
       "Workload Identities Premium enables risk detection for service principals (anomalous credential usage, " +
       "suspicious sign-in patterns, malicious app registrations). Blocking high-risk workload identities prevents " +
       "compromised Entra Connect ABA identities, leaked credentials, and rogue apps from accessing resources. " +
-      "Workload identities cannot perform MFA — the only grant control available is Block. " +
-      "Source: Cloud-Architekt/AzureAD-Attack-Defense — EntraSyncAba.md",
+      "Workload identities cannot perform MFA - the only grant control available is Block. " +
+      "Source: Cloud-Architekt/AzureAD-Attack-Defense - EntraSyncAba.md",
     licenseRequirement: "workloadIdPremium",
     fingerprint: {
       includeApps: ["All"],
@@ -1977,7 +1977,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     },
   },
 
-  // ── WindowsAzureAD Baseline Scopes — MFA for Azure AD Graph ──────────────
+  // ── WindowsAzureAD Baseline Scopes - MFA for Azure AD Graph ──────────────
   {
     id: "baseline-mfa-windowsazuread-baseline-scopes",
     displayName: "GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes",
@@ -2030,7 +2030,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
   // ═══════════════════════════════════════════════════════════════════════
   // LEWIS BARRY STARTER SET
   // Source: https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/
-  // By Lewis Barry (Microsoft MVP) — conditionalaccess.uk
+  // By Lewis Barry (Microsoft MVP) - conditionalaccess.uk
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "lb-ca01-mfa-all-users",
@@ -2040,9 +2040,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Require MFA for all users on all resources",
     rationale:
-      "The foundation of any CA deployment. Lewis Barry's approach: apply broadly, exclude narrowly. No network restrictions, no client app scoping — everyone gets MFA. The end goal is every user gets MFA without exception.",
+      "The foundation of any CA deployment. Lewis Barry's approach: apply broadly, exclude narrowly. No network restrictions, no client app scoping - everyone gets MFA. The end goal is every user gets MFA without exception.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["mfa"],
@@ -2079,9 +2079,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Block Exchange ActiveSync and other legacy authentication clients",
     rationale:
-      "Legacy auth protocols cannot perform MFA and are the #1 vector for password spray attacks. Lewis Barry notes: don't exclude break-glass from this one — in an emergency your Global Admin account isn't logging in via SMTP.",
+      "Legacy auth protocols cannot perform MFA and are the #1 vector for password spray attacks. Lewis Barry notes: don't exclude break-glass from this one - in an emergency your Global Admin account isn't logging in via SMTP.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],
@@ -2120,7 +2120,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "Entra doesn't enumerate every possible user agent. By including all platforms and excluding only those you explicitly support, you dramatically reduce attack surface from unknown OS types. Remove macOS from the exclusion if your org doesn't use it.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],
@@ -2161,9 +2161,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Require Intune app protection policy (MAM-WE) for Android and iOS",
     rationale:
-      "Lewis Barry's preferred route is MAM-WE (Mobile Application Management without Enrollment) — no personal device enrollment required. Ensures corporate data is only accessible within managed, protected apps on mobile platforms.",
+      "Lewis Barry's preferred route is MAM-WE (Mobile Application Management without Enrollment) - no personal device enrollment required. Ensures corporate data is only accessible within managed, protected apps on mobile platforms.",
     prerequisites:
-      "Requires an Intune App Protection Policy targeting Android and iOS. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires an Intune App Protection Policy targeting Android and iOS. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     licenseRequirement: "intunePlan1",
     fingerprint: {
       includeApps: ["All"],
@@ -2207,7 +2207,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "Lewis Barry: probably the most effective way of preventing AiTM (adversary-in-the-middle) breaches. Business data should only be accessed on managed, compliant business devices. Requires Intune device compliance policies.",
     prerequisites:
-      "Requires Intune device compliance policies for Windows and macOS. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires Intune device compliance policies for Windows and macOS. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     licenseRequirement: "intunePlan1",
     fingerprint: {
       includeApps: ["All"],
@@ -2249,9 +2249,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Block the device code (\"Netflix-style\") authentication flow for all users",
     rationale:
-      "Device code phishing lets attackers send a code link to a victim — the victim authenticates and the attacker steals the token. Most end users don't need this flow; some admin PowerShell modules do — exclude those service accounts as needed.",
+      "Device code phishing lets attackers send a code link to a victim - the victim authenticates and the attacker steals the token. Most end users don't need this flow; some admin PowerShell modules do - exclude those service accounts as needed.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],
@@ -2289,9 +2289,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "critical",
     summary: "Require MFA with every-time sign-in frequency for medium and high sign-in risk",
     rationale:
-      "Lewis Barry: in conjunction with requiring compliant devices, this removes the need for location blocking. Medium/high risk sign-ins indicate unusual travel, token replay, or anomalous behaviour — re-authentication required every time.",
+      "Lewis Barry: in conjunction with requiring compliant devices, this removes the need for location blocking. Medium/high risk sign-ins indicate unusual travel, token replay, or anomalous behaviour - re-authentication required every time.",
     prerequisites:
-      "Requires Entra ID P2. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires Entra ID P2. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     licenseRequirement: "entraIdP2",
     fingerprint: {
       includeApps: ["All"],
@@ -2342,7 +2342,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "High user risk means credentials are likely compromised (leaked on dark web or confirmed breach). Forcing a password change with every-time sign-in frequency closes the compromise window immediately.",
     prerequisites:
-      "Requires Entra ID P2. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires Entra ID P2. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     licenseRequirement: "entraIdP2",
     fingerprint: {
       includeApps: ["All"],
@@ -2393,7 +2393,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "Token protection binds tokens to the device, preventing Pass-the-Token / token theft attacks. Most attackers target Teams, Exchange Online, and SharePoint as entry points. Combine with Require Compliant Device for layered defence.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: [
         "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe", // Microsoft Teams Services
@@ -2446,7 +2446,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "Lewis Barry: a long password in a safe is not sufficient for your Global Admin break-glass account. FIDO2 is phishing-resistant and provides the highest assurance level available.",
     prerequisites:
-      "⚠️ Replace PLACEHOLDER_BREAKGLASS_OBJECT_ID in the deployment JSON with your break-glass account's Object ID. Ensure a FIDO2 security key is registered on the account before enforcing. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "⚠️ Replace PLACEHOLDER_BREAKGLASS_OBJECT_ID in the deployment JSON with your break-glass account's Object ID. Ensure a FIDO2 security key is registered on the account before enforcing. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["authenticationStrength"],
@@ -2490,7 +2490,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "A freshly created account without MFA registration is highly vulnerable. Restricting where MFA methods can be registered prevents attackers from registering their own MFA methods after a credential compromise.",
     prerequisites:
-      "Requires a named location defining your operating countries (Entra > Security > Named Locations). Replace PLACEHOLDER_NAMED_LOCATION_ID in the deployment JSON with its ID. If new starters always begin in the office, scope to just that location. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires a named location defining your operating countries (Entra > Security > Named Locations). Replace PLACEHOLDER_NAMED_LOCATION_ID in the deployment JSON with its ID. If new starters always begin in the office, scope to just that location. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: [],
       includeUserActions: ["urn:user:registersecurityinfo"],
@@ -2532,9 +2532,9 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     priority: "recommended",
     summary: "Require a Temporary Access Pass (TAP) to register MFA methods",
     rationale:
-      "A more secure alternative to CA11. Only users explicitly issued a TAP by an administrator can register MFA methods — eliminating the registration risk window entirely. Excludes guests and external users.",
+      "A more secure alternative to CA11. Only users explicitly issued a TAP by an administrator can register MFA methods - eliminating the registration risk window entirely. Excludes guests and external users.",
     prerequisites:
-      "Requires a custom Authentication Strength containing only Temporary Access Pass (TAP) — create it in Entra > Security > Authentication strengths. Replace PLACEHOLDER_TAP_AUTH_STRENGTH_ID with its ID. Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Requires a custom Authentication Strength containing only Temporary Access Pass (TAP) - create it in Entra > Security > Authentication strengths. Replace PLACEHOLDER_TAP_AUTH_STRENGTH_ID with its ID. Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: [],
       includeUserActions: ["urn:user:registersecurityinfo"],
@@ -2565,7 +2565,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
         builtInControls: [],
         authenticationStrength: {
           id: "PLACEHOLDER_TAP_AUTH_STRENGTH_ID",
-          displayName: "Custom — TAP Only",
+          displayName: "Custom - TAP Only",
         },
       },
     },
@@ -2580,7 +2580,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     rationale:
       "Authentication transfer allows a user to pass their authenticated session to another device via QR code. This can be abused by social engineering attacks or attackers with physical device access.",
     prerequisites:
-      "Credit: Lewis Barry (Microsoft MVP) — https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
+      "Credit: Lewis Barry (Microsoft MVP) - https://conditionalaccess.uk/blog/some-policies-i-use-in-conditional-access/",
     fingerprint: {
       includeApps: ["All"],
       grantControls: ["block"],
@@ -2611,7 +2611,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     },
   },
 
-  // ── Risk Remediation — Standard Users ──────────────────────────────────────
+  // ── Risk Remediation - Standard Users ──────────────────────────────────────
   {
     id: "p2-high-risk-user-risk-remediation",
     displayName: "P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation",
@@ -2671,7 +2671,7 @@ export const POLICY_TEMPLATES: PolicyTemplate[] = [
     },
   },
 
-  // ── Risk Remediation — EAM (External Auth Method) Users ────────────────────
+  // ── Risk Remediation - EAM (External Auth Method) Users ────────────────────
   {
     id: "p2-eam-high-risk-user-risk-remediation",
     displayName: "P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation",
@@ -2793,7 +2793,7 @@ export const CATEGORY_META: Record<
   agent: {
     label: "Agent Identity",
     description:
-      "Policies for Microsoft Entra Agent Identities — cloud sync agents, connectors, and non-human agent objects.",
+      "Policies for Microsoft Entra Agent Identities - cloud sync agents, connectors, and non-human agent objects.",
     icon: "🤖",
   },
   "lewis-barry": {

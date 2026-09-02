@@ -304,7 +304,7 @@ function LocationCard({ analysis }: { analysis: LocationAnalysis }) {
                     </td>
                     <td className="px-3 py-1.5 text-gray-300">{locType}</td>
                   </tr>
-                  {/* Trust row — only meaningful for IP-range locations */}
+                  {/* Trust row - only meaningful for IP-range locations */}
                   {loc["@odata.type"] !== "#microsoft.graph.countryNamedLocation" && (
                     <tr className="border-b border-gray-800">
                       <td className="px-3 py-1.5 text-gray-500 font-medium whitespace-nowrap w-36 bg-gray-900/50">
@@ -335,7 +335,7 @@ function LocationCard({ analysis }: { analysis: LocationAnalysis }) {
                             ? "GPS coordinates (Authenticator app)"
                             : loc.countryLookupMethod === "clientIpAddress"
                             ? "IP address (IPv4 and IPv6)"
-                            : loc.countryLookupMethod ?? "—"}
+                            : loc.countryLookupMethod ?? "-"}
                         </td>
                       </tr>
                       <tr className="border-b border-gray-800">
@@ -557,7 +557,7 @@ export function LocationsView({ result }: { result: LocationAnalysisResult }) {
     (sum, a) => sum + a.warnings.length,
     0
   );
-  // Only count trust for location types that support it (IP-range, compliant network — NOT country)
+  // Only count trust for location types that support it (IP-range, compliant network - NOT country)
   const trustableLocations = result.locations.filter(
     (a) => a.location["@odata.type"] !== "#microsoft.graph.countryNamedLocation"
   );

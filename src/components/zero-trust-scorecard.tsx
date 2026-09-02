@@ -168,7 +168,7 @@ export function ZeroTrustScorecardCard({ scorecard }: Props) {
               Microsoft&apos;s three Zero Trust principles
             </a>
             . Each pillar rolls up 4–5 weighted signals from existing analyzer
-            evidence — click a card to see its breakdown.
+            evidence - click a card to see its breakdown.
           </p>
         </div>
         <div className="shrink-0 text-right">
