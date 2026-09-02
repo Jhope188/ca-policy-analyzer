@@ -171,24 +171,49 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
   findings.push(...checkTenantWideGaps(context));
 
   // If tenant-level conditionalAccess settings were populated during graph
-  // collection, surface a tenant-wide informational finding when baseline
-  // enforcement is explicitly disabled (00000000-...)
+  // collection, surface a tenant-wide informational finding describing the
+  // baseline enforcement status so operators see whether enforcement is
+  // enabled, disabled, custom, or unset.
   const casettings = (context as any).conditionalAccessSettings;
   const advanced = casettings?.advancedSettings ?? null;
   const baselineScope = advanced?.baselineScopes?.resourceAppId ?? null;
-  if (baselineScope && String(baselineScope).toLowerCase() === "00000000-0000-0000-0000-000000000000") {
+  if (casettings) {
+    let title = "Conditional Access baseline enforcement";
+    let desc = "Baseline enforcement setting not present (not collected).";
+    let severity: Severity = "info";
+
+    if (baselineScope == null) {
+      title = "Baseline enforcement status: unset / not selected";
+      desc =
+        "Conditional Access advanced settings include no baseline enforcement selection (advancedSettings.baselineScopes is null). " +
+        "This means no enforcement audience has been chosen; consider selecting the Windows Azure AD app to enable Low-Privilege Scope Enforcement behavior.";
+    } else if (String(baselineScope).toLowerCase() === "00000000-0000-0000-0000-000000000000") {
+      title = "Baseline enforcement: explicitly disabled";
+      desc =
+        "Tenant Conditional Access settings indicate baseline enforcement is explicitly disabled (resourceAppId = 00000000-0000-0000-0000-000000000000). " +
+        "Low-privilege scopes will not be automatically enforced by the baseline audience.";
+    } else if (String(baselineScope).toLowerCase() === "00000002-0000-0000-c000-000000000000") {
+      title = "Baseline enforcement: enabled for Windows Azure AD (Azure AD Graph)";
+      desc =
+        "Tenant Conditional Access is configured to enforce baseline scopes using the Windows Azure AD enforcement audience (00000002-0000-0000-c000-000000000000). " +
+        "Low-privilege scope enforcement behavior will apply to policies as they evaluate these scopes.";
+    } else {
+      title = "Baseline enforcement: enabled for custom app";
+      desc =
+        `Tenant Conditional Access baseline enforcement is configured for a custom app (resourceAppId = ${baselineScope}). ` +
+        "This is a non-standard enforcement audience; review whether it covers the low-privilege scopes you care about.";
+    }
+
     findings.push({
       id: nextFindingId(),
       policyId: "",
       policyName: "",
-      severity: "info",
+      severity,
       category: "Baseline Enforcement",
-      title: "Tenant baseline enforcement is explicitly disabled",
-      description:
-        "The tenant Conditional Access settings indicate baseline enforcement is disabled. " +
-        "This means the built-in baseline enforcement audience will not be automatically enforced; review your baseline strategy.",
+      title,
+      description: desc,
       recommendation:
-        "If you want the Microsoft-recommended baseline protections to apply automatically, consider enabling baseline enforcement for the Windows Azure AD app or another appropriate enforcement audience.",
+        "If you rely on Low-Privilege Scope Enforcement for directory protection, ensure this setting targets the Windows Azure AD app or deploy dedicated baseline policies scoped to the Azure AD Graph enforcement audience.",
     });
   }
 
@@ -647,8 +672,8 @@ export function checkBaselineEnforcement(
       `Tenant baseline enforcement is not currently targeting the Windows Azure AD app (tenant setting: ${baselineScope ?? "unset/null"}). ` +
       `When baseline enforcement is not enabled for the Azure AD enforcement audience, excluded service principals can bypass the protection the baseline policy is intended to provide.`,
     recommendation:
-      "Either enable baseline enforcement for the Windows Azure AD app in Conditional Access settings, or remove/justify the excluded service principals from this policy. See Microsoft guidance on Low-Privilege Scope Enforcement.",
-    relatedIds: excluded,
+      "Either enable baseline enforcement for the Windows Azure AD app in Conditional Access settings, or remove/justify the excluded service principals from this policy. See Microsoft guidance on Low-Privilege Scope Enforcement. You can also deploy the recommended baseline template 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' to provide dedicated coverage for these scopes.",
+    relatedIds: excluded.concat(["baseline-mfa-windowsazuread-baseline-scopes"]),
   });
 
   return findings;
