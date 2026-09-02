@@ -79,8 +79,30 @@ export interface BaselineGapResult {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function severityForMatch(match: TemplateMatch): BaselineGapEntry["severity"] {
+function severityForMatch(match: TemplateMatch, context?: any): BaselineGapEntry["severity"] {
   const p = match.template.priority;
+
+  // Special-case: when tenant baseline enforcement targets Windows Azure AD
+  // (`00000002-0000-0000-c000-000000000000`), the dedicated baseline
+  // template `baseline-mfa-windowsazuread-baseline-scopes` no longer needs
+  // to be treated as a 'recommended' high-severity gap — downgrade to
+  // optional/medium so UI shows it as optional instead of recommended.
+  try {
+    const baselineTemplateId = "baseline-mfa-windowsazuread-baseline-scopes";
+    const WINDOWS_AZURE_AD_RESOURCE = "00000002-0000-0000-c000-000000000000";
+    const baselineScope = context?.conditionalAccessSettings?.advancedSettings?.baselineScopes?.resourceAppId;
+    if (
+      match.template.id === baselineTemplateId &&
+      baselineScope &&
+      String(baselineScope).toLowerCase() === WINDOWS_AZURE_AD_RESOURCE.toLowerCase()
+    ) {
+      // Treat as optional/medium
+      return "medium";
+    }
+  } catch (e) {
+    // ignore and fall back to default mapping
+  }
+
   if (p === "critical") return "critical";
   if (p === "recommended") return "high";
   return "medium";
@@ -133,7 +155,7 @@ export function analyzeBaselineGaps(
         id: `missing:${match.template.id}`,
         label: match.template.displayName,
         persona: tplPersona,
-        severity: severityForMatch(match),
+        severity: severityForMatch(match, context),
         summary: match.template.summary,
         details: match.gaps.length
           ? shortDiff(match.gaps)
@@ -154,7 +176,7 @@ export function analyzeBaselineGaps(
         id: `drift:${match.template.id}`,
         label: match.template.displayName,
         persona: tplPersona,
-        severity: severityForMatch(match),
+        severity: severityForMatch(match, context),
         summary: `Tenant has a similar policy (${match.confidence}% match) but it differs from the baseline.`,
         details: shortDiff([
           ...(topMatch ? [`Closest tenant policy: "${topMatch.policy.displayName}"`] : []),
