@@ -2,6 +2,12 @@
 	"folders": [
 		{
 			"path": "../GitHub-CAPolicyAnalyzer"
+		},
+		{
+			"path": "bugsreported"
+		},
+		{
+			"path": "../ConditionalAccessPolicies"
 		}
 	],
 	"settings": {}
