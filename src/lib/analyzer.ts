@@ -173,11 +173,14 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
   // If tenant-level conditionalAccess settings were populated during graph
   // collection, surface a tenant-wide informational finding describing the
   // baseline enforcement status so operators see whether enforcement is
-  // enabled, disabled, custom, or unset.
-  const casettings = (context as any).conditionalAccessSettings;
+  // enabled, disabled, custom, or unset. `conditionalAccessSettings` is
+  // undefined only if the fetch itself failed (permissions/network); it is
+  // an object with `advancedSettings: null` when the tenant simply has no
+  // selection saved yet — both cases are handled below.
+  const casettings = context.conditionalAccessSettings;
   const advanced = casettings?.advancedSettings ?? null;
   const baselineScope = advanced?.baselineScopes?.resourceAppId ?? null;
-  if (casettings) {
+  if (casettings !== undefined && casettings !== null) {
     let title = "Conditional Access baseline enforcement";
     let desc = "Baseline enforcement setting not present (not collected).";
     let severity: Severity = "info";
@@ -608,15 +611,23 @@ function checkServicePrincipalExclusions(
 }
 
 /**
- * Check Baseline enforcement setting and raise a recommendation when a
- * tenant has a baseline-scoped policy that also excludes service principals
- * while the tenant-level baseline enforcement setting is not enabled.
+ * Check Baseline enforcement setting and recommend a SEPARATE dedicated
+ * policy targeting the Windows Azure AD (Azure AD Graph) baseline-scopes
+ * audience when a tenant has an "All resources" policy with app exclusions
+ * and tenant-level baseline enforcement is not already covering that app.
+ *
+ * This fires on ANY enabled policy that targets "All" apps and has one or
+ * more excluded apps/service principals — it does NOT require the policy to
+ * specifically target the Azure AD Graph app itself. The fix is to deploy a
+ * new, separate policy (the 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes'
+ * template) rather than to modify the existing "All resources" policy.
  *
  * Conditions for a finding:
- * - Policy targets the Windows Azure AD Baseline Scopes app (00000002-...)
- * - Policy has one or more excluded service principals
+ * - Policy targets "All" resources
+ * - Policy has one or more excluded apps/service principals
  * - Tenant conditional access settings indicate baseline enforcement is
- *   disabled, unset, or set to a different app id
+ *   disabled, unset, or set to a different app id (i.e. not already
+ *   covering the Windows Azure AD app)
  */
 export function checkBaselineEnforcement(
   policy: ConditionalAccessPolicy,
@@ -630,20 +641,19 @@ export function checkBaselineEnforcement(
   const apps = policy.conditions.applications;
   if (!apps || !Array.isArray(apps.includeApplications)) return findings;
 
-  // Does this policy target the WindowsAzureAD Baseline Scopes resource?
-  const targetsBaselineApp = apps.includeApplications
+  // Does this policy target "All" resources/apps?
+  const targetsAllApps = apps.includeApplications
     .map((a) => String(a).toLowerCase())
-    .includes(WINDOWS_AZURE_AD_RESOURCE.toLowerCase());
+    .includes("all");
 
-  if (!targetsBaselineApp) return findings;
+  if (!targetsAllApps) return findings;
 
-  // Any excluded service principals/apps on the policy?
+  // Any excluded apps/service principals on the policy?
   const excluded = apps.excludeApplications ?? [];
   if (!excluded || excluded.length === 0) return findings;
 
-  // Read tenant-level conditionalAccess settings if available. Use any-cast
-  // to avoid rippling type changes to graph-client types; access is defensive.
-  const casettings = (context as any).conditionalAccessSettings;
+  // Read tenant-level conditionalAccess settings (typed field on TenantContext).
+  const casettings = context.conditionalAccessSettings;
   const advanced = casettings?.advancedSettings ?? null;
   const baselineScope = advanced?.baselineScopes?.resourceAppId ?? null;
 
@@ -655,24 +665,24 @@ export function checkBaselineEnforcement(
   const isEnforcedForAzureAd =
     String(baselineScope).toLowerCase() === WINDOWS_AZURE_AD_RESOURCE.toLowerCase();
 
-  if (isEnforcedForAzureAd) return findings; // enforcement already targeting Azure AD app
+  if (isEnforcedForAzureAd) return findings; // tenant already enforces the Azure AD baseline audience
 
-  // If we get here: policy targets Azure AD baseline app and excludes apps,
-  // but tenant baseline enforcement is not enabled for that app — surface
-  // a recommendation to enable baseline enforcement or remove exclusions.
+  // If we get here: policy targets "All" apps and has exclusions, but tenant
+  // baseline enforcement does not already cover the Windows Azure AD app —
+  // recommend deploying a dedicated, separate policy for that audience.
   findings.push({
     id: nextFindingId(),
     policyId: policy.id,
     policyName: policy.displayName,
     severity: "high",
     category: "Baseline Enforcement",
-    title: "Enable baseline enforcement for Windows Azure AD or remove service-principal exclusions",
+    title: "Deploy a separate policy targeting Windows Azure AD (Azure AD Graph) baseline scopes",
     description:
-      `This policy targets the Windows Azure AD baseline-scoped app (${WINDOWS_AZURE_AD_RESOURCE}) but has ${excluded.length} excluded app(s). ` +
-      `Tenant baseline enforcement is not currently targeting the Windows Azure AD app (tenant setting: ${baselineScope ?? "unset/null"}). ` +
-      `When baseline enforcement is not enabled for the Azure AD enforcement audience, excluded service principals can bypass the protection the baseline policy is intended to provide.`,
+      `This policy targets "All" resources but has ${excluded.length} excluded app(s). ` +
+      `Tenant baseline enforcement does not currently cover the Windows Azure AD app (tenant setting: ${baselineScope ?? "unset/null"}). ` +
+      `Once Microsoft's Low-Privilege Scope Enforcement change is rolled out, "All resources" policies with exclusions no longer automatically cover low-privilege scopes (User.Read, openid, profile, email, offline_access) for the Windows Azure AD (Azure AD Graph) audience — the excluded apps can bypass protection unless a dedicated policy covers it.`,
     recommendation:
-      "Either enable baseline enforcement for the Windows Azure AD app in Conditional Access settings, or remove/justify the excluded service principals from this policy. See Microsoft guidance on Low-Privilege Scope Enforcement. You can also deploy the recommended baseline template 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' to provide dedicated coverage for these scopes.",
+      "Deploy a separate, dedicated Conditional Access policy scoped specifically to the Windows Azure AD (Azure AD Graph, 00000002-0000-0000-c000-000000000000) app — do not modify this 'All resources' policy. See the recommended baseline template 'GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes' in the Templates tab for a ready-to-deploy configuration.",
     relatedIds: excluded.concat(["baseline-mfa-windowsazuread-baseline-scopes"]),
   });
 

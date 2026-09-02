@@ -166,6 +166,33 @@ export interface TenantContext {
   licenses: TenantLicenses;
   /** Authentication strength policies (built-in + custom) — used to detect EAM usage */
   authStrengthPolicies: Map<string, AuthenticationStrengthPolicy>;
+  /**
+   * Tenant-wide Conditional Access settings (identity/conditionalAccess/settings).
+   * Null when the tenant has no advancedSettings saved, or when the fetch
+   * failed/was not permitted (e.g. missing Policy.Read.All).
+   */
+  conditionalAccessSettings?: ConditionalAccessSettings | null;
+}
+
+/**
+ * GET /identity/conditionalAccess/settings (beta) — single $entity, not a
+ * collection. advancedSettings.baselineScopes.resourceAppId indicates the
+ * Low-Privilege Scope Enforcement ("baseline") audience:
+ *   - 00000002-0000-0000-c000-000000000000 => enforcement enabled for
+ *     Windows Azure Active Directory (Azure AD Graph)
+ *   - 00000000-0000-0000-0000-000000000000 => enforcement explicitly disabled
+ *   - any other GUID => enforcement customized to that app
+ *   - advancedSettings: null => no selection has ever been saved
+ */
+export interface ConditionalAccessSettings {
+  advancedSettings: {
+    baselineScopes?: {
+      resourceAppId?: string | null;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  modifiedDateTime?: string | null;
+  [key: string]: unknown;
 }
 
 // ─── Graph Client Factory ────────────────────────────────────────────────────
@@ -265,6 +292,17 @@ export async function fetchAuthenticationStrengthPolicies(
     "/policies/authenticationStrengthPolicies?$select=id,displayName,description,policyType,allowedCombinations,requirementsSatisfied",
     "beta"
   );
+}
+
+/**
+ * GET /identity/conditionalAccess/settings (beta) — returns a single $entity
+ * describing tenant-wide baseline enforcement (Low-Privilege Scope
+ * Enforcement) status. Requires Policy.Read.All. No query params/paging.
+ */
+export async function fetchConditionalAccessSettings(
+  client: Client
+): Promise<ConditionalAccessSettings> {
+  return client.api("/identity/conditionalAccess/settings").version("beta").get();
 }
 
 async function resolveDirectoryObject(
@@ -513,6 +551,15 @@ export async function loadTenantContext(
     // Permission may not be granted — degrade gracefully
   }
 
+  onProgress?.("Loading Conditional Access baseline settings…");
+  let conditionalAccessSettings: ConditionalAccessSettings | null = null;
+  try {
+    conditionalAccessSettings = await fetchConditionalAccessSettings(client);
+  } catch {
+    // Permission may not be granted (Policy.Read.All) or tenant doesn't
+    // expose this preview endpoint — degrade gracefully to null.
+  }
+
   onProgress?.("Resolving directory objects…");
   const directoryObjects = await resolveDirectoryObjects(client, policies);
 
@@ -541,5 +588,5 @@ export async function loadTenantContext(
     if (domain) tenantDisplayName = domain;
   }
 
-  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies };
+  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, conditionalAccessSettings };
 }
