@@ -1,5 +1,7 @@
 # CA Policy Analyzer
 
+![CA Policy Analyzer](docs/screenshots/CA%20Policy%20Anaylzer.png)
+
 > Analyze your Entra ID Conditional Access policies for best practices, FOCI token-sharing risks, known CA bypasses, CIS v7.0 benchmark alignment, and MS Learn documented exclusions — **directly in your browser, no install required.**
 
 [![Live App](https://img.shields.io/badge/Launch%20App-GitHub%20Pages-blue?logo=github)](https://jhope188.github.io/ca-policy-analyzer)
