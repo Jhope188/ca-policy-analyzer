@@ -9,11 +9,13 @@
  */
 
 import {
+  AppliedCaPolicy,
   ConditionalAccessPolicy,
   NamedLocation,
   ServicePrincipal,
   TenantContext,
 } from "./graph-client";
+import { PolicyAppImpact } from "./policy-app-impact";
 import { CISAlignmentResult } from "@/data/cis-benchmarks";
 import { TemplateAnalysisResult } from "./template-matcher";
 import { isFociApp, getFociApp, getFociFamily } from "@/data/foci-families";
@@ -43,6 +45,32 @@ export interface ExcludedAppDetail {
   risk: string;
 }
 
+/** An app found in the sign-in logs that has no service principal. */
+export interface DiscoveredAppDetail {
+  appId: string;
+  displayName: string;
+  signInCount: number;
+  seenIn?: string;
+  lastSeen?: string;
+  requestId?: string;
+  userPrincipalName?: string;
+  ipAddress?: string;
+  clientAppUsed?: string;
+  resourceDisplayName?: string;
+  conditionalAccessStatus?: string;
+  isWorkloadIdentity: boolean;
+  logQueryUrl: string;
+  /** What Entra recorded on the newest sign-in - evidence, not prediction. */
+  observedPolicies?: AppliedCaPolicy[];
+  /** What would happen once the service principal exists. */
+  predictedImpact: PolicyAppImpact[];
+  severity: Severity;
+  bypassNote?: string;
+  baselineNote?: string;
+  phantomExclusionPolicies: string[];
+  evidenceMissing: boolean;
+}
+
 export interface Finding {
   id: string;
   policyId: string;
@@ -56,6 +84,7 @@ export interface Finding {
   relatedIds?: string[];
   /** Detailed per-app info for consolidated exclusion findings */
   excludedApps?: ExcludedAppDetail[];
+  discoveredApps?: DiscoveredAppDetail[];
 }
 
 export interface AnalysisResult {

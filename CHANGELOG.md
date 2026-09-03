@@ -5,6 +5,24 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-09-02
+
+### Added
+
+- **New findings category: "Found missing service principals that bypasses your security gate"** - apps that signed in over the last 30 days but have no service principal. Such an app isn't in the Conditional Access app picker at all, so it can be neither included nor excluded; only a policy targeting *All resources* reaches it ([Microsoft docs](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps)). Discovery diffs `/beta/auditLogs/signInEventsAppSummary` against your service principals; per app it shows the evidence from your own logs (last seen, Request ID, user, IP, client app, deep links to Graph Explorer and the Entra sign-in logs) and what Entra recorded in `appliedConditionalAccessPolicies` on that sign-in.
+- **Policy impact evaluator** (`src/lib/policy-app-impact.ts`) - which policies would hit an app once it exists, as `willApply` / `mayApply` / `willNotApply`. Covers include/exclude by app ID, `None`, the `Office365` suite, application filters on custom security attributes, `clientAppTypes`, user scoping and workload identities; other conditions are reported as gates that must also match.
+- **Phantom exclusion detection** - a policy excluding an app that has no service principal. The exclusion protects nothing today and becomes live the moment the app is created. Its own critical finding.
+- **Generated PowerShell script** - `Register-MissingServicePrincipals.ps1`, downloadable from the finding. `-WhatIf`-first, and apps an enabled block policy would catch carry a `# BLOCKED BY: <policy>` comment on the line you'd delete.
+- **`AuditLog.Read.All`** added to the requested scopes - read-only, and also requires Entra ID P1. Without either, the category reports itself as unavailable and the rest of the analysis is unaffected.
+- **Offline mode** - the export script now emits a `signInApps` dataset. Older exports import fine.
+- **Self-checks** - `check-policy-app-impact.ts` (24), `check-findings-render.tsx` (21), `check-links.ts`, `check-auth-url.ts` (6). Run with `npx tsx`.
+
+### Changed
+
+- **Interactive token fallback redirects instead of opening a popup** (`src/lib/graph-client.ts`) - adding a scope makes cached tokens insufficient, so this previously unreachable fallback now fires. `acquireTokenPopup` leaves a `Popup`-type response in the URL that makes MSAL's `isInPopup()` true, after which every `acquireTokenSilent` throws `block_nested_popups` for the rest of the session.
+
+**Upgrade note:** users signed in before this release get one interactive redirect to consent to `AuditLog.Read.All`.
+
 ## [1.16.3] - 2026-07-22
 
 ### Fixed

@@ -62,6 +62,8 @@ export const graphScopes = {
   applicationRead: "Application.Read.All",
   /** Read directory objects (groups, roles, users referenced in policies) */
   directoryRead: "Directory.Read.All",
+  /** Read sign-in logs, to find apps with no service principal */
+  auditLogRead: "AuditLog.Read.All",
 };
 
 export const loginRequest: RedirectRequest = {
@@ -69,9 +71,23 @@ export const loginRequest: RedirectRequest = {
     graphScopes.policyRead,
     graphScopes.applicationRead,
     graphScopes.directoryRead,
+    graphScopes.auditLogRead,
   ],
 };
 
 export const graphTokenRequest = {
   scopes: ["https://graph.microsoft.com/.default"],
 };
+
+/**
+ * True when the URL still carries an MSAL auth response. One MSAL didn't consume
+ * makes its `isInPopup()` preflight true, after which every
+ * `acquireTokenSilent` fails with `block_nested_popups` for the whole session.
+ * Both hash and query - MSAL supports a hybrid response format.
+ */
+export function hasAuthResponseInUrl(hash: string, search: string): boolean {
+  const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+  if (hashParams.has("state")) return true;
+  const queryParams = new URLSearchParams(search.replace(/^\?/, ""));
+  return queryParams.has("state");
+}

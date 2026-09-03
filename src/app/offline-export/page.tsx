@@ -51,7 +51,8 @@ Import-Module Microsoft.Graph.Identity.DirectoryManagement`}
   "Application.Read.All", \`
   "Directory.Read.All", \`
   "Policy.Read.ConditionalAccess", \`
-  "Organization.Read.All"
+  "Organization.Read.All", \`
+  "AuditLog.Read.All"
 
 $tenant = Get-MgOrganization -Top 1
 $policies = Get-MgBetaIdentityConditionalAccessPolicy -All
@@ -72,6 +73,56 @@ $directoryObjects = foreach ($id in $objectIds) {
   try { Get-MgDirectoryObject -DirectoryObjectId $id -ErrorAction Stop } catch { $null }
 }
 
+# ── Enterprise apps that sign in but have no service principal ─────────────
+# Such an app cannot be selected in a CA policy at all, so it sits outside every
+# policy. One row per app over the last 30 days, diffed against the SPs above.
+$spAppIds = [System.Collections.Generic.HashSet[string]]::new(
+  [string[]]($servicePrincipals.AppId), [System.StringComparer]::OrdinalIgnoreCase)
+
+$appSummary = (Invoke-MgGraphRequest -Method GET \`
+  -Uri "https://graph.microsoft.com/beta/auditLogs/signInEventsAppSummary").value
+$signInAppsTruncated = @($appSummary).Count -ge 1000
+
+$startIso = (Get-Date).ToUniversalTime().AddDays(-30).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+$select = "id,createdDateTime,userPrincipalName,ipAddress,appDisplayName,clientAppUsed," +
+          "resourceDisplayName,conditionalAccessStatus,appliedConditionalAccessPolicies"
+
+$signInApps = foreach ($row in $appSummary) {
+  if (-not $row.appId -or $spAppIds.Contains($row.appId)) { continue }
+
+  # /auditLogs/signIns returns interactive sign-ins unless another event type is
+  # named, so probe all four - a service-principal-only app is invisible otherwise.
+  $evidence = $null; $eventType = $null
+  foreach ($mode in @('interactiveUser','nonInteractiveUser','servicePrincipal','managedIdentity')) {
+    $filter = "appId eq '$($row.appId)' and createdDateTime ge $startIso"
+    if ($mode -ne 'interactiveUser') {
+      $filter += " and signInEventTypes/any(t: t eq '$mode')"
+    }
+    $uri = "https://graph.microsoft.com/beta/auditLogs/signIns?" +
+           "\\$filter=$filter&\\$top=1&\\$select=$select"
+    try {
+      $hit = (Invoke-MgGraphRequest -Method GET -Uri $uri -Headers @{
+        Prefer = 'include-unknown-enum-members' }).value | Select-Object -First 1
+      if ($hit) { $evidence = $hit; $eventType = $mode; break }
+    } catch { }
+  }
+
+  [ordered]@{
+    appId                            = $row.appId
+    signInCount                      = $row.signInCount
+    signInEventType                  = $eventType
+    displayName                      = $evidence.appDisplayName
+    lastSeen                         = $evidence.createdDateTime
+    requestId                        = $evidence.id
+    userPrincipalName                = $evidence.userPrincipalName
+    ipAddress                        = $evidence.ipAddress
+    clientAppUsed                    = $evidence.clientAppUsed
+    resourceDisplayName              = $evidence.resourceDisplayName
+    conditionalAccessStatus          = $evidence.conditionalAccessStatus
+    appliedConditionalAccessPolicies = $evidence.appliedConditionalAccessPolicies
+  }
+}
+
 $export = [ordered]@{
   tenantId                       = $tenant.Id
   tenantDisplayName              = $tenant.DisplayName
@@ -81,10 +132,20 @@ $export = [ordered]@{
   directoryObjects               = $directoryObjects
   authenticationStrengthPolicies = $authStrengthPolicies
   subscribedSkus                 = $subscribedSkus
+  signInApps                     = @($signInApps)
+  signInAppsTruncated            = $signInAppsTruncated
 }
 
 $export | ConvertTo-Json -Depth 25 | Out-File ".\\ca-offline-export.json" -Encoding utf8`}
         </pre>
+        <p className="text-xs text-gray-500">
+          The sign-in block needs <code className="text-gray-400">AuditLog.Read.All</code>{" "}
+          and Entra ID P1 or higher. It makes one small request per unregistered
+          app, so on a large tenant this is the slowest part of the export. An
+          export created before this block existed still imports fine - the
+          &quot;Found missing service principals that bypasses your security gate&quot; category simply
+          reports itself as unavailable.
+        </p>
       </div>
 
       <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 space-y-3">

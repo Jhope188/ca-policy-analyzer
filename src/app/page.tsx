@@ -17,6 +17,7 @@ import { LocationsView } from "@/components/locations-view";
 import { PersonaView } from "@/components/persona-view";
 import { analyzeNamedLocations, LocationAnalysisResult } from "@/lib/location-analyzer";
 import { analyzePersonaCoverage, PersonaCoverageResult } from "@/lib/persona-coverage";
+import { analyzeSignInAppGap } from "@/lib/signin-app-gap";
 import { buildZeroTrustScorecard, ZeroTrustScorecard } from "@/lib/zero-trust-scorecard";
 import { analyzeBaselineGaps, BaselineGapResult } from "@/lib/baseline-gap";
 import { TemplateCategory } from "@/data/policy-templates";
@@ -116,26 +117,27 @@ export default function Home() {
     setProgress("Scoring persona × control coverage…");
     const persona = analyzePersonaCoverage(ctx);
     setPersonaResult(persona);
-    // Merge persona-coverage findings into the main findings list so they
-    // surface in the Findings tab and exports without double-counting.
-    if (persona.findings.length > 0) {
-      const merged: AnalysisResult = {
-        ...analysisResult,
-        findings: [...analysisResult.findings, ...persona.findings],
-      };
-      setResult(merged);
-    }
+
+    setProgress("Checking for enterprise apps without a service principal…");
+    const signInGap = analyzeSignInAppGap(ctx, activeTemplates);
+
+    // Merge into the main list so they surface in the Findings tab and exports
+    const extraFindings = [...persona.findings, ...signInGap.findings];
+    const mergedResult: AnalysisResult =
+      extraFindings.length > 0
+        ? {
+            ...analysisResult,
+            findings: [...analysisResult.findings, ...extraFindings],
+          }
+        : analysisResult;
+    if (extraFindings.length > 0) setResult(mergedResult);
 
     setProgress("Computing security posture score…");
     const composite = calculateCompositeScore(analysisResult, cis, activeTemplates);
     setCompositeScore(composite);
 
     setProgress("Scoring against Zero Trust pillars…");
-    const mergedForScorecard: AnalysisResult =
-      persona.findings.length > 0
-        ? { ...analysisResult, findings: [...analysisResult.findings, ...persona.findings] }
-        : analysisResult;
-    const zt = buildZeroTrustScorecard(ctx, mergedForScorecard, persona);
+    const zt = buildZeroTrustScorecard(ctx, mergedResult, persona);
     setScorecard(zt);
 
     setActiveTab("dashboard");
@@ -325,8 +327,14 @@ export default function Home() {
             </p>
             <p className="mt-2 text-xs text-gray-600">
               Requires <code className="text-gray-400">Policy.Read.All</code>,{" "}
-              <code className="text-gray-400">Application.Read.All</code>, and{" "}
-              <code className="text-gray-400">Directory.Read.All</code>.
+              <code className="text-gray-400">Application.Read.All</code>,{" "}
+              <code className="text-gray-400">Directory.Read.All</code>, and{" "}
+              <code className="text-gray-400">AuditLog.Read.All</code>.
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              All read-only. <code className="text-gray-400">AuditLog.Read.All</code>{" "}
+              is used to find enterprise apps that sign in but have no service
+              principal - those sit outside every Conditional Access policy.
             </p>
             <p className="mt-4 text-xs text-gray-500">
               Choose this when you want real-time tenant reads via Graph.
@@ -520,7 +528,12 @@ export default function Home() {
         <PolicyList results={result.policyResults} hideMicrosoft={hideMicrosoft} onToggleHideMicrosoft={setHideMicrosoft} resolverMaps={context ? { directoryObjects: context.directoryObjects, servicePrincipals: context.servicePrincipals } : undefined} />
       )}
       {activeTab === "findings" && (
-        <FindingsList findings={result.findings} title="All Findings" />
+        <FindingsList
+          findings={result.findings}
+          title="All Findings"
+          tenantDisplayName={tenantName}
+          tenantId={tenantId}
+        />
       )}
       {activeTab === "templates" && templateResult && (
         <TemplatesView result={templateResult} customRepoDisplay={customRepoDisplay} onLoadGitHub={handleLoadGitHub} onResetTemplates={handleResetTemplates} categoryFilter={baselineCategory} onCategoryFilterChange={setBaselineCategory} />

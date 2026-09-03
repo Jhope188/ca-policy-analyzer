@@ -1,0 +1,381 @@
+{
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "tenantDisplayName": "Fixture Tenant",
+  "conditionalAccessPolicies": [
+    {
+      "Id": "11111111-1111-1111-1111-111111111111",
+      "DisplayName": "Fixture - MFA for all users",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": [
+            "All"
+          ],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": [
+          "all"
+        ],
+        "Locations": {
+          "IncludeLocations": null,
+          "ExcludeLocations": null
+        },
+        "Platforms": {
+          "IncludePlatforms": null,
+          "ExcludePlatforms": null
+        },
+        "Users": {
+          "IncludeUsers": [
+            "All"
+          ],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": [],
+          "IncludeRoles": [],
+          "ExcludeRoles": [],
+          "IncludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          },
+          "ExcludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          }
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": [
+          "mfa"
+        ],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": [],
+        "AuthenticationStrength": {
+          "Id": null,
+          "DisplayName": null
+        }
+      },
+      "AdditionalProperties": {
+        "templateId": "4200930c-0da2-4e33-ca02-000000000004"
+      }
+    },
+    {
+      "Id": "22222222-2222-2222-2222-222222222222",
+      "DisplayName": "Fixture - Block legacy auth",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": [
+            "All"
+          ],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": [
+          "exchangeActiveSync",
+          "other"
+        ],
+        "Locations": {
+          "IncludeLocations": null,
+          "ExcludeLocations": null
+        },
+        "Platforms": {
+          "IncludePlatforms": null,
+          "ExcludePlatforms": null
+        },
+        "Users": {
+          "IncludeUsers": [
+            "All"
+          ],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": [],
+          "IncludeRoles": [],
+          "ExcludeRoles": [],
+          "IncludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          },
+          "ExcludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          }
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": [
+          "block"
+        ],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": [],
+        "AuthenticationStrength": {
+          "Id": null,
+          "DisplayName": null
+        }
+      },
+      "AdditionalProperties": {
+        "templateId": "4200930c-0da2-4e33-ca02-000000000004"
+      }
+    },
+    {
+      "Id": "33333333-3333-3333-3333-333333333333",
+      "DisplayName": "Fixture - MFA except Azure CLI",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": [
+            "All"
+          ],
+          "ExcludeApplications": [
+            "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
+          ],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": [
+          "all"
+        ],
+        "Locations": {
+          "IncludeLocations": null,
+          "ExcludeLocations": null
+        },
+        "Platforms": {
+          "IncludePlatforms": null,
+          "ExcludePlatforms": null
+        },
+        "Users": {
+          "IncludeUsers": [
+            "All"
+          ],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": [],
+          "IncludeRoles": [],
+          "ExcludeRoles": [],
+          "IncludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          },
+          "ExcludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          }
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": [
+          "mfa"
+        ],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": [],
+        "AuthenticationStrength": {
+          "Id": null,
+          "DisplayName": null
+        }
+      },
+      "AdditionalProperties": {
+        "templateId": "4200930c-0da2-4e33-ca02-000000000004"
+      }
+    },
+    {
+      "Id": "55555555-5555-5555-5555-555555555555",
+      "DisplayName": "Fixture - Compliant device (report-only)",
+      "State": "enabledForReportingButNotEnforced",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": [
+            "All"
+          ],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": [
+          "all"
+        ],
+        "Locations": {
+          "IncludeLocations": null,
+          "ExcludeLocations": null
+        },
+        "Platforms": {
+          "IncludePlatforms": null,
+          "ExcludePlatforms": null
+        },
+        "Users": {
+          "IncludeUsers": [
+            "All"
+          ],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": [],
+          "IncludeRoles": [],
+          "ExcludeRoles": [],
+          "IncludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          },
+          "ExcludeGuestsOrExternalUsers": {
+            "GuestOrExternalUserTypes": null,
+            "ExternalTenants": {
+              "MembershipKind": null
+            }
+          }
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": [
+          "compliantDevice"
+        ],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": [],
+        "AuthenticationStrength": {
+          "Id": null,
+          "DisplayName": null
+        }
+      },
+      "AdditionalProperties": {
+        "templateId": "4200930c-0da2-4e33-ca02-000000000004"
+      }
+    }
+  ],
+  "namedLocations": [
+    {
+      "Id": "22222222-2222-2222-2222-222222222222",
+      "DisplayName": "Trusted IPs",
+      "AdditionalProperties": {
+        "@odata.type": "#microsoft.graph.ipNamedLocation",
+        "isTrusted": true,
+        "ipRanges": [
+          {
+            "cidrAddress": "203.0.113.0/24"
+          }
+        ]
+      }
+    }
+  ],
+  "servicePrincipals": [
+    {
+      "Id": "33333333-3333-3333-3333-333333333333",
+      "AppId": "44444444-4444-4444-4444-444444444444",
+      "DisplayName": "Fixture App",
+      "ServicePrincipalType": "Application",
+      "Tags": []
+    }
+  ],
+  "directoryObjects": {
+    "Id": "55555555-5555-5555-5555-555555555555",
+    "AdditionalProperties": {
+      "@odata.type": "#microsoft.graph.directoryRoleTemplate",
+      "displayName": "Directory Synchronization Accounts"
+    }
+  },
+  "authenticationStrengthPolicies": [
+    {
+      "Id": "66666666-6666-6666-6666-666666666666",
+      "DisplayName": "Multifactor authentication strength",
+      "Description": "Fixture policy",
+      "PolicyType": "builtIn",
+      "AllowedCombinations": [
+        "password,microsoftAuthenticatorPush"
+      ],
+      "RequirementsSatisfied": "mfa"
+    }
+  ],
+  "subscribedSkus": [
+    {
+      "servicePlans": [
+        {
+          "servicePlanId": "41781fb2-bc02-4b7c-bd55-b576c07bb09d"
+        }
+      ]
+    }
+  ],
+  "signInApps": [
+    {
+      "appId": "44444444-4444-4444-4444-444444444444",
+      "signInCount": 900,
+      "seenIn": "Interactive",
+      "appDisplayName": "Fixture App",
+      "createdDateTime": "2026-08-30T10:00:00Z",
+      "id": "req-existing",
+      "userPrincipalName": "a@contoso.com",
+      "clientAppUsed": "Browser"
+    },
+    {
+      "appId": "04b07795-8ddb-461a-bbee-02f9e1bf7b46",
+      "signInCount": 520,
+      "seenIn": "Interactive",
+      "appDisplayName": "Microsoft Azure CLI",
+      "createdDateTime": "2026-09-01T08:15:00Z",
+      "id": "req-cli",
+      "userPrincipalName": "admin@contoso.com",
+      "ipAddress": "203.0.113.9",
+      "clientAppUsed": "Other clients",
+      "resourceDisplayName": "Azure Resource Manager",
+      "conditionalAccessStatus": "notApplied",
+      "appliedConditionalAccessPolicies": [
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "displayName": "Fixture - MFA for all users",
+          "result": "notApplied",
+          "conditionsNotSatisfied": "application",
+          "enforcedGrantControls": [],
+          "enforcedSessionControls": []
+        }
+      ]
+    },
+    {
+      "appId": "d3590ed6-52b3-4102-aeff-aad2292ab01c",
+      "signInCount": 310,
+      "seenIn": "Interactive",
+      "createdDateTime": "2026-09-01T09:00:00Z",
+      "id": "req-office",
+      "userPrincipalName": "user@contoso.com",
+      "clientAppUsed": "Browser"
+    },
+    {
+      "appId": "99999999-9999-9999-9999-999999999999",
+      "signInCount": 12,
+      "signInEventType": "servicePrincipal",
+      "appDisplayName": null,
+      "createdDateTime": "2026-09-01T04:00:00Z",
+      "id": "req-sp"
+    }
+  ]
+}

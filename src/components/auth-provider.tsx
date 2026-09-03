@@ -13,7 +13,7 @@ import {
   AuthenticationResult,
 } from "@azure/msal-browser";
 import { MsalProvider } from "@azure/msal-react";
-import { msalConfig } from "@/lib/msal-config";
+import { hasAuthResponseInUrl, msalConfig } from "@/lib/msal-config";
 
 // Lazily create the MSAL instance only in the browser (avoids SSR "window is not defined")
 let msalInstance: PublicClientApplication | null = null;
@@ -45,6 +45,12 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         console.error("Redirect error:", e);
+      }
+
+      // Left in place, a response MSAL didn't consume poisons every later
+      // acquireTokenSilent - see hasAuthResponseInUrl.
+      if (hasAuthResponseInUrl(window.location.hash, window.location.search)) {
+        window.history.replaceState(null, "", window.location.pathname);
       }
 
       // Set active account from cache

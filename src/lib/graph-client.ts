@@ -122,6 +122,51 @@ export interface DirectoryObject {
   "@odata.type": string;
 }
 
+/**
+ * One CA policy as the sign-in log recorded it - Entra's own verdict, not our
+ * prediction. `conditionsNotSatisfied` containing "application" is the bypass,
+ * evidenced.
+ */
+export interface AppliedCaPolicy {
+  id: string;
+  displayName: string;
+  /** success | failure | notApplied | notEnabled | reportOnly* | unknown */
+  result: string;
+  enforcedGrantControls: string[];
+  enforcedSessionControls: string[];
+  /** Comma-separated multi-valued enum, e.g. "application,users" */
+  conditionsSatisfied?: string;
+  conditionsNotSatisfied?: string;
+}
+
+/** An app in the sign-in logs with no service principal in the tenant. */
+export interface UnregisteredSignInApp {
+  appId: string;
+  signInCount: number;
+  displayName?: string;
+  seenIn?: string;
+  signInEventType?: SignInEventType;
+  lastSeen?: string;
+  requestId?: string;
+  userPrincipalName?: string;
+  ipAddress?: string;
+  clientAppUsed?: string;
+  resourceDisplayName?: string;
+  conditionalAccessStatus?: string;
+  appliedPolicies?: AppliedCaPolicy[];
+  isWorkloadIdentity: boolean;
+  logQueryUrl: string;
+}
+
+export interface UnregisteredSignInAppsResult {
+  apps: UnregisteredSignInApp[];
+  /** Hit the endpoint's 1000-row ceiling - the list may be incomplete. */
+  truncated: boolean;
+  /** Apps beyond the enrichment cap: listed, but without an evidence row. */
+  evidenceCapped: number;
+  windowStart: string;
+}
+
 export interface AuthenticationStrengthPolicy {
   id: string;
   displayName: string;
@@ -166,6 +211,9 @@ export interface TenantContext {
   licenses: TenantLicenses;
   /** Authentication strength policies (built-in + custom) — used to detect EAM usage */
   authStrengthPolicies: Map<string, AuthenticationStrengthPolicy>;
+  /** Undefined when the scan was skipped - no AuditLog.Read.All, no P1, or an
+   * offline export that predates this dataset. */
+  unregisteredSignInApps?: UnregisteredSignInAppsResult;
 }
 
 // ─── Graph Client Factory ────────────────────────────────────────────────────
@@ -183,15 +231,23 @@ function createGraphClient(
         });
         done(null, response.accessToken);
       } catch (error) {
+        // Redirect, never popup: a Popup-type auth response left in the URL
+        // makes MSAL's isInPopup() true, after which every acquireTokenSilent
+        // throws block_nested_popups for the rest of the session.
         if (error instanceof InteractionRequiredAuthError) {
           try {
-            const response = await msalInstance.acquireTokenPopup({
+            await msalInstance.acquireTokenRedirect({
               ...loginRequest,
               account,
             });
-            done(null, response.accessToken);
-          } catch (popupError) {
-            done(popupError as Error, null);
+            done(
+              new Error(
+                "Additional permissions are required. Redirecting to Microsoft to grant them…"
+              ),
+              null
+            );
+          } catch (redirectError) {
+            done(redirectError as Error, null);
           }
         } else {
           done(error as Error, null);
@@ -265,6 +321,234 @@ export async function fetchAuthenticationStrengthPolicies(
     "/policies/authenticationStrengthPolicies?$select=id,displayName,description,policyType,allowedCombinations,requirementsSatisfied",
     "beta"
   );
+}
+
+// ─── Unregistered Sign-In Apps ───────────────────────────────────────────────
+
+/** The all-zero GUID stands for "unknown app" in the sign-in logs. */
+const NULL_GUID = "00000000-0000-0000-0000-000000000000";
+
+/** signInEventsAppSummary tops out at 1000 rows and covers a fixed 30 days. */
+const APP_SUMMARY_MAX_ROWS = 1000;
+const DISCOVERY_WINDOW_DAYS = 30;
+
+// ponytail: fixed evidence cap, surfaced as `evidenceCapped` so the UI never
+// implies full coverage. Make it a user control if anyone actually hits it.
+const EVIDENCE_LOOKUP_CAP = 60;
+const EVIDENCE_BATCH_SIZE = 20;
+
+/**
+ * `/auditLogs/signIns` returns `interactiveUser` unless another type is named
+ * in the filter, so an app that only signs in non-interactively - or as a
+ * service principal or managed identity - is invisible to an unqualified query.
+ */
+export type SignInEventType =
+  | "interactiveUser"
+  | "nonInteractiveUser"
+  | "servicePrincipal"
+  | "managedIdentity";
+
+export const SIGNIN_EVENT_TYPE_LABELS: Record<SignInEventType, string> = {
+  interactiveUser: "Interactive",
+  nonInteractiveUser: "Non-interactive",
+  servicePrincipal: "Service principal",
+  managedIdentity: "Managed identity",
+};
+
+/** Interactive first: cheapest and most common, and needs no filter clause. */
+const EVIDENCE_PROBE_ORDER: SignInEventType[] = [
+  "interactiveUser",
+  "nonInteractiveUser",
+  "servicePrincipal",
+  "managedIdentity",
+];
+
+/**
+ * Graph Explorer permalink returning exactly this app's sign-in log entries.
+ * `headers` is base64 of `[{name,value}]`; without the `Prefer` header the beta
+ * endpoint returns `unknownFutureValue` for the newer `conditionsNotSatisfied`
+ * members - the ones that evidence a bypass. No `/en-us/` in the path, so the
+ * page opens in the visitor's own locale.
+ */
+export function buildSignInLogQueryUrl(
+  appId: string,
+  windowStart: string,
+  eventType?: SignInEventType
+): string {
+  let filter = `appId eq '${appId}' and createdDateTime ge ${windowStart}`;
+  if (eventType && eventType !== "interactiveUser") {
+    filter += ` and signInEventTypes/any(t: t eq '${eventType}')`;
+  }
+  const request = `auditLogs/signIns?$filter=${filter}&$top=50`;
+  const headers = btoa(
+    JSON.stringify([{ name: "Prefer", value: "include-unknown-enum-members" }])
+  );
+
+  return (
+    "https://developer.microsoft.com/graph/graph-explorer" +
+    `?request=${encodeURIComponent(request)}` +
+    "&method=GET&version=beta" +
+    `&GraphUrl=${encodeURIComponent("https://graph.microsoft.com")}` +
+    `&headers=${encodeURIComponent(headers)}`
+  );
+}
+
+/**
+ * Captured from a live page - Microsoft documents no deep link, and a fragment
+ * can't be verified automatically because the part after `#` never reaches the
+ * server, so a wrong blade looks fine from the outside. `SignInEventsV3.ReactView`
+ * and `ActiveDirectoryMenuBlade/~/SignIns` both fail to resolve on this host.
+ * scripts/check-links.ts pins this.
+ */
+export const ENTRA_SIGNIN_LOGS_URL =
+  "https://entra.microsoft.com/#view/Microsoft_AAD_IAM/SignInLogsList.ReactView" +
+  "/timeRangeType/last24hours/showApplicationSignIns~/true";
+
+export const ENTRA_SIGNIN_LOGS_PATH =
+  "Entra ID > Monitoring & health > Sign-in logs";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeAppliedPolicies(raw: any): AppliedCaPolicy[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return raw.map((p: any) => ({
+    id: p.id ?? "",
+    displayName: p.displayName ?? "(unnamed policy)",
+    result: p.result ?? "unknown",
+    enforcedGrantControls: p.enforcedGrantControls ?? [],
+    enforcedSessionControls: p.enforcedSessionControls ?? [],
+    conditionsSatisfied: p.conditionsSatisfied,
+    conditionsNotSatisfied: p.conditionsNotSatisfied,
+  }));
+}
+
+const EVIDENCE_SELECT = [
+  "id",
+  "createdDateTime",
+  "userPrincipalName",
+  "ipAddress",
+  "appDisplayName",
+  "clientAppUsed",
+  "resourceDisplayName",
+  "servicePrincipalId",
+  "conditionalAccessStatus",
+  "appliedConditionalAccessPolicies",
+].join(",");
+
+/**
+ * Newest sign-in for one app. `$top=1` with no `$orderby` relies on the
+ * endpoint's default newest-first ordering - combining the two is unreliable.
+ */
+async function fetchAppEvidence(
+  client: Client,
+  appId: string,
+  windowStart: string
+): Promise<Partial<UnregisteredSignInApp>> {
+  for (const eventType of EVIDENCE_PROBE_ORDER) {
+    let filter = `appId eq '${appId}' and createdDateTime ge ${windowStart}`;
+    if (eventType !== "interactiveUser") {
+      filter += ` and signInEventTypes/any(t: t eq '${eventType}')`;
+    }
+    try {
+      const response = await client
+        .api("/auditLogs/signIns")
+        .version("beta")
+        .header("Prefer", "include-unknown-enum-members")
+        .filter(filter)
+        .select(EVIDENCE_SELECT)
+        .top(1)
+        .get();
+
+      const row = response?.value?.[0];
+      if (!row) continue;
+
+      return {
+        displayName: row.appDisplayName || undefined,
+        signInEventType: eventType,
+        seenIn: SIGNIN_EVENT_TYPE_LABELS[eventType],
+        lastSeen: row.createdDateTime,
+        requestId: row.id,
+        userPrincipalName: row.userPrincipalName || undefined,
+        ipAddress: row.ipAddress || undefined,
+        clientAppUsed: row.clientAppUsed || undefined,
+        resourceDisplayName: row.resourceDisplayName || undefined,
+        conditionalAccessStatus: row.conditionalAccessStatus || undefined,
+        appliedPolicies: normalizeAppliedPolicies(
+          row.appliedConditionalAccessPolicies
+        ),
+        isWorkloadIdentity:
+          eventType === "servicePrincipal" ||
+          eventType === "managedIdentity" ||
+          !row.userPrincipalName,
+        logQueryUrl: buildSignInLogQueryUrl(appId, windowStart, eventType),
+      };
+    } catch {
+      // Not fatal - the app still gets listed, without evidence
+    }
+  }
+
+  return {};
+}
+
+/**
+ * Apps that signed in over the last 30 days with no service principal.
+ * `signInEventsAppSummary` gives one row per app in one request; paging raw
+ * sign-in logs for 30 days is not viable from a browser.
+ * Requires `AuditLog.Read.All` and Entra ID P1.
+ */
+export async function fetchUnregisteredSignInApps(
+  client: Client,
+  servicePrincipals: Map<string, ServicePrincipal>
+): Promise<UnregisteredSignInAppsResult> {
+  const windowStart = new Date(
+    Date.now() - DISCOVERY_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  )
+    .toISOString()
+    .replace(/\.\d{3}Z$/, ".000Z");
+
+  const summary = await fetchAllPages<{ appId: string; signInCount: number }>(
+    client,
+    "/auditLogs/signInEventsAppSummary",
+    "beta"
+  );
+
+  const candidates = summary
+    .filter(
+      (row) =>
+        row.appId &&
+        row.appId !== NULL_GUID &&
+        !servicePrincipals.has(row.appId.toLowerCase())
+    )
+    .sort((a, b) => (b.signInCount ?? 0) - (a.signInCount ?? 0));
+
+  const apps: UnregisteredSignInApp[] = candidates.map((row) => ({
+    appId: row.appId,
+    signInCount: row.signInCount ?? 0,
+    isWorkloadIdentity: false,
+    // No evidence row yet, so leave the event-type clause off rather than
+    // asserting "interactive".
+    logQueryUrl: buildSignInLogQueryUrl(row.appId, windowStart),
+  }));
+
+  const toEnrich = apps.slice(0, EVIDENCE_LOOKUP_CAP);
+  for (let i = 0; i < toEnrich.length; i += EVIDENCE_BATCH_SIZE) {
+    const batch = toEnrich.slice(i, i + EVIDENCE_BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map((app) => fetchAppEvidence(client, app.appId, windowStart))
+    );
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        Object.assign(batch[index], result.value);
+      }
+    });
+  }
+
+  return {
+    apps,
+    truncated: summary.length >= APP_SUMMARY_MAX_ROWS,
+    evidenceCapped: Math.max(0, apps.length - toEnrich.length),
+    windowStart,
+  };
 }
 
 async function resolveDirectoryObject(
@@ -513,6 +797,21 @@ export async function loadTenantContext(
     // Permission may not be granted — degrade gracefully
   }
 
+  onProgress?.("Scanning sign-in logs for unregistered service principals…");
+  let unregisteredSignInApps: UnregisteredSignInAppsResult | undefined;
+  try {
+    unregisteredSignInApps = await fetchUnregisteredSignInApps(
+      client,
+      servicePrincipals
+    );
+  } catch (e) {
+    // Needs AuditLog.Read.All and Entra ID P1 - degrade, don't fail the run
+    console.warn(
+      "Could not scan sign-in logs for unregistered service principals - skipping that check.",
+      e
+    );
+  }
+
   onProgress?.("Resolving directory objects…");
   const directoryObjects = await resolveDirectoryObjects(client, policies);
 
@@ -541,5 +840,5 @@ export async function loadTenantContext(
     if (domain) tenantDisplayName = domain;
   }
 
-  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies };
+  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, unregisteredSignInApps };
 }
