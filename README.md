@@ -115,6 +115,7 @@ This fixture intentionally includes edge cases that previously caused offline/li
 - **Generated PowerShell** - `Register-MissingServicePrincipals.ps1`, `-WhatIf`-first, with a `# BLOCKED BY` comment on any app an enabled block policy would catch.
 - **The scan is optional and its permission is incremental** - on by default, with a *Scan sign-in logs* switch that turns it off and is remembered per browser. Off means only the three base scopes are ever requested; `AuditLog.Read.All` needs admin consent and Entra ID P1, so asking for it up front would block the whole analysis in tenants that can't grant it.
 - **Step-by-step run progress and a completion panel** - the run shows its actual step list instead of one spinning label, and finishes on a summary of score, policies read, findings by severity and elapsed time.
+- **Interactive token fallback now redirects instead of opening a popup** - requesting a scope the cached token doesn't cover (i.e. switching the sign-in log scan on) triggers this fallback for the first time. `acquireTokenPopup` left a `Popup`-type response in the URL that made MSAL's `isInPopup()` true, after which every later `acquireTokenSilent` threw `block_nested_popups` for the rest of the session. Existing sessions are unaffected until the scan is switched on; doing so triggers one consent redirect for `AuditLog.Read.All`.
 
 ### v1.16.5 - Baseline Enforcement Graph Check + Device Registration Template Fix (September 2, 2026)
 
