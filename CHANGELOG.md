@@ -13,15 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Policy impact evaluator** (`src/lib/policy-app-impact.ts`) - which policies would hit an app once it exists, as `willApply` / `mayApply` / `willNotApply`. Covers include/exclude by app ID, `None`, the `Office365` suite, application filters on custom security attributes, `clientAppTypes`, user scoping and workload identities; other conditions are reported as gates that must also match.
 - **Phantom exclusion detection** - a policy excluding an app that has no service principal. The exclusion protects nothing today and becomes live the moment the app is created. Its own critical finding.
 - **Generated PowerShell script** - `Register-MissingServicePrincipals.ps1`, downloadable from the finding. `-WhatIf`-first, and apps an enabled block policy would catch carry a `# BLOCKED BY: <policy>` comment on the line you'd delete.
-- **`AuditLog.Read.All`** added to the requested scopes - read-only, and also requires Entra ID P1. Without either, the category reports itself as unavailable and the rest of the analysis is unaffected.
+- **The sign-in log scan is optional, and its scope is requested incrementally.** It is on by default; a *Scan sign-in logs* switch on the connect and Run Analysis screens turns it off, and the choice is remembered per browser. With it off the app only ever asks for the three base scopes, skips the heaviest step of the run, and the category reports itself as not scanned. `AuditLog.Read.All` is read-only but needs admin consent and Entra ID P1, so asking for it up front would block the whole analysis in tenants that can't grant it.
+- **Step-by-step run progress** - the single spinning label inside the Run Analysis button is replaced by the actual step list for this run, with a progress bar and the skipped step named. The list comes from `src/lib/run-steps.ts`, which both the Graph client and the UI read, so an emitted label can't drift from the rendered one and leave the run looking frozen.
+- **Completion panel** - score, grade, policies read, findings by severity and elapsed time when a run finishes, holding briefly before the dashboard takes over. Accent goes amber rather than green when critical findings are open. Offers a one-click re-scan with sign-in logs when the scan was skipped.
 - **Offline mode** - the export script now emits a `signInApps` dataset. Older exports import fine.
 - **Self-checks** - `check-policy-app-impact.ts` (24), `check-findings-render.tsx` (21), `check-links.ts`, `check-auth-url.ts` (6). Run with `npx tsx`.
 
 ### Changed
 
-- **Interactive token fallback redirects instead of opening a popup** (`src/lib/graph-client.ts`) - adding a scope makes cached tokens insufficient, so this previously unreachable fallback now fires. `acquireTokenPopup` leaves a `Popup`-type response in the URL that makes MSAL's `isInPopup()` true, after which every `acquireTokenSilent` throws `block_nested_popups` for the rest of the session.
+- **Interactive token fallback redirects instead of opening a popup** (`src/lib/graph-client.ts`) - requesting a scope the cached token doesn't cover makes this previously unreachable fallback fire, which is how incremental consent for the sign-in log scan is delivered. `acquireTokenPopup` leaves a `Popup`-type response in the URL that makes MSAL's `isInPopup()` true, after which every `acquireTokenSilent` throws `block_nested_popups` for the rest of the session.
 
-**Upgrade note:** users signed in before this release get one interactive redirect to consent to `AuditLog.Read.All`.
+**Upgrade note:** existing sessions are unaffected until the sign-in log scan is used. Switching it on triggers one consent redirect for `AuditLog.Read.All`.
 
 ## [1.16.3] - 2026-07-22
 

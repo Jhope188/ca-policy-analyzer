@@ -186,10 +186,11 @@ export function analyzeSignInAppGap(
             "your policies without appearing anywhere as a gap. No sign-in data was available " +
             "for this run.",
           recommendation:
-            "For a live tenant connection, make sure AuditLog.Read.All is granted and the tenant " +
-            "has Entra ID P1 or higher (sign-in logs are a P1 feature). For offline mode, re-run " +
-            "the export script from the Offline Export Guide - the sign-in app dataset was added " +
-            "to it and older exports don't contain it.",
+            "For a live tenant connection, switch the \"Scan sign-in logs\" option on and re-scan. " +
+            "It needs AuditLog.Read.All (admin consent) and Entra ID P1 or higher, since sign-in " +
+            "logs are a P1 feature. For offline mode, re-run the export script from the Offline " +
+            "Export Guide - the sign-in app dataset was added to it and older exports don't " +
+            "contain it.",
         },
       ],
       apps: [],

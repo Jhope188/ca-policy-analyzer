@@ -11,7 +11,8 @@ import {
   InteractionRequiredAuthError,
   IPublicClientApplication,
 } from "@azure/msal-browser";
-import { loginRequest } from "./msal-config";
+import { scopesFor } from "./msal-config";
+import { RUN_STEPS } from "./run-steps";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -247,13 +248,14 @@ export interface ConditionalAccessSettings {
 
 function createGraphClient(
   msalInstance: IPublicClientApplication,
-  account: AccountInfo
+  account: AccountInfo,
+  scopes: string[]
 ): Client {
   return Client.init({
     authProvider: async (done) => {
       try {
         const response = await msalInstance.acquireTokenSilent({
-          ...loginRequest,
+          scopes,
           account,
         });
         done(null, response.accessToken);
@@ -264,7 +266,7 @@ function createGraphClient(
         if (error instanceof InteractionRequiredAuthError) {
           try {
             await msalInstance.acquireTokenRedirect({
-              ...loginRequest,
+              scopes,
               account,
             });
             done(
@@ -811,25 +813,31 @@ function normalizePolicy(p: any): ConditionalAccessPolicy {
 export async function loadTenantContext(
   msalInstance: IPublicClientApplication,
   account: AccountInfo,
-  onProgress?: (step: string) => void
+  onProgress?: (step: string) => void,
+  options?: { includeSignInLogs?: boolean }
 ): Promise<TenantContext> {
-  const client = createGraphClient(msalInstance, account);
+  const includeSignInLogs = options?.includeSignInLogs ?? false;
+  const client = createGraphClient(
+    msalInstance,
+    account,
+    scopesFor(includeSignInLogs)
+  );
 
-  onProgress?.("Loading Conditional Access policies…");
+  onProgress?.(RUN_STEPS.policies);
   const rawPolicies = await fetchConditionalAccessPolicies(client);
   // Normalize: beta API may return null for fields we expect as arrays
   const policies = rawPolicies.map(normalizePolicy);
 
-  onProgress?.("Loading named locations…");
+  onProgress?.(RUN_STEPS.namedLocations);
   const namedLocations = await fetchNamedLocations(client);
 
-  onProgress?.("Loading service principals…");
+  onProgress?.(RUN_STEPS.servicePrincipals);
   const spList = await fetchServicePrincipals(client);
   const servicePrincipals = new Map<string, ServicePrincipal>(
     spList.map((sp) => [sp.appId.toLowerCase(), sp])
   );
 
-  onProgress?.("Loading authentication strength policies…");
+  onProgress?.(RUN_STEPS.authStrength);
   let authStrengthPolicies = new Map<string, AuthenticationStrengthPolicy>();
   try {
     const aspList = await fetchAuthenticationStrengthPolicies(client);
@@ -838,7 +846,7 @@ export async function loadTenantContext(
     // Permission may not be granted - degrade gracefully
   }
 
-  onProgress?.("Loading Conditional Access baseline settings…");
+  onProgress?.(RUN_STEPS.caSettings);
   let conditionalAccessSettings: ConditionalAccessSettings | null = null;
   try {
     conditionalAccessSettings = await fetchConditionalAccessSettings(client);
@@ -847,25 +855,30 @@ export async function loadTenantContext(
     // expose this preview endpoint - degrade gracefully to null.
   }
 
-  onProgress?.("Scanning sign-in logs for unregistered service principals…");
+  // Skipped when the caller turned the scan off: it is the heaviest step of the
+  // run and the only one needing AuditLog.Read.All. Everything downstream
+  // already treats an absent result as "not scanned".
   let unregisteredSignInApps: UnregisteredSignInAppsResult | undefined;
-  try {
-    unregisteredSignInApps = await fetchUnregisteredSignInApps(
-      client,
-      servicePrincipals
-    );
-  } catch (e) {
-    // Needs AuditLog.Read.All and Entra ID P1 - degrade, don't fail the run
-    console.warn(
-      "Could not scan sign-in logs for unregistered service principals - skipping that check.",
-      e
-    );
+  if (includeSignInLogs) {
+    onProgress?.(RUN_STEPS.signInLogs);
+    try {
+      unregisteredSignInApps = await fetchUnregisteredSignInApps(
+        client,
+        servicePrincipals
+      );
+    } catch (e) {
+      // Needs AuditLog.Read.All and Entra ID P1 - degrade, don't fail the run
+      console.warn(
+        "Could not scan sign-in logs for unregistered service principals - skipping that check.",
+        e
+      );
+    }
   }
 
-  onProgress?.("Resolving directory objects…");
+  onProgress?.(RUN_STEPS.directoryObjects);
   const directoryObjects = await resolveDirectoryObjects(client, policies);
 
-  onProgress?.("Detecting tenant licenses…");
+  onProgress?.(RUN_STEPS.licenses);
   let licenses: TenantLicenses;
   try {
     licenses = await fetchSubscribedSkus(client);
@@ -875,7 +888,7 @@ export async function loadTenantContext(
   }
 
   // Fetch tenant identity (display name + tenant ID)
-  onProgress?.("Loading tenant identity…");
+  onProgress?.(RUN_STEPS.tenantIdentity);
   let tenantDisplayName = account.tenantId ?? "Unknown Tenant";
   const tenantId = account.tenantId ?? "";
   try {

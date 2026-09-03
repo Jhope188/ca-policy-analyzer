@@ -66,14 +66,23 @@ export const graphScopes = {
   auditLogRead: "AuditLog.Read.All",
 };
 
-export const loginRequest: RedirectRequest = {
-  scopes: [
-    graphScopes.policyRead,
-    graphScopes.applicationRead,
-    graphScopes.directoryRead,
-    graphScopes.auditLogRead,
-  ],
-};
+/**
+ * Everything except the sign-in log scan runs on these three. AuditLog.Read.All
+ * is deliberately not in here: it needs admin consent and Entra ID P1, so
+ * asking for it up front blocks the whole analysis in tenants that can't grant
+ * it. It is requested incrementally when the scan is switched on.
+ */
+const baseScopes = [
+  graphScopes.policyRead,
+  graphScopes.applicationRead,
+  graphScopes.directoryRead,
+];
+
+export function scopesFor(includeSignInLogs: boolean): string[] {
+  return includeSignInLogs ? [...baseScopes, graphScopes.auditLogRead] : [...baseScopes];
+}
+
+export const loginRequest: RedirectRequest = { scopes: [...baseScopes] };
 
 export const graphTokenRequest = {
   scopes: ["https://graph.microsoft.com/.default"],

@@ -113,7 +113,8 @@ This fixture intentionally includes edge cases that previously caused offline/li
 - **Impact preview before you register anything** - which policies would hit the app once it exists, as will apply / may apply / will not apply, covering include/exclude by ID, the `Office365` suite, application filters on custom security attributes, client app types, user scoping and workload identities.
 - **Phantom exclusions** - a policy excluding an app that has no service principal. It protects nothing today and becomes live the moment the app is created.
 - **Generated PowerShell** - `Register-MissingServicePrincipals.ps1`, `-WhatIf`-first, with a `# BLOCKED BY` comment on any app an enabled block policy would catch.
-- **`AuditLog.Read.All`** added to the requested scopes (read-only, needs Entra ID P1). Without it only this category reports as unavailable.
+- **The scan is optional and its permission is incremental** - on by default, with a *Scan sign-in logs* switch that turns it off and is remembered per browser. Off means only the three base scopes are ever requested; `AuditLog.Read.All` needs admin consent and Entra ID P1, so asking for it up front would block the whole analysis in tenants that can't grant it.
+- **Step-by-step run progress and a completion panel** - the run shows its actual step list instead of one spinning label, and finishes on a summary of score, policies read, findings by severity and elapsed time.
 
 ### v1.16.5 - Baseline Enforcement Graph Check + Device Registration Template Fix (September 2, 2026)
 
@@ -594,18 +595,23 @@ The **Export JSON** button downloads the full analysis. The JSON follows this st
 
 The app requests these Microsoft Graph **delegated** permissions when you sign in:
 
-| Permission | Why |
-|---|---|
-| `Policy.Read.All` | Read Conditional Access policies |
-| `Application.Read.All` | Resolve service principal names referenced in policies |
-| `Directory.Read.All` | Resolve groups, roles, and users referenced in policies |
-| `AuditLog.Read.All` | Read sign-in logs to find enterprise apps that have no service principal |
+| Permission | Required? | Why |
+|---|---|---|
+| `Policy.Read.All` | Always | Read Conditional Access policies |
+| `Application.Read.All` | Always | Resolve service principal names referenced in policies |
+| `Directory.Read.All` | Always | Resolve groups, roles, and users referenced in policies |
+| `AuditLog.Read.All` | Only with the sign-in log scan | Read sign-in logs to find enterprise apps that have no service principal |
 
-All four are read-only, and all require **admin consent** — regular users cannot self-consent.
+All are read-only, and all require **admin consent** — regular users cannot self-consent.
 
-> `AuditLog.Read.All` powers the *Missing Service Principals* check and also requires
-> **Entra ID P1 or higher** (sign-in logs are a P1 feature). Without it the rest of the
-> analysis still runs; only that one category reports itself as unavailable.
+> **The sign-in log scan is optional.** It is on by default, and the *Scan sign-in logs*
+> switch on the connect and Run Analysis screens turns it off. With it off, the app only
+> ever asks for the three base scopes and skips the heaviest step of the run; the
+> *Missing Service Principals* category then reports itself as not scanned. The preference
+> is remembered per browser.
+>
+> `AuditLog.Read.All` also requires **Entra ID P1 or higher** (sign-in logs are a P1
+> feature), so in tenants without P1 there is nothing to gain by leaving the scan on.
 
 #### Admin Consent
 
