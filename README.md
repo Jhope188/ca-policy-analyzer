@@ -48,7 +48,7 @@ Connect-MgGraph -Scopes `
 
 $tenant = Get-MgOrganization -Top 1
 $policies = Get-MgBetaIdentityConditionalAccessPolicy -All
-$namedLocations = Get-MgIdentityConditionalAccessNamedLocation -All
+$namedLocations = Get-MgBetaIdentityConditionalAccessNamedLocation -All
 $servicePrincipals = Get-MgServicePrincipal -All -Property "id,appId,displayName,servicePrincipalType,appOwnerOrganizationId,tags"
 $authStrengthPolicies = Get-MgBetaPolicyAuthenticationStrengthPolicy -All
 $subscribedSkus = Get-MgSubscribedSku -All
@@ -106,6 +106,13 @@ This fixture intentionally includes edge cases that previously caused offline/li
 ## Recent Changes
 
 > Full version history lives in [CHANGELOG.md](CHANGELOG.md).
+
+### v1.17.1 - False Positive & Offline Bug Fixes (September 3, 2026)
+
+- **Three false positives fixed** ([@dermo-blast](https://github.com/dermo-blast) report, issue #19) - country/region named locations no longer flagged as "untrusted" under "All trusted locations" (only IP-range locations can be marked trusted at all); device/app compliance requirements no longer flagged as blocking WHfB/Platform SSO setup when MFA is an accepted `OR` alternative; a grant-control `OR` spanning **both** device-trust and app-protection controls (e.g. compliant device OR app protection policy - Microsoft's MDM-or-MAM pattern for BYOD) is now recognized as equivalent-strength, not a weakest-link gap.
+- **Offline export - wrong PowerShell cmdlet** (issue #21) - named locations export used `Get-MgIdentityConditionalAccessNamedLocation`, whose module was never imported by the documented setup. Fixed to `Get-MgBetaIdentityConditionalAccessNamedLocation` in both README and the in-app guide.
+- **Offline import - missing file picker for signed-in users** (issue #23) - the Import Offline Export control only existed on the signed-out landing screen. A stale cached session (reused tab, prior sign-in) skipped straight to "Ready to Analyze," where there was no way to load a file at all. Added the offline-import control to that screen too.
+- **Offline export 404 - confirmed already fixed** (issue #22) - re-verified against the live site; the `<Link>`-based fix from v1.16.2 is working correctly.
 
 ### v1.17.0 - Missing Service Principals (September 2, 2026)
 

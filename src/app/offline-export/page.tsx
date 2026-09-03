@@ -56,7 +56,7 @@ Import-Module Microsoft.Graph.Identity.DirectoryManagement`}
 
 $tenant = Get-MgOrganization -Top 1
 $policies = Get-MgBetaIdentityConditionalAccessPolicy -All
-$namedLocations = Get-MgIdentityConditionalAccessNamedLocation -All
+$namedLocations = Get-MgBetaIdentityConditionalAccessNamedLocation -All
 $servicePrincipals = Get-MgServicePrincipal -All -Property "id,appId,displayName,servicePrincipalType,appOwnerOrganizationId,tags"
 $authStrengthPolicies = Get-MgBetaPolicyAuthenticationStrengthPolicy -All
 $subscribedSkus = Get-MgSubscribedSku -All

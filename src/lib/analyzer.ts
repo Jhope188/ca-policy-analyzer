@@ -385,6 +385,8 @@ function checkGrantControlOperator(
   const findings: Finding[] = [];
   const grant = policy.grantControls;
 
+  // Note: disabled/report-only policies are still evaluated here (not
+  // skipped) so admins see the potential impact if the policy were turned on.
   if (!grant || grant.operator !== "OR") return findings;
 
   // "block" is terminal and never combined meaningfully with other controls;
@@ -398,13 +400,22 @@ function checkGrantControlOperator(
   const groupOf = (c: string) => EQUIVALENT_STRENGTH_GROUPS[c] ?? `unique:${c}`;
   const distinctGroups = new Set(controls.map(groupOf));
   const soleGroup = distinctGroups.size === 1 ? [...distinctGroups][0] : null;
-  const isAcceptedEquivalentOr =
-    soleGroup === "device-trust" || soleGroup === "app-protection";
+  // A single group (all device-trust or all app-protection) is the classic
+  // accepted pattern. An OR spanning BOTH groups - e.g. "compliant device OR
+  // app protection policy" - is also accepted: it's Microsoft's recommended
+  // MDM-or-MAM pattern for mobile/BYOD (managed device satisfies compliance,
+  // unmanaged BYOD satisfies MAM instead). Both are management-based controls;
+  // neither is a "weaker" fallback for the other.
+  const isManagedAccessOnly = [...distinctGroups].every(
+    (g) => g === "device-trust" || g === "app-protection"
+  );
+  const isAcceptedEquivalentOr = soleGroup !== null || isManagedAccessOnly;
 
   const labels = controls.map(labelControl);
 
   if (isAcceptedEquivalentOr) {
     // OR between controls of equivalent strength - no weakest-link downgrade.
+    const spansBothGroups = soleGroup === null && isManagedAccessOnly;
     findings.push({
       id: nextFindingId(),
       policyId: policy.id,
@@ -414,9 +425,14 @@ function checkGrantControlOperator(
       title: 'Grant controls use "OR" between equivalent-strength controls - accepted pattern',
       description:
         `This policy requires ${labels.join(" OR ")}. ` +
-        `Although it uses the OR operator, all controls are ${soleGroup} controls of equivalent strength, ` +
+        `Although it uses the OR operator, all controls are management-based controls of equivalent strength, ` +
         `so there is no "weakest control" for an attacker to downgrade to.\n\n` +
-        (soleGroup === "device-trust"
+        (spansBothGroups
+          ? `Requiring a **compliant/hybrid-joined device OR an approved app/app protection policy** is ` +
+            `Microsoft's recommended MDM-or-MAM pattern for mobile and BYOD scenarios: a managed device satisfies ` +
+            `compliance, and an unmanaged BYOD device satisfies app protection instead. Both paths enforce ` +
+            `management-based control of equivalent strength - neither is a weaker fallback for the other.`
+          : soleGroup === "device-trust"
           ? `Requiring a **compliant device OR a Microsoft Entra hybrid joined device** is a Microsoft-recommended ` +
             `way to require a managed, trusted device while supporting both Intune-managed and hybrid-joined ` +
             `estates. Both controls enforce device trust - neither is weaker than the other.`
@@ -917,8 +933,16 @@ function checkLocationConditions(
   }
 
   // 2) Policy uses "AllTrustedLocations" but some named locations are not trusted
+  // Only IP-range locations can be marked trusted at all - "The All trusted
+  // locations option only applies to Named locations that have IP ranges
+  // selected" (Microsoft Learn). Country/region locations always report
+  // isTrusted: false and are not a misconfiguration, so they're excluded here.
   if (usesAllTrusted) {
-    const untrusted = context.namedLocations.filter((l) => !l.isTrusted);
+    const untrusted = context.namedLocations.filter(
+      (l) =>
+        !l.isTrusted &&
+        l["@odata.type"] !== "#microsoft.graph.countryNamedLocation"
+    );
     if (untrusted.length > 0) {
       const names = untrusted.map((l) => l.displayName).join(", ");
       findings.push({
@@ -1583,16 +1607,25 @@ function checkCredentialRegistrationConstraints(
 
   const hasDeviceFilter = conditions.devices?.deviceFilter?.rule != null;
 
+  // If the operator is OR and MFA (or an authentication strength) is also an
+  // option, device/app compliance is an alternative path, not a gate - a user
+  // on a brand-new device can still satisfy the policy via MFA (TAP, FIDO2,
+  // Authenticator), so it does not block WHfB/Platform SSO registration.
+  const hasMfaAlternative =
+    grant?.operator === "OR" &&
+    (grant.builtInControls.includes("mfa") ||
+      grant.authenticationStrength != null);
+
   // Flag high-risk constraints
   const issues: string[] = [];
 
-  if (requiresCompliance) {
+  if (requiresCompliance && !hasMfaAlternative) {
     issues.push(
       "**Device compliance**: Users provisioning WHfB/Platform SSO on a NEW device cannot satisfy this requirement during initial setup (device isn't enrolled yet)"
     );
   }
 
-  if (requiresApprovedApp || requiresAppProtection) {
+  if ((requiresApprovedApp || requiresAppProtection) && !hasMfaAlternative) {
     issues.push(
       "**Approved/protected app**: Users setting up credentials during device provisioning may not have approved apps installed yet"
     );
@@ -1674,7 +1707,10 @@ function checkCredentialRegistrationConstraints(
 
   // Determine severity based on how likely this is to block legitimate enrollment
   let severity: Severity = "medium";
-  if (requiresCompliance || (hasLocationConditions && !conditions.locations?.includeLocations?.includes("All"))) {
+  if (
+    (requiresCompliance && !hasMfaAlternative) ||
+    (hasLocationConditions && !conditions.locations?.includeLocations?.includes("All"))
+  ) {
     severity = "high";
   }
 
@@ -1697,7 +1733,7 @@ function checkCredentialRegistrationConstraints(
       `Per Microsoft's Message Center post (MC1326253), admins should review policies targeting "Register security info" ` +
       `and test with report-only mode before the rollout reaches their tenant (July 6–13, 2026).`,
     recommendation:
-      requiresCompliance
+      requiresCompliance && !hasMfaAlternative
         ? `**High Priority**: Remove device compliance requirements from this policy or add exclusions for users ` +
           `during initial device provisioning. Consider one of these approaches:\n\n` +
           `1. **Separate policies**: Create one policy for sign-in (with compliance) and a second policy for ` +

@@ -507,6 +507,40 @@ export default function Home() {
                 for consent once before the scan starts.
               </p>
             )}
+
+            {/* A cached MSAL session (e.g. reused browser tab) lands a user
+                here even when they intend to use offline import instead - the
+                import control must stay reachable, not just on the signed-out
+                landing screen. */}
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <label
+                htmlFor="offline-import-authed"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800"
+              >
+                <Download className="h-4 w-4" />
+                Import Offline Export Instead
+              </label>
+              <Link
+                href="/offline-export"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800"
+              >
+                Offline Export Instructions
+              </Link>
+            </div>
+            <input
+              id="offline-import-authed"
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              disabled={loading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void handleOfflineImport(file);
+                  e.target.value = "";
+                }
+              }}
+            />
           </>
         )}
       </div>
