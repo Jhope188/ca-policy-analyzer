@@ -178,7 +178,7 @@ export const CA_BYPASS_APPS: CABypassApp[] = [
 //      concept-conditional-access-cloud-apps#legacy-conditional-access-behavior-
 //      when-an-all-resources-policy-has-a-resource-exclusion
 //
-// Status: Rolling out March-June 2026 — some tenants may still have old behavior.
+// Status: Rolling out March-June 2026 - some tenants may still have old behavior.
 
 export interface ResourceExclusionBypass {
   resourceId: string;
@@ -225,7 +225,7 @@ export const RESOURCE_EXCLUSION_BYPASSES: ResourceExclusionBypass[] = [
     description:
       "LEGACY: Previously, excluding ANY resource from an 'All cloud apps' policy caused these MS Graph scopes " +
       "to become unprotected. Confidential clients had an even broader leak including User.Read.All, People.Read.All, " +
-      "GroupMember.Read.All, and Member.Read.Hidden — allowing directory enumeration without CA enforcement. " +
+      "GroupMember.Read.All, and Member.Read.Hidden - allowing directory enumeration without CA enforcement. " +
       "Microsoft is now enforcing CA on these scopes (rolling out March-June 2026).",
     enforcementStatus: "rolling-out",
     enforcementAudience: "00000002-0000-0000-c000-000000000000",

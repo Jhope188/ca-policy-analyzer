@@ -408,7 +408,7 @@ function ControlCard({ controlResult }: { controlResult: CISControlResult }) {
                 </div>
               </div>
 
-              {/* Sample JSON Template — Download + Repo */}
+              {/* Sample JSON Template - Download + Repo */}
               {control.policyGuidance.sampleJson && (
                 <div className="flex gap-2 pt-2">
                   <button

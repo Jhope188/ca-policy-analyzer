@@ -6,8 +6,8 @@
  *
  * Resolution order:
  *  1. Static ADMIN_ROLE_IDS map (built-in Entra roles)
- *  2. Dynamic directoryObjects map (from Graph API — roles, groups, users)
- *  3. Dynamic servicePrincipals map (from Graph API — apps)
+ *  2. Dynamic directoryObjects map (from Graph API - roles, groups, users)
+ *  3. Dynamic servicePrincipals map (from Graph API - apps)
  *  4. Fall back to raw GUID
  */
 
@@ -60,13 +60,13 @@ export function resolveRoleName(
 
 /**
  * Resolve an array of role GUIDs to a comma-separated string of names.
- * Returns "—" if the array is empty or undefined.
+ * Returns "-" if the array is empty or undefined.
  */
 export function resolveRoleList(
   guids: string[] | undefined,
   maps?: GuidResolverMaps,
 ): string {
-  if (!guids || guids.length === 0) return "—";
+  if (!guids || guids.length === 0) return "-";
   return guids.map((g) => resolveRoleName(g, maps)).join(", ");
 }
 
@@ -91,13 +91,13 @@ export function resolveGuid(
 
 /**
  * Resolve an array of GUIDs (any type) to a comma-separated string.
- * Returns "—" if the array is empty or undefined.
+ * Returns "-" if the array is empty or undefined.
  */
 export function resolveGuidList(
   guids: string[] | undefined,
   maps?: GuidResolverMaps,
 ): string {
-  if (!guids || guids.length === 0) return "—";
+  if (!guids || guids.length === 0) return "-";
   return guids.map((g) => resolveGuid(g, maps)).join(", ");
 }
 
@@ -109,7 +109,7 @@ export function resolveAppList(
   appIds: string[] | undefined,
   maps?: GuidResolverMaps,
 ): string {
-  if (!appIds || appIds.length === 0) return "—";
+  if (!appIds || appIds.length === 0) return "-";
   return appIds
     .map((id) => {
       const lower = id.toLowerCase();

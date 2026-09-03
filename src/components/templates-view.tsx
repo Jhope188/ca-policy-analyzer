@@ -60,7 +60,7 @@ function StatusBadge({ status }: { status: MatchStatus }) {
     present: { label: "Present", color: "text-emerald-400 bg-emerald-400/10", Icon: CheckCircle2 },
     partial: { label: "Partial", color: "text-amber-400 bg-amber-400/10", Icon: AlertCircle },
     missing: { label: "Missing", color: "text-red-400 bg-red-400/10", Icon: XCircle },
-    "not-applicable": { label: "N/A — License", color: "text-gray-500 bg-gray-500/10", Icon: Ban },
+    "not-applicable": { label: "N/A - License", color: "text-gray-500 bg-gray-500/10", Icon: Ban },
   };
   const { label, color, Icon } = map[status];
   return (
@@ -663,7 +663,7 @@ export function TemplatesView({
           <p className="text-xs text-gray-600">
             Based on {displayTotal - displayNA} applicable policies
             {displayNA > 0 && (
-              <span> ({displayNA} excluded — license N/A)</span>
+              <span> ({displayNA} excluded - license N/A)</span>
             )}
           </p>
         </Card>
@@ -776,7 +776,7 @@ export function TemplatesView({
                       }
                     }}
                     disabled={loading}
-                    title={`${baseline.author} — ${baseline.description}`}
+                    title={`${baseline.author} - ${baseline.description}`}
                     className={cn(
                       "flex items-center gap-1.5 rounded-md border border-gray-700 bg-gray-800 px-2.5 py-1.5 text-xs transition-colors",
                       loading
@@ -831,7 +831,7 @@ export function TemplatesView({
                   >
                     conditionalaccess.uk
                   </a>
-                  {" — "}
+                  {" - "}
                   <button
                     onClick={() => setCategoryFilter(null)}
                     className="text-gray-400 hover:text-gray-300 underline"

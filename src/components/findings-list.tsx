@@ -919,7 +919,7 @@ function CategorySection({
 
 // ─── Exported components ────────────────────────────────────────────────────
 
-/** Single finding card — still used by PolicyCard in the Policies tab */
+/** Single finding card - still used by PolicyCard in the Policies tab */
 export function FindingCard({ finding }: { finding: Finding }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1000,7 +1000,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
   );
 }
 
-/** The main Findings tab — grouped, deduplicated view */
+/** The main Findings tab - grouped, deduplicated view */
 export function FindingsList({
   findings,
   title,

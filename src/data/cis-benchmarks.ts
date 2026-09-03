@@ -1,5 +1,5 @@
 /**
- * CIS Microsoft 365 Foundations Benchmark — Conditional Access Controls
+ * CIS Microsoft 365 Foundations Benchmark - Conditional Access Controls
  *
  * Based on CIS Microsoft 365 Foundations Benchmark v7.0.0
  * Section 1.3: Session Timeout (idle session timeout CA policy)
@@ -43,7 +43,7 @@ export interface MSLearnReference {
 }
 
 export interface Advisory {
-  /** Advisory ID — M365 Message Center ID or custom */
+  /** Advisory ID - M365 Message Center ID or custom */
   id: string;
   /** Short title */
   title: string;
@@ -70,7 +70,7 @@ export interface CISControl {
   description: string;
   /** License required to evaluate this control (undefined = no special license needed) */
   licenseRequirement?: LicenseRequirement;
-  /** Supplementary CA hardening — not part of official CIS v7 §5.2.2; excluded from the alignment score */
+  /** Supplementary CA hardening - not part of official CIS v7 §5.2.2; excluded from the alignment score */
   supplementary?: boolean;
   /** Step-by-step policy creation guidance when the check fails */
   policyGuidance?: PolicyGuidance;
@@ -78,7 +78,7 @@ export interface CISControl {
   msLearnLinks?: MSLearnReference[];
   /** Active advisories from M365 Message Center / Roadmap that affect this control */
   advisories?: Advisory[];
-  /** The check function — returns pass/fail + detail */
+  /** The check function - returns pass/fail + detail */
   check: (policies: ConditionalAccessPolicy[], context: TenantContext) => CISCheckResult;
 }
 
@@ -91,7 +91,7 @@ export interface NearMissPolicy {
   state: "enabled" | "enabledForReportingButNotEnforced" | "disabled";
   /** Criteria the policy satisfies */
   met: string[];
-  /** Criteria the policy is missing — these need to be fixed */
+  /** Criteria the policy is missing - these need to be fixed */
   gaps: string[];
 }
 
@@ -117,7 +117,7 @@ export interface CISCheckResult {
 export interface PolicyGuidance {
   /** Recommended policy name following IAC naming convention */
   suggestedName: string;
-  /** Ordered portal steps — each step maps to a tab / blade in the Entra admin center */
+  /** Ordered portal steps - each step maps to a tab / blade in the Entra admin center */
   portalSteps: PortalStep[];
   /** Prerequisite steps that must be completed before the CA policy (e.g. Intune config) */
   prerequisiteSteps?: PrerequisiteSection[];
@@ -211,7 +211,7 @@ function hasPhishingResistantAuthStrength(
  * Check if a policy uses the "Require risk remediation" grant control
  * (preview). This is a new builtInControls value that consolidates
  * password-based and passwordless user-risk remediation into one policy.
- * Only applies to user risk — not sign-in risk.
+ * Only applies to user risk - not sign-in risk.
  * @see https://learn.microsoft.com/entra/id-protection/concept-identity-protection-policies#require-risk-remediation-with-microsoft-managed-remediation-preview
  */
 function hasRiskRemediation(policy: ConditionalAccessPolicy): boolean {
@@ -221,7 +221,7 @@ function hasRiskRemediation(policy: ConditionalAccessPolicy): boolean {
 // ─── Near-Miss Detection ─────────────────────────────────────────────────────
 
 /**
- * Generic near-miss detector — tests each policy individually against a CIS check
+ * Generic near-miss detector - tests each policy individually against a CIS check
  * by pretending it is enabled. Catches disabled policies that would otherwise
  * satisfy the check, and report-only policies missed by cross-referencing checks.
  */
@@ -242,13 +242,13 @@ function detectNearMissPolicies(
 
         if (p.state === "disabled") {
           met.push("Satisfies all check criteria");
-          gaps.push("Policy is disabled — enable it or set to report-only");
+          gaps.push("Policy is disabled - enable it or set to report-only");
         } else if (p.state === "enabledForReportingButNotEnforced") {
           met.push("Satisfies all check criteria");
           gaps.push("Policy is in report-only mode (not enforced)");
         } else {
           met.push("Partially satisfies check criteria");
-          gaps.push("Review policy configuration — may need adjustments");
+          gaps.push("Review policy configuration - may need adjustments");
         }
 
         nearMisses.push({
@@ -270,7 +270,7 @@ function detectNearMissPolicies(
 
 export const CIS_CONTROLS: CISControl[] = [
   // ═══════════════════════════════════════════════════════════════════════
-  // Section 5.2.2 — Conditional Access
+  // Section 5.2.2 - Conditional Access
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "5.2.2.2",
@@ -393,7 +393,7 @@ export const CIS_CONTROLS: CISControl[] = [
     advisories: [
       {
         id: "MC1243549",
-        title: "SharePoint OTP retirement — all external users move to Entra B2B",
+        title: "SharePoint OTP retirement - all external users move to Entra B2B",
         summary: "SPO OTP authentication retires by Aug 31, 2026. After retirement all external users authenticate through Entra B2B and become fully subject to CA policies, Identity Protection, and guest governance. Ensure guest MFA policies are in place.",
         severity: "warning",
         effectiveDate: "2026-07-01",
@@ -627,7 +627,7 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Users", instructions: ["Include → All users", "Exclude → select break-glass / emergency access accounts"] },
         { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps"] },
         { tab: "Conditions", instructions: ["User risk → Configure Yes → check High and Medium"] },
-        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication AND Require password change", "OR use the new Require risk remediation control (preview) — automatically applies auth strength + sign-in frequency every time"] },
+        { tab: "Grant", instructions: ["Grant access → check Require multifactor authentication AND Require password change", "OR use the new Require risk remediation control (preview) - automatically applies auth strength + sign-in frequency every time"] },
         { tab: "Enable policy", instructions: ["Set to Report-only first, then switch to On after validation", "Requires Entra ID P2 license"] },
       ],
     },
@@ -742,13 +742,13 @@ export const CIS_CONTROLS: CISControl[] = [
           if (targetsAllUsers(p)) {
             met.push("Targets: All users ✓");
           } else {
-            gaps.push("Users not set to \"All users\" — geo-block may not cover all accounts");
+            gaps.push("Users not set to \"All users\" - geo-block may not cover all accounts");
           }
 
           if (targetsAllApps(p)) {
             met.push("Cloud apps: All cloud apps ✓");
           } else {
-            gaps.push("Cloud apps not set to \"All cloud apps\" — geo-block does not protect any resources");
+            gaps.push("Cloud apps not set to \"All cloud apps\" - geo-block does not protect any resources");
           }
 
           if (gaps.length > 0) {
@@ -779,8 +779,8 @@ export const CIS_CONTROLS: CISControl[] = [
               met: ["Satisfies all geo-blocking criteria"],
               gaps: [
                 p.state === "disabled"
-                  ? "Policy is disabled — enable it to enforce the geo-block"
-                  : "Policy is in report-only mode — switch to On to enforce",
+                  ? "Policy is disabled - enable it to enforce the geo-block"
+                  : "Policy is in report-only mode - switch to On to enforce",
               ],
             });
           }
@@ -857,11 +857,11 @@ export const CIS_CONTROLS: CISControl[] = [
       "No CA policy should explicitly disable CAE, as this creates a vulnerability window up to 1 hour after a " +
       "security event (user disabled, password change, location change).",
     policyGuidance: {
-      suggestedName: "(No new policy needed — remove CAE disable from offending policies)",
+      suggestedName: "(No new policy needed - remove CAE disable from offending policies)",
       portalSteps: [
         { tab: "Identify", instructions: ["Open each failing policy listed above in Protection → Conditional Access → Policies"] },
         { tab: "Session", instructions: ["Click Session → find Customize continuous access evaluation → set to Do not disable (or remove the setting entirely)"] },
-        { tab: "Save", instructions: ["Save the policy — CAE is enabled by default and should not be disabled"] },
+        { tab: "Save", instructions: ["Save the policy - CAE is enabled by default and should not be disabled"] },
       ],
     },
     msLearnLinks: [
@@ -909,7 +909,7 @@ export const CIS_CONTROLS: CISControl[] = [
     },
     msLearnLinks: [
       { label: "MS Learn: Block unknown device platforms", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-all-users-device-unknown-unsupported" },
-      { label: "MS Learn: Conditions — device platforms", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#device-platforms" },
+      { label: "MS Learn: Conditions - device platforms", url: "https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-conditions#device-platforms" },
     ],
     check: (policies) => {
       const isBlockUnsupported = (p: ConditionalAccessPolicy) => {
@@ -1087,7 +1087,7 @@ export const CIS_CONTROLS: CISControl[] = [
     },
     msLearnLinks: [
       { label: "MS Learn: Block access for high-risk users", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-user" },
-      { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+      { label: "MS Learn: ID Protection - risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -1136,7 +1136,7 @@ export const CIS_CONTROLS: CISControl[] = [
     },
     msLearnLinks: [
       { label: "MS Learn: Block access for high-risk sign-ins", url: "https://learn.microsoft.com/entra/identity/conditional-access/policy-risk-based-sign-in" },
-      { label: "MS Learn: ID Protection — risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
+      { label: "MS Learn: ID Protection - risk policies", url: "https://learn.microsoft.com/entra/id-protection/howto-identity-protection-configure-risk-policies" },
     ],
     check: (policies) => {
       const matching = getEnabled(policies).filter((p) => {
@@ -1177,7 +1177,7 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Target resources", instructions: ["Cloud apps → Include → All cloud apps (or select specific apps like Office 365)"] },
         { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Windows, macOS, iOS, Android (select platforms managed by Intune)"] },
         { tab: "Grant", instructions: ["Grant access → Require device to be marked as compliant"] },
-        { tab: "Enable policy", instructions: ["Set to Report-only first — ensure Intune compliance policies are configured and devices have time to enroll, then switch to On"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first - ensure Intune compliance policies are configured and devices have time to enroll, then switch to On"] },
       ],
     },
     msLearnLinks: [
@@ -1211,14 +1211,14 @@ export const CIS_CONTROLS: CISControl[] = [
         if (!hasCompliant && !hasDomainJoined) continue;
 
         if (isActive) met.push("Policy is " + (p.state === "enabledForReportingButNotEnforced" ? "report-only" : "enabled"));
-        else gaps.push("Policy is disabled — enable it or set to report-only");
+        else gaps.push("Policy is disabled - enable it or set to report-only");
 
         if (hasCompliant) met.push("Has 'Require compliant device' grant control");
         else gaps.push("Missing 'Require compliant device' grant control");
 
         if (hasDomainJoined && !hasCompliant) {
           met.push("Has 'Require Hybrid Azure AD joined device'");
-          gaps.push("Hybrid join alone does not satisfy CIS — add 'Require device to be marked as compliant'");
+          gaps.push("Hybrid join alone does not satisfy CIS - add 'Require device to be marked as compliant'");
         }
 
         if (gaps.length > 0) {
@@ -1258,7 +1258,7 @@ export const CIS_CONTROLS: CISControl[] = [
         { tab: "Target resources", instructions: ["Cloud apps → Include → Select apps → Office 365 Exchange Online, Office 365 SharePoint Online, Microsoft Teams"] },
         { tab: "Conditions", instructions: ["Device platforms → Configure Yes → Include: Windows only", "Client apps → Browser, Mobile apps and desktop clients"] },
         { tab: "Session", instructions: ["Require token protection for sign-in sessions → Enabled"] },
-        { tab: "Enable policy", instructions: ["Set to Report-only first — token protection is in preview and may affect non-Windows clients. Verify Windows SSO works, then switch to On"] },
+        { tab: "Enable policy", instructions: ["Set to Report-only first - token protection is in preview and may affect non-Windows clients. Verify Windows SSO works, then switch to On"] },
       ],
     },
     msLearnLinks: [
@@ -1594,7 +1594,7 @@ export const CIS_CONTROLS: CISControl[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════════
-  // Section 1.3 — Session Timeout
+  // Section 1.3 - Session Timeout
   // ═══════════════════════════════════════════════════════════════════════
   {
     id: "1.3.2",
@@ -1607,7 +1607,7 @@ export const CIS_CONTROLS: CISControl[] = [
       '"Use app enforced restrictions" session control targeting Office 365 with browser client apps. ' +
       "App enforced restrictions is the mechanism that signals SharePoint/OWA to apply the idle timeout, and the " +
       "app-enforced-restrictions protocol itself only applies the timeout to unmanaged (non-compliant, non-domain-joined) " +
-      "devices — managed devices with SSO are exempt. A sign-in-frequency policy scoped to unmanaged devices is " +
+      "devices - managed devices with SSO are exempt. A sign-in-frequency policy scoped to unmanaged devices is " +
       "accepted as an equivalent alternative. Note: the admin-center timeout value cannot be read via Graph, so this " +
       "check verifies the Conditional Access half of the control.",
     policyGuidance: {
@@ -1723,7 +1723,7 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
     const result = control.check(context.policies, context);
 
     // If check passed, verify at least one matching policy is truly enforced.
-    // Report-only policies don't actually enforce controls — downgrade to manual
+    // Report-only policies don't actually enforce controls - downgrade to manual
     // so the operator knows to flip the policy to "On".
     if (result.status === "pass" && result.matchingPolicies.length > 0) {
       const hasEnforcedMatch = result.matchingPolicies.some((name) =>
@@ -1740,7 +1740,7 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
             status: "manual" as CISStatus,
             detail:
               result.detail.replace(/\.$/, "") +
-              " (report-only — not currently enforced).",
+              " (report-only - not currently enforced).",
             remediation:
               "Matching policy(ies) are in report-only mode and not actively enforcing. " +
               "Switch to enabled: " +
@@ -1751,7 +1751,7 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
       }
     }
 
-    // Generic near-miss detection for failed checks — if the check
+    // Generic near-miss detection for failed checks - if the check
     // didn't already provide check-specific near-misses, scan all
     // policies individually to find disabled/partial matches.
     if (result.status === "fail" && !result.nearMissPolicies?.length) {
@@ -1765,7 +1765,7 @@ export function runCISAlignment(context: TenantContext): CISAlignmentResult {
   });
 
   // Supplementary controls are extra CA hardening not part of the official
-  // CIS v7 §5.2.2 set — they are evaluated and shown, but excluded from the
+  // CIS v7 §5.2.2 set - they are evaluated and shown, but excluded from the
   // headline counts and the alignment score.
   const official = results.filter((r) => !r.control.supplementary);
 

@@ -36,7 +36,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The unified API for all Microsoft 365 services. Used by virtually every Microsoft and third-party app to access mail, files, users, groups, Teams, and more.",
     commonExclusionReason:
-      "Rarely has a valid exclusion reason. Excluding it leaks User.Read, People.Read, and OIDC scopes for all users — effectively bypassing the policy for basic profile access.",
+      "Rarely has a valid exclusion reason. Excluding it leaks User.Read, People.Read, and OIDC scopes for all users - effectively bypassing the policy for basic profile access.",
     exclusionRisk: "critical",
   },
   {
@@ -45,7 +45,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The My Apps portal (myapps.microsoft.com). Users use it to discover and launch their assigned cloud applications.",
     commonExclusionReason:
-      "Excluded to allow users to browse their app catalog without triggering MFA. Low risk since it only shows app links — actual app access still enforces CA on the target app.",
+      "Excluded to allow users to browse their app catalog without triggering MFA. Low risk since it only shows app links - actual app access still enforces CA on the target app.",
     exclusionRisk: "low",
   },
   {
@@ -54,7 +54,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The newer My Apps experience for discovering and launching assigned applications. Works alongside the App Access Panel.",
     commonExclusionReason:
-      "Excluded for the same reason as App Access Panel — to let users see their app list without MFA. Launching an app still triggers the target app's CA policy.",
+      "Excluded for the same reason as App Access Panel - to let users see their app list without MFA. Launching an app still triggers the target app's CA policy.",
     exclusionRisk: "low",
   },
   {
@@ -73,7 +73,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The management plane for all Azure resources. Every Azure portal, CLI, and PowerShell operation goes through ARM.",
     commonExclusionReason:
-      "Excluded to allow automation/service accounts to manage Azure resources. This is high risk — an attacker with credentials could manage your entire Azure subscription.",
+      "Excluded to allow automation/service accounts to manage Azure resources. This is high risk - an attacker with credentials could manage your entire Azure subscription.",
     exclusionRisk: "critical",
   },
   {
@@ -93,7 +93,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     commonExclusionReason:
       "Excluded from MFA policies because Azure VM RDP sign-in does not support interactive MFA prompts. " +
       "If MFA is required, users cannot complete the RDP login flow. Microsoft documents this as a known " +
-      "limitation — exclude this app from MFA CA policies and rely on VM-level controls (NSG, Bastion, JIT) instead.",
+      "limitation - exclude this app from MFA CA policies and rely on VM-level controls (NSG, Bastion, JIT) instead.",
     exclusionRisk: "medium",
   },
   // ─── Productivity & Office ─────────────────────────────────────────────────
@@ -101,7 +101,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     appId: "00000002-0000-0ff1-ce00-000000000000",
     displayName: "Office 365 Exchange Online",
     purpose:
-      "Exchange Online — email, calendars, and contacts. Used by Outlook, mobile mail apps, and third-party email clients.",
+      "Exchange Online - email, calendars, and contacts. Used by Outlook, mobile mail apps, and third-party email clients.",
     commonExclusionReason:
       "Excluded to allow legacy mail protocols (POP/IMAP) that don't support modern auth. Should use 'Block legacy auth' policy instead of excluding Exchange.",
     exclusionRisk: "high",
@@ -119,7 +119,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     appId: "cc15fd57-2c6c-4117-a88c-83b1d56b4bbe",
     displayName: "Microsoft Teams Services",
     purpose:
-      "Microsoft Teams — chat, meetings, calling, and collaboration. The hub for teamwork in Microsoft 365.",
+      "Microsoft Teams - chat, meetings, calling, and collaboration. The hub for teamwork in Microsoft 365.",
     commonExclusionReason:
       "Excluded to prevent MFA prompts during meetings or allow conference room devices. Consider using compliant device requirement instead.",
     exclusionRisk: "high",
@@ -131,7 +131,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Mobile device management (MDM) and mobile application management (MAM). Manages device compliance, app deployment, and configuration.",
     commonExclusionReason:
-      "Excluded to allow device enrollment before compliance can be evaluated. Without this exclusion, devices can't enroll because they're not yet compliant — a chicken-and-egg problem.",
+      "Excluded to allow device enrollment before compliance can be evaluated. Without this exclusion, devices can't enroll because they're not yet compliant - a chicken-and-egg problem.",
     exclusionRisk: "medium",
   },
   {
@@ -159,7 +159,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Microsoft Defender for Endpoint (MDE). Provides endpoint detection and response, threat hunting, and vulnerability management.",
     commonExclusionReason:
-      "Excluded to allow Defender agents to report telemetry without MFA. Generally low risk since it's machine-to-service communication, but verify it's the agent — not portal access.",
+      "Excluded to allow Defender agents to report telemetry without MFA. Generally low risk since it's machine-to-service communication, but verify it's the agent - not portal access.",
     exclusionRisk: "medium",
   },
   {
@@ -178,7 +178,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Azure Information Protection (AIP) and sensitivity labels. Encrypts and protects documents and emails using Rights Management. Powers the protection in Office apps, Outlook, and SharePoint.",
     commonExclusionReason:
-      "Excluded to prevent MFA prompts when opening encrypted documents or emails. When RMS is protected by MFA CA, every encrypted file/email triggers an MFA prompt, and messages are wrapped as rpmsg attachments — breaking the reading experience.",
+      "Excluded to prevent MFA prompts when opening encrypted documents or emails. When RMS is protected by MFA CA, every encrypted file/email triggers an MFA prompt, and messages are wrapped as rpmsg attachments - breaking the reading experience.",
     exclusionRisk: "low",
   },
   // ─── Approval & Workflows ─────────────────────────────────────────────────
@@ -186,7 +186,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     appId: "65d91a3d-ab74-42e6-8a2f-0add61688c74",
     displayName: "Microsoft Approval Management",
     purpose:
-      "Handles approval workflows across Microsoft 365 — including Teams Approvals, Power Automate approvals, and SharePoint content approvals.",
+      "Handles approval workflows across Microsoft 365 - including Teams Approvals, Power Automate approvals, and SharePoint content approvals.",
     commonExclusionReason:
       "Excluded to allow approval notifications and responses to flow without MFA interruption. Blocking this can prevent approval workflows from completing.",
     exclusionRisk: "low",
@@ -236,7 +236,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Azure PowerShell module. Used for Azure administration and automation with the broadest resource access of any non-FOCI app (649 resources).",
     commonExclusionReason:
-      "Excluded to allow PowerShell automation. Very high risk — this app can access 649 resources. Use service principal or managed identity for automation instead.",
+      "Excluded to allow PowerShell automation. Very high risk - this app can access 649 resources. Use service principal or managed identity for automation instead.",
     exclusionRisk: "critical",
   },
   {
@@ -254,7 +254,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "VS Code IDE. The Azure extensions authenticate using this app ID to access Azure resources, repos, and Copilot.",
     commonExclusionReason:
-      "Excluded to allow developers to use Azure extensions. Consider requiring MFA but allowing it — VS Code supports modern auth including MFA.",
+      "Excluded to allow developers to use Azure extensions. Consider requiring MFA but allowing it - VS Code supports modern auth including MFA.",
     exclusionRisk: "medium",
   },
   // ─── Sync & Hybrid Identity ───────────────────────────────────────────────
@@ -262,7 +262,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     appId: "cb1056e2-e479-49de-ae31-7812af012ed8",
     displayName: "Microsoft Azure Active Directory Connect",
     purpose:
-      "Entra Connect (formerly AAD Connect). Synchronizes on-premises Active Directory with Entra ID — users, groups, passwords, and device objects.",
+      "Entra Connect (formerly AAD Connect). Synchronizes on-premises Active Directory with Entra ID - users, groups, passwords, and device objects.",
     commonExclusionReason:
       "Excluded to allow the sync engine to operate. The sync service account must authenticate to Entra ID without interactive MFA. Use a dedicated service account with limited exclusion scope.",
     exclusionRisk: "medium",
@@ -274,7 +274,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Handles device registration and Entra ID join. Required for Workplace Join, Hybrid Entra ID Join, and Autopilot enrollment.",
     commonExclusionReason:
-      "Excluded to allow devices to register with Entra ID. Only MFA grant control works for this app — location-based CA and compliant device requirements are bypassed by design (MSRC VULN-153600).",
+      "Excluded to allow devices to register with Entra ID. Only MFA grant control works for this app - location-based CA and compliant device requirements are bypassed by design (MSRC VULN-153600).",
     exclusionRisk: "medium",
   },
   {
@@ -283,7 +283,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The broadest service principal in any tenant with access to 1,590 resources. Used internally by Windows for device management operations.",
     commonExclusionReason:
-      "Excluded for device management flows. Extremely high risk due to 1,590 resource access — this is the broadest app registration in any Microsoft tenant.",
+      "Excluded for device management flows. Extremely high risk due to 1,590 resource access - this is the broadest app registration in any Microsoft tenant.",
     exclusionRisk: "critical",
   },
   {
@@ -292,7 +292,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "Delivers lock screen images, tips, and suggestions on Windows devices. Contacts Microsoft services for personalized content.",
     commonExclusionReason:
-      "Excluded because the Windows lock screen makes background calls that fail with MFA. Low sensitivity — only fetches display content.",
+      "Excluded because the Windows lock screen makes background calls that fail with MFA. Low sensitivity - only fetches display content.",
     exclusionRisk: "low",
   },
   // ─── Security Copilot ─────────────────────────────────────────────────────
@@ -300,7 +300,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     appId: "826870f9-9fbb-4f23-81b8-3a957080dfa2",
     displayName: "Security Copilot",
     purpose:
-      "Microsoft Security Copilot. AI assistant for security operations — threat investigation, incident response, and KQL query generation.",
+      "Microsoft Security Copilot. AI assistant for security operations - threat investigation, incident response, and KQL query generation.",
     commonExclusionReason:
       "Excluded to allow SOC analysts to use Copilot without MFA interruptions during incident response. Consider allowing with compliant device requirement instead.",
     exclusionRisk: "high",
@@ -312,7 +312,7 @@ const APP_DESCRIPTIONS: AppDescription[] = [
     purpose:
       "The backend service for Entra ID device registration. Processes device join, registration, and Autopilot operations.",
     commonExclusionReason:
-      "Excluded because location-based CA and compliant device requirements don't work for this resource — only MFA can protect it (Microsoft confirmed by-design).",
+      "Excluded because location-based CA and compliant device requirements don't work for this resource - only MFA can protect it (Microsoft confirmed by-design).",
     exclusionRisk: "medium",
   },
 ];

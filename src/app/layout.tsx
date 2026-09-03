@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "Analyze Conditional Access policies for best practices, FOCI risks, and known bypasses.",
 };
 
-// Security meta tags — GitHub Pages does not allow custom HTTP response headers
+// Security meta tags - GitHub Pages does not allow custom HTTP response headers
 // (Fastly CDN, no server config access). These meta equivalents cover what is
 // possible: CSP restricts resource loading; referrer-policy limits referrer
 // leakage. X-Frame-Options, X-Content-Type-Options, Permissions-Policy, and
@@ -40,7 +40,7 @@ export default function RootLayout({
       <head>
         {/*
           Content-Security-Policy via meta tag.
-          GitHub Pages does not support custom HTTP headers — this is the only
+          GitHub Pages does not support custom HTTP headers - this is the only
           way to set a CSP on a static GitHub Pages deployment.
           Limitations: frame-ancestors and report-uri are ignored in meta CSPs.
 
@@ -66,7 +66,7 @@ export default function RootLayout({
             "form-action 'self'",
           ].join("; ")}
         />
-        {/* Referrer-Policy — do not send referrer to cross-origin requests */}
+        {/* Referrer-Policy - do not send referrer to cross-origin requests */}
         <meta name="referrer" content="strict-origin-when-cross-origin" />
       </head>
       <body

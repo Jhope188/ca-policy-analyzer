@@ -77,7 +77,7 @@ function scorePolicyMatch(
  apps.includeApplications.map((a) => a.toLowerCase())
  );
 
-// A policy targeting "All" apps is strictly broader — treat as satisfying any specific-app fingerprint,
+// A policy targeting "All" apps is strictly broader - treat as satisfying any specific-app fingerprint,
     // UNLESS the template is app-specific (requireSpecificApp) in which case the policy must
     // explicitly include the target app. This prevents broad tenant-wide policies from being
     // mistaken for narrowly-scoped app policies (e.g. SharePoint/O365-only templates).
@@ -137,7 +137,7 @@ function scorePolicyMatch(
 
  const grantOp = fingerprint.grantOperator ?? "AND";
  if (hasAuthStrength && templateOnlyRequiresAuthStrengthOrMfa) {
- // Auth strengths (built-in or custom) are a superset of MFA — full credit
+ // Auth strengths (built-in or custom) are a superset of MFA - full credit
  matchedWeight += 25;
  } else {
  // For matching, treat authenticationStrength in the policy as satisfying an
@@ -217,7 +217,7 @@ function scorePolicyMatch(
  (id) => ROLE_NAME_MAP[id] ?? id
  );
  differences.push(
- `Roles: missing ${missing.length} of ${templateRoles.size} admin roles — ${missingNames.join(", ")}`
+ `Roles: missing ${missing.length} of ${templateRoles.size} admin roles - ${missingNames.join(", ")}`
  );
  }
  } else {
@@ -225,7 +225,7 @@ function scorePolicyMatch(
  (id) => ROLE_NAME_MAP[id] ?? id
  );
  differences.push(
- `Roles: policy only includes ${policyRoles.size} of ${templateRoles.size} required admin roles — missing ${missingNames.join(", ")}`
+ `Roles: policy only includes ${policyRoles.size} of ${templateRoles.size} required admin roles - missing ${missingNames.join(", ")}`
  );
  }
  }
@@ -302,7 +302,7 @@ function scorePolicyMatch(
  if (fingerprint.agentIdRiskLevels && fingerprint.agentIdRiskLevels.length > 0) {
  totalWeight += 20;
  const policyAgentRiskStr = ((policy.conditions as Record<string, unknown>).agentIdRiskLevels as string | undefined ?? "").toLowerCase();
- // Split both sides — the API may return a comma-separated string ("medium,high")
+ // Split both sides - the API may return a comma-separated string ("medium,high")
  const policyAgentRisks = new Set(policyAgentRiskStr.split(",").map((s) => s.trim()).filter(Boolean));
  const templateRisk = new Set(fingerprint.agentIdRiskLevels.map((r) => r.toLowerCase()));
  const overlap = [...templateRisk].filter((r) => policyAgentRisks.has(r));
@@ -311,7 +311,7 @@ function scorePolicyMatch(
  if (overlap.length < templateRisk.size) {
  const missing = [...templateRisk].filter((r) => !policyAgentRisks.has(r));
  differences.push(
- `Agent risk: template requires [${[...templateRisk].join(", ")}], policy only covers [${[...policyAgentRisks].join(", ")}] — missing: ${missing.join(", ")}`
+ `Agent risk: template requires [${[...templateRisk].join(", ")}], policy only covers [${[...policyAgentRisks].join(", ")}] - missing: ${missing.join(", ")}`
  );
  }
  } else {
@@ -446,7 +446,26 @@ export function analyzeTemplates(
 
  const templates = customTemplates ?? POLICY_TEMPLATES;
 
- const matches: TemplateMatch[] = templates.map((template) => {
+  // Windows Azure AD (Azure AD Graph) baseline-scopes template: when tenant
+  // Conditional Access baseline enforcement already targets Azure AD Graph
+  // (00000002-0000-0000-c000-000000000000), this template is no longer a
+  // "recommended" gap to fill - the tenant is already covered. Downgrade its
+  // priority to "optional" so the UI badge and coverage weighting reflect
+  // that deploying it is nice-to-have, not a gap.
+  const WINDOWS_AZURE_AD_RESOURCE = "00000002-0000-0000-c000-000000000000";
+  const baselineEnforcedForAzureAd =
+    String(
+      context.conditionalAccessSettings?.advancedSettings?.baselineScopes?.resourceAppId ?? ""
+    ).toLowerCase() === WINDOWS_AZURE_AD_RESOURCE.toLowerCase();
+  const effectiveTemplates = baselineEnforcedForAzureAd
+    ? templates.map((t) =>
+        t.id === "baseline-mfa-windowsazuread-baseline-scopes"
+          ? { ...t, priority: "optional" as const }
+          : t
+      )
+    : templates;
+
+ const matches: TemplateMatch[] = effectiveTemplates.map((template) => {
  // License-aware: if the template requires a license the tenant doesn't have,
  // mark it not-applicable so it doesn't penalise the coverage score.
  if (
@@ -490,7 +509,7 @@ export function analyzeTemplates(
  );
  const bestAnyMatch = scored[0];
 
- // Determine status — prioritize active matches
+ // Determine status - prioritize active matches
  let status: MatchStatus = "missing";
  let confidence = 0;
  const gaps: string[] = [];
@@ -510,7 +529,7 @@ export function analyzeTemplates(
  "enabledForReportingButNotEnforced"
  ) {
  gaps.push(
- `Policy "${bestActiveMatch.policy.displayName}" is in report-only mode — switch to "On" to enforce`
+ `Policy "${bestActiveMatch.policy.displayName}" is in report-only mode - switch to "On" to enforce`
  );
  }
  } else if (bestAnyMatch && bestAnyMatch.similarity >= 70) {
@@ -520,13 +539,13 @@ export function analyzeTemplates(
 
  if (bestAnyMatch.policy.state === "disabled") {
  gaps.push(
- `Policy "${bestAnyMatch.policy.displayName}" matches at ${bestAnyMatch.similarity}% but is disabled — enable it to satisfy this template`
+ `Policy "${bestAnyMatch.policy.displayName}" matches at ${bestAnyMatch.similarity}% but is disabled - enable it to satisfy this template`
  );
  } else if (
  bestAnyMatch.policy.state === "enabledForReportingButNotEnforced"
  ) {
  gaps.push(
- `Policy "${bestAnyMatch.policy.displayName}" matches at ${bestAnyMatch.similarity}% but is report-only — switch to "On" to enforce`
+ `Policy "${bestAnyMatch.policy.displayName}" matches at ${bestAnyMatch.similarity}% but is report-only - switch to "On" to enforce`
  );
  }
  } else if (bestAnyMatch && bestAnyMatch.similarity >= 40) {
@@ -543,9 +562,9 @@ export function analyzeTemplates(
 
  for (const diff of bestDiffs) {
  if (diff.startsWith("Roles: missing")) {
- gaps.push(`Add the missing admin roles to your policy: ${diff.replace("Roles: missing ", "").split(" — ")[1] ?? diff}`);
+ gaps.push(`Add the missing admin roles to your policy: ${diff.replace("Roles: missing ", "").split(" - ")[1] ?? diff}`);
  } else if (diff.startsWith("Roles: policy only")) {
- gaps.push(`Add the required admin roles: ${diff.split(" — missing ")[1] ?? diff}`);
+ gaps.push(`Add the required admin roles: ${diff.split(" - missing ")[1] ?? diff}`);
  } else if (diff.startsWith("Users: template targets All Users")) {
  gaps.push("Change user targeting to 'All Users' instead of specific groups/roles");
  } else if (diff.startsWith("Users: template targets guest")) {
@@ -590,7 +609,7 @@ export function analyzeTemplates(
  };
  });
 
-// lewis-barry templates are a supplemental baseline view — excluded from scoring
+// lewis-barry templates are a supplemental baseline view - excluded from scoring
   const scoredMatches = matches.filter((m) => m.template.category !== "lewis-barry");
 
   const presentCount = scoredMatches.filter((m) => m.status === "present").length;

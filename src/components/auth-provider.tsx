@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MSAL Provider — wraps the app with MsalProvider for auth context.
+ * MSAL Provider - wraps the app with MsalProvider for auth context.
  * Must be rendered as a Client Component.
  */
 

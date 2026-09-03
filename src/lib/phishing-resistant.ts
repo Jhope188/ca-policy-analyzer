@@ -16,7 +16,7 @@
  *      baseline policy names the strength explicitly in the policy name).
  *   3. The strength resolves against `TenantContext.authStrengthPolicies` and
  *      its `allowedCombinations` contains at least one phishing-resistant
- *      authentication-method token. **This is the authoritative signal** —
+ *      authentication-method token. **This is the authoritative signal** -
  *      it correctly catches custom strengths whose displayName does not
  *      mention "phishing-resistant" but whose underlying methods ARE (e.g.
  *      "Modern MFA + TAP" → fido2, windowsHelloForBusiness,
@@ -59,7 +59,7 @@ export const PHISHING_RESISTANT_NAME_REGEX =
 
 /**
  * Resolve whether a CA policy enforces a phishing-resistant authentication
- * strength. Pass `context` whenever possible — without it, only the built-in
+ * strength. Pass `context` whenever possible - without it, only the built-in
  * id and displayName heuristics are available, so custom strengths whose
  * names don't mention phishing-resistance will be missed.
  */

@@ -343,7 +343,7 @@ function PolicyCard({ result, resolverMaps }: { result: PolicyResult; resolverMa
             />
           </div>
 
-          {/* Condition Details — roles resolved to friendly names */}
+          {/* Condition Details - roles resolved to friendly names */}
           {(() => {
             const u = policy.conditions.users;
             const rows: [string, string][] = [];
@@ -394,7 +394,7 @@ function PolicyCard({ result, resolverMaps }: { result: PolicyResult; resolverMa
             );
           })()}
 
-{/* Policy Findings — grouped by severity with dropdowns */}
+{/* Policy Findings - grouped by severity with dropdowns */}
             {findings.length > 0 && (
               <div className="mt-4 space-y-2">
                 <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
