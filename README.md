@@ -107,6 +107,15 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.17.0 - Missing Service Principals (September 2, 2026)
+
+- **New check: apps in your sign-in logs with no service principal.** Such an app isn't in the Conditional Access app picker, so it can be neither included nor excluded; only a policy targeting *All resources* reaches it. Discovery diffs `/beta/auditLogs/signInEventsAppSummary` against your service principals and shows the evidence from your own logs plus what Entra recorded in `appliedConditionalAccessPolicies` on that sign-in.
+- **Impact preview before you register anything** - which policies would hit the app once it exists, as will apply / may apply / will not apply, covering include/exclude by ID, the `Office365` suite, application filters on custom security attributes, client app types, user scoping and workload identities.
+- **Phantom exclusions** - a policy excluding an app that has no service principal. It protects nothing today and becomes live the moment the app is created.
+- **Generated PowerShell** - `Register-MissingServicePrincipals.ps1`, `-WhatIf`-first, with a `# BLOCKED BY` comment on any app an enabled block policy would catch.
+- **The scan is optional and its permission is incremental** - on by default, with a *Scan sign-in logs* switch that turns it off and is remembered per browser. Off means only the three base scopes are ever requested; `AuditLog.Read.All` needs admin consent and Entra ID P1, so asking for it up front would block the whole analysis in tenants that can't grant it.
+- **Step-by-step run progress and a completion panel** - the run shows its actual step list instead of one spinning label, and finishes on a summary of score, policies read, findings by severity and elapsed time.
+
 ### v1.16.5 - Baseline Enforcement Graph Check + Device Registration Template Fix (September 2, 2026)
 
 - **Tenant baseline scope enforcement is now read directly from Graph** - `GET /identity/conditionalAccess/settings` is fetched during tenant load and stored on `TenantContext.conditionalAccessSettings`. A new tenant-wide "Baseline Enforcement" finding reports whether `advancedSettings.baselineScopes.resourceAppId` is unset, disabled, targeting Windows Azure AD (Azure AD Graph), or a custom app.
@@ -252,6 +261,7 @@ CA Policy Analyzer connects to your Entra ID tenant via Microsoft Graph and:
 6. **Visualizes each policy** showing the flow: Users → Conditions → Apps → Grant Controls
 7. **Detects Microsoft-managed CA policies** — identifies Microsoft-managed policies in your tenant (legacy auth block, device code flow block, admin MFA, etc.) and flags potential overlap with custom policies
 8. **Surfaces active advisories** — CIS controls display relevant M365 Message Center and MS Learn advisories including the approved client app retirement (March 2026), legacy ID Protection risk policy retirement (October 2026), SPO OTP → Entra B2B migration, and Baseline Security Mode policy drafts
+9. **Finds enterprise apps outside every policy** - diffs your sign-in logs against your service principals. An app with no service principal isn't in the CA app picker, so it can be neither included nor excluded ([Microsoft docs](https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps#microsoft-admin-portals)). Shows the impact of registering it and generates the PowerShell to do so
 
 ## Security Posture Scoring
 
@@ -370,6 +380,8 @@ The app has nine tabs accessible after running an analysis:
 | **Zero Trust Scorecard** | 15 weighted signals across Verify Explicitly / Use Least Privilege / Assume Breach — rolled up from existing analyzer + persona-coverage evidence (no extra Graph calls) |
 | **Baseline Drift** | Diff against a loaded Zero Trust baseline (Kenneth / Joey / custom GitHub) — categorizes every difference into Missing / Drift / Tenant-only with concrete configuration deltas |
 | **Tenant-Wide Gaps** | Missing MFA-for-all (report-only aware), no legacy auth block, no break-glass accounts |
+| **Missing Service Principals** | Apps in your sign-in logs with no service principal. Without one they aren't in the CA app picker, so they can be neither included nor excluded - only *All resources* reaches them. Shows the evidence from your own logs, which policies would apply once registered, and a PowerShell script to register them |
+| **Phantom Exclusions** | Policies excluding an app by ID that has no service principal. The exclusion protects nothing today and silently becomes live if the app is ever created |
 
 ## CIS Benchmark Controls (v7.0.0)
 
@@ -583,13 +595,23 @@ The **Export JSON** button downloads the full analysis. The JSON follows this st
 
 The app requests these Microsoft Graph **delegated** permissions when you sign in:
 
-| Permission | Why |
-|---|---|
-| `Policy.Read.All` | Read Conditional Access policies |
-| `Application.Read.All` | Resolve service principal names referenced in policies |
-| `Directory.Read.All` | Resolve groups, roles, and users referenced in policies |
+| Permission | Required? | Why |
+|---|---|---|
+| `Policy.Read.All` | Always | Read Conditional Access policies |
+| `Application.Read.All` | Always | Resolve service principal names referenced in policies |
+| `Directory.Read.All` | Always | Resolve groups, roles, and users referenced in policies |
+| `AuditLog.Read.All` | Only with the sign-in log scan | Read sign-in logs to find enterprise apps that have no service principal |
 
-All three permissions require **admin consent** — regular users cannot self-consent.
+All are read-only, and all require **admin consent** — regular users cannot self-consent.
+
+> **The sign-in log scan is optional.** It is on by default, and the *Scan sign-in logs*
+> switch on the connect and Run Analysis screens turns it off. With it off, the app only
+> ever asks for the three base scopes and skips the heaviest step of the run; the
+> *Missing Service Principals* category then reports itself as not scanned. The preference
+> is remembered per browser.
+>
+> `AuditLog.Read.All` also requires **Entra ID P1 or higher** (sign-in logs are a P1
+> feature), so in tenants without P1 there is nothing to gain by leaving the scan on.
 
 #### Admin Consent
 

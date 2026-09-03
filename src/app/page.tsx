@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { loadTenantContext, TenantContext } from "@/lib/graph-client";
-import { analyzeAllPolicies, AnalysisResult, calculateCompositeScore, CompositeScoreResult } from "@/lib/analyzer";
+import { analyzeAllPolicies, AnalysisResult, calculateCompositeScore, CompositeScoreResult, withExtraFindings } from "@/lib/analyzer";
 import { analyzeTemplates, TemplateAnalysisResult } from "@/lib/template-matcher";
 import { fetchGitHubTemplates, fetchLayeredGitHubTemplates } from "@/lib/github-templates";
 import { runCISAlignment, CISAlignmentResult } from "@/data/cis-benchmarks";
@@ -17,19 +17,45 @@ import { LocationsView } from "@/components/locations-view";
 import { PersonaView } from "@/components/persona-view";
 import { analyzeNamedLocations, LocationAnalysisResult } from "@/lib/location-analyzer";
 import { analyzePersonaCoverage, PersonaCoverageResult } from "@/lib/persona-coverage";
+import { analyzeSignInAppGap } from "@/lib/signin-app-gap";
 import { buildZeroTrustScorecard, ZeroTrustScorecard } from "@/lib/zero-trust-scorecard";
 import { analyzeBaselineGaps, BaselineGapResult } from "@/lib/baseline-gap";
 import { TemplateCategory } from "@/data/policy-templates";
 import { BaselineGapView } from "@/components/baseline-gap-view";
 import { exportToExcel, exportToPowerPoint, loadDefaultLogo } from "@/lib/export-utils";
 import { buildTenantContextFromOfflineExport, OfflineExportPayload } from "@/lib/offline-import";
-import { loginRequest } from "@/lib/msal-config";
-import { Shield, Loader2, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation, MapPin, Users, GitCompareArrows } from "lucide-react";
+import { scopesFor } from "@/lib/msal-config";
+import { RUN_STEPS, liveStepList, offlineStepList } from "@/lib/run-steps";
+import { RunProgress } from "@/components/run-progress";
+import { ScanComplete } from "@/components/scan-complete";
+import { Shield, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation, MapPin, Users, GitCompareArrows, ScanSearch } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "baseline" | "cis" | "locations" | "personas" | "ms-learn";
 const MAX_OFFLINE_IMPORT_BYTES = 20 * 1024 * 1024; // 20MB
+
+const SIGNIN_SCAN_KEY = "includeSignInLogs";
+
+interface RunPlan {
+  steps: string[];
+  note?: string;
+}
+
+const COMPLETION_HOLD_MS = 3200;
+
+/** Never 0s - a run that fast still took a moment worth naming. */
+function elapsedSeconds(startedAt: number): number {
+  return Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+}
+
+interface Completion {
+  steps: number;
+  seconds: number;
+  /** First run: panel takes over full-screen. Re-scan: renders as a card, so
+   * the results view isn't yanked away for three seconds. */
+  takeover: boolean;
+}
 
 export default function Home() {
   const isAuthenticated = useIsAuthenticated();
@@ -51,6 +77,26 @@ export default function Home() {
   const [hideMicrosoft, setHideMicrosoft] = useState(false);
   const [baselineCategory, setBaselineCategory] = useState<TemplateCategory | null>(null);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
+  const [includeSignInLogs, setIncludeSignInLogs] = useState(true);
+  const [runPlan, setRunPlan] = useState<RunPlan | null>(null);
+  const [completion, setCompletion] = useState<Completion | null>(null);
+
+  useEffect(() => {
+    if (!completion) return;
+    const timer = setTimeout(() => setCompletion(null), COMPLETION_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [completion]);
+
+  // Client only: this page is statically exported, so there is no localStorage
+  // while it prerenders.
+  useEffect(() => {
+    setIncludeSignInLogs(localStorage.getItem(SIGNIN_SCAN_KEY) !== "false");
+  }, []);
+
+  const toggleSignInLogs = useCallback((next: boolean) => {
+    setIncludeSignInLogs(next);
+    localStorage.setItem(SIGNIN_SCAN_KEY, String(next));
+  }, []);
 
   const setAppMode = useCallback((mode: "offline" | "live" | null) => {
     if (mode === null) {
@@ -68,18 +114,17 @@ export default function Home() {
   const executeAnalysis = useCallback(async (ctx: TenantContext) => {
     setContext(ctx);
 
-    setProgress("Analyzing policies…");
+    setProgress(RUN_STEPS.analyzePolicies);
     const analysisResult = analyzeAllPolicies(ctx);
     setResult(analysisResult);
 
-    setProgress("Matching against policy templates…");
+    setProgress(RUN_STEPS.templates);
     let activeTemplates = analyzeTemplates(ctx);
     setTemplateResult(activeTemplates);
 
-    // Restore custom repo from previous session if saved
+    // Stays inside the template step - it is template work.
     const savedRepoUrl = localStorage.getItem("customRepoUrl");
     if (savedRepoUrl) {
-      setProgress("Restoring custom repo templates…");
       // Saved value is either a plain URL string (legacy) or a JSON
       // `{ url, fallbackUrl }` payload for layered baselines.
       let parsedUrl = savedRepoUrl;
@@ -105,37 +150,31 @@ export default function Home() {
       }
     }
 
-    setProgress("Running CIS alignment checks…");
+    // One step from here on: local computation, so finer labels only flicker.
+    setProgress(RUN_STEPS.posture);
     const cis = runCISAlignment(ctx);
     setCisResult(cis);
 
-    setProgress("Analyzing named locations…");
     const locResult = analyzeNamedLocations(ctx);
     setLocationResult(locResult);
 
-    setProgress("Scoring persona × control coverage…");
     const persona = analyzePersonaCoverage(ctx);
     setPersonaResult(persona);
-    // Merge persona-coverage findings into the main findings list so they
-    // surface in the Findings tab and exports without double-counting.
-    if (persona.findings.length > 0) {
-      const merged: AnalysisResult = {
-        ...analysisResult,
-        findings: [...analysisResult.findings, ...persona.findings],
-      };
-      setResult(merged);
-    }
 
-    setProgress("Computing security posture score…");
-    const composite = calculateCompositeScore(analysisResult, cis, activeTemplates);
+    const signInGap = analyzeSignInAppGap(ctx, activeTemplates);
+
+    // withExtraFindings re-derives summary and score, so the dashboard,
+    // completion panel and export can't disagree with the Findings tab.
+    const mergedResult = withExtraFindings(ctx, analysisResult, [
+      ...persona.findings,
+      ...signInGap.findings,
+    ]);
+    if (mergedResult !== analysisResult) setResult(mergedResult);
+
+    const composite = calculateCompositeScore(mergedResult, cis, activeTemplates);
     setCompositeScore(composite);
 
-    setProgress("Scoring against Zero Trust pillars…");
-    const mergedForScorecard: AnalysisResult =
-      persona.findings.length > 0
-        ? { ...analysisResult, findings: [...analysisResult.findings, ...persona.findings] }
-        : analysisResult;
-    const zt = buildZeroTrustScorecard(ctx, mergedForScorecard, persona);
+    const zt = buildZeroTrustScorecard(ctx, mergedResult, persona);
     setScorecard(zt);
 
     setActiveTab("dashboard");
@@ -179,15 +218,31 @@ export default function Home() {
     localStorage.removeItem("customRepoUrl");
   }, [context]);
 
-  const runAnalysis = useCallback(async () => {
+  /** Explicit, so "Re-scan with sign-in logs" can override the saved
+   * preference for a single run. */
+  const runAnalysis = useCallback(async (withSignInLogs: boolean) => {
     if (!accounts[0]) return;
+    const steps = liveStepList(withSignInLogs);
+    const startedAt = Date.now();
     setLoading(true);
     setError(null);
+    setCompletion(null);
+    setRunPlan({
+      steps,
+      note: withSignInLogs ? undefined : "sign-in log scan skipped",
+    });
 
     try {
       setAppMode("live");
-      const ctx = await loadTenantContext(instance, accounts[0], setProgress);
+      const ctx = await loadTenantContext(instance, accounts[0], setProgress, {
+        includeSignInLogs: withSignInLogs,
+      });
       await executeAnalysis(ctx);
+      setCompletion({
+        steps: steps.length,
+        seconds: elapsedSeconds(startedAt),
+        takeover: result === null,
+      });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error occurred";
       setError(msg);
@@ -195,22 +250,28 @@ export default function Home() {
     } finally {
       setLoading(false);
       setProgress("");
+      setRunPlan(null);
     }
-  }, [instance, accounts, executeAnalysis, setAppMode]);
+  }, [instance, accounts, executeAnalysis, setAppMode, result]);
 
   const handleLogin = useCallback(() => {
     setAppMode("live");
-    instance.loginRedirect(loginRequest).catch((e) => {
+    // Turning the scan on later triggers incremental consent from the auth
+    // provider.
+    instance.loginRedirect({ scopes: scopesFor(includeSignInLogs) }).catch((e) => {
       console.error("Login failed:", e);
     });
-  }, [instance, setAppMode]);
+  }, [instance, setAppMode, includeSignInLogs]);
 
   const handleOfflineImport = useCallback(async (file: File) => {
+    const startedAt = Date.now();
     setLoading(true);
     setError(null);
+    setCompletion(null);
+    setRunPlan({ steps: offlineStepList });
 
     try {
-      setProgress("Parsing offline export…");
+      setProgress(RUN_STEPS.parseOffline);
       if (file.size > MAX_OFFLINE_IMPORT_BYTES) {
         throw new Error(
           `Offline export is too large (${Math.round(file.size / (1024 * 1024))}MB). Max supported size is 20MB.`
@@ -234,6 +295,11 @@ export default function Home() {
       }
       setAppMode("offline");
       await executeAnalysis(ctx);
+      setCompletion({
+        steps: offlineStepList.length,
+        seconds: elapsedSeconds(startedAt),
+        takeover: result === null,
+      });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to import offline export";
       setError(msg);
@@ -241,8 +307,9 @@ export default function Home() {
     } finally {
       setLoading(false);
       setProgress("");
+      setRunPlan(null);
     }
-  }, [executeAnalysis, setAppMode]);
+  }, [executeAnalysis, setAppMode, result]);
 
   const exportResults = useCallback(() => {
     if (!result) return;
@@ -257,6 +324,22 @@ export default function Home() {
     a.click();
     URL.revokeObjectURL(url);
   }, [result, compositeScore]);
+
+  const completionPanel =
+    completion && result ? (
+      <ScanComplete
+        summary={result.tenantSummary}
+        score={compositeScore?.overall ?? result.overallScore}
+        grade={compositeScore?.grade}
+        steps={completion.steps}
+        seconds={completion.seconds}
+        signInScanRan={!!context?.unregisteredSignInApps}
+        onRescanWithSignInLogs={
+          isAuthenticated ? () => void runAnalysis(true) : null
+        }
+        onDismiss={() => setCompletion(null)}
+      />
+    ) : null;
 
   // ── Not Authenticated and no offline result yet ──────────────────────
   if (!isAuthenticated && !result) {
@@ -325,21 +408,46 @@ export default function Home() {
             </p>
             <p className="mt-2 text-xs text-gray-600">
               Requires <code className="text-gray-400">Policy.Read.All</code>,{" "}
-              <code className="text-gray-400">Application.Read.All</code>, and{" "}
-              <code className="text-gray-400">Directory.Read.All</code>.
+              <code className="text-gray-400">Application.Read.All</code> and{" "}
+              <code className="text-gray-400">Directory.Read.All</code>
+              {includeSignInLogs && (
+                <>
+                  , plus <code className="text-gray-400">AuditLog.Read.All</code> for the
+                  sign-in log scan
+                </>
+              )}
+              . All read-only.
             </p>
-            <p className="mt-4 text-xs text-gray-500">
-              Choose this when you want real-time tenant reads via Graph.
-            </p>
+
+            <SignInScanToggle
+              className="mt-4"
+              checked={includeSignInLogs}
+              onChange={toggleSignInLogs}
+            />
+
             <button
               onClick={handleLogin}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-gray-800 px-3 py-2 text-sm font-medium text-white hover:bg-gray-700"
             >
               <Play className="h-4 w-4" />
               Connect Tenant
+              <span className="text-xs text-gray-500">
+                ({includeSignInLogs ? 4 : 3} permissions)
+              </span>
             </button>
           </div>
         </div>
+
+        {loading && runPlan && (
+          <div className="mt-10 flex justify-center">
+            <RunProgress steps={runPlan.steps} current={progress} note={runPlan.note} />
+          </div>
+        )}
+        {error && (
+          <div className="mt-8 max-w-md rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-left text-sm text-red-400">
+            {error}
+          </div>
+        )}
       </div>
     );
   }
@@ -367,28 +475,49 @@ export default function Home() {
           </div>
         )}
 
-        <button
-          onClick={runAnalysis}
-          disabled={loading}
-          className={cn(
-            "flex items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold transition-colors",
-            loading
-              ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-              : "bg-blue-600 text-white hover:bg-blue-500"
-          )}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {progress || "Loading…"}
-            </>
-          ) : (
-            <>
+        {loading && runPlan ? (
+          <div className="flex justify-center">
+            <RunProgress steps={runPlan.steps} current={progress} note={runPlan.note} />
+          </div>
+        ) : (
+          <>
+            <SignInScanToggle
+              checked={includeSignInLogs}
+              onChange={toggleSignInLogs}
+            />
+
+            <p className="mt-3 text-xs text-gray-500">
+              {includeSignInLogs
+                ? "Run time: slower - the sign-in log scan is the heaviest step"
+                : "Run time: fastest - no audit log queries"}
+            </p>
+
+            <button
+              onClick={() => runAnalysis(includeSignInLogs)}
+              className="mt-5 flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+            >
               <Play className="h-4 w-4" />
-              Run Analysis
-            </>
-          )}
-        </button>
+              {includeSignInLogs ? "Run Analysis with sign-in logs" : "Run Analysis"}
+            </button>
+
+            {includeSignInLogs && (
+              <p className="mt-3 max-w-md text-xs text-gray-600">
+                If this session has not granted{" "}
+                <code className="text-gray-500">AuditLog.Read.All</code> yet, Microsoft asks
+                for consent once before the scan starts.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // ── Run just finished, first result ──────────────────────────────────
+  if (completionPanel && completion?.takeover) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24">
+        {completionPanel}
       </div>
     );
   }
@@ -461,7 +590,7 @@ export default function Home() {
         {/* Action buttons - icon-only on mobile */}
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={runAnalysis}
+            onClick={() => runAnalysis(includeSignInLogs)}
             disabled={loading}
             title="Re-scan"
             className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
@@ -469,6 +598,19 @@ export default function Home() {
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
             <span className="hidden sm:inline">Re-scan</span>
           </button>
+          {/* Only when the scan didn't run - otherwise plain Re-scan already is
+              the full run and this would be a second button doing the same. */}
+          {isAuthenticated && !context?.unregisteredSignInApps && (
+            <button
+              onClick={() => runAnalysis(true)}
+              disabled={loading}
+              title="Re-scan with sign-in logs (requests AuditLog.Read.All)"
+              className="flex items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-2 text-sm text-gray-300 hover:bg-gray-800 transition-colors sm:px-3"
+            >
+              <ScanSearch className="h-4 w-4" />
+              <span className="hidden sm:inline">Re-scan with sign-in logs</span>
+            </button>
+          )}
           <button
             onClick={exportResults}
             title="Export JSON"
@@ -514,13 +656,36 @@ export default function Home() {
         </div>
       </div>
 
+      {loading && runPlan && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-5">
+          <RunProgress steps={runPlan.steps} current={progress} note={runPlan.note} />
+        </div>
+      )}
+
+      {!loading && completionPanel && (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-8">
+          {completionPanel}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
+          {error}
+        </div>
+      )}
+
       {/* Tab Content */}
       {activeTab === "dashboard" && <Dashboard result={result} compositeScore={compositeScore} licenses={context?.licenses} scorecard={scorecard} />}
       {activeTab === "policies" && (
         <PolicyList results={result.policyResults} hideMicrosoft={hideMicrosoft} onToggleHideMicrosoft={setHideMicrosoft} resolverMaps={context ? { directoryObjects: context.directoryObjects, servicePrincipals: context.servicePrincipals } : undefined} />
       )}
       {activeTab === "findings" && (
-        <FindingsList findings={result.findings} title="All Findings" />
+        <FindingsList
+          findings={result.findings}
+          title="All Findings"
+          tenantDisplayName={tenantName}
+          tenantId={tenantId}
+        />
       )}
       {activeTab === "templates" && templateResult && (
         <TemplatesView result={templateResult} customRepoDisplay={customRepoDisplay} onLoadGitHub={handleLoadGitHub} onResetTemplates={handleResetTemplates} categoryFilter={baselineCategory} onCategoryFilterChange={setBaselineCategory} />
@@ -542,5 +707,66 @@ export default function Home() {
         <ExclusionsView findings={result.exclusionFindings} />
       )}
     </div>
+  );
+}
+
+// Shown before connecting (decides which scopes consent covers) and before
+// running (decides whether the scan happens).
+function SignInScanToggle({
+  checked,
+  onChange,
+  className,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "flex w-full max-w-lg items-start gap-3 rounded-xl border p-4 text-left transition-colors",
+        checked
+          ? "border-blue-500/40 bg-blue-500/5"
+          : "border-gray-800 bg-gray-900 hover:border-gray-700",
+        className
+      )}
+    >
+      <span
+        className={cn(
+          "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors",
+          checked ? "bg-blue-600" : "bg-gray-700"
+        )}
+      >
+        <span
+          className={cn(
+            "absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+            checked && "translate-x-4"
+          )}
+        />
+      </span>
+      <span>
+        <span
+          className={cn(
+            "flex flex-wrap items-center gap-2 text-sm font-medium",
+            checked ? "text-white" : "text-gray-300"
+          )}
+        >
+          Scan sign-in logs
+          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+            slower
+          </span>
+        </span>
+        <span className="mt-1 block text-xs text-gray-500">
+          Finds enterprise apps that sign in but have no service principal - those
+          sit outside every Conditional Access policy, so they never show up as a
+          gap. Needs <code className="text-gray-400">AuditLog.Read.All</code> (admin
+          consent) and Entra ID P1.
+        </span>
+      </span>
+    </button>
   );
 }

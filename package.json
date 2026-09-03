@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check": "npx tsx scripts/check-policy-app-impact.ts && npx tsx scripts/check-findings-render.tsx && npx tsx scripts/check-links.ts && npx tsx scripts/check-auth-url.ts && npx tsx scripts/check-run-steps.ts && npx tsx scripts/check-scan-complete.tsx"
   },
   "dependencies": {
     "@azure/msal-browser": "^5.3.0",

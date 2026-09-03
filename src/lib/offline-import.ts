@@ -6,6 +6,11 @@ import {
   ServicePrincipal,
   TenantContext,
   TenantLicenses,
+  UnregisteredSignInApp,
+  UnregisteredSignInAppsResult,
+  SignInEventType,
+  SIGNIN_EVENT_TYPE_LABELS,
+  buildSignInLogQueryUrl,
   inferLicensesFromPolicies,
 } from "./graph-client";
 
@@ -23,6 +28,10 @@ export interface OfflineExportPayload {
   authStrengthPolicies?: unknown[];
   licenses?: Partial<TenantLicenses>;
   subscribedSkus?: unknown[];
+  /** Absent in exports predating the sign-in block - the analyzer then reports
+   * the check as unavailable rather than silently showing nothing. */
+  signInApps?: unknown[];
+  signInAppsTruncated?: boolean;
 }
 
 function asArray(value: unknown): unknown[] {
@@ -375,6 +384,115 @@ function inferLicensesFromSubscribedSkus(skus: unknown[]): TenantLicenses {
   };
 }
 
+/** Accepts the raw Graph value or its "Seen in" label. Unknown input returns
+ * undefined, leaving the query unqualified rather than guessing "interactive". */
+function resolveSignInEventType(value?: string): SignInEventType | undefined {
+  if (!value) return undefined;
+  const known: Record<string, SignInEventType> = {
+    interactiveuser: "interactiveUser",
+    interactive: "interactiveUser",
+    noninteractiveuser: "nonInteractiveUser",
+    noninteractive: "nonInteractiveUser",
+    serviceprincipal: "servicePrincipal",
+    managedidentity: "managedIdentity",
+  };
+  return known[value.replace(/[\s-]/g, "").toLowerCase()];
+}
+
+/**
+ * Liberal about field names - a hand-rolled export may return the raw Graph
+ * property (`id`, `createdDateTime`) rather than ours. The service-principal
+ * diff is redone here regardless of whether the export did it, so an export
+ * dumping every app still yields the right list.
+ */
+function normalizeSignInApps(
+  raw: unknown[],
+  servicePrincipals: Map<string, ServicePrincipal>,
+  truncated: boolean
+): UnregisteredSignInAppsResult | undefined {
+  const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, ".000Z");
+
+  const apps: UnregisteredSignInApp[] = [];
+  let evidenceCapped = 0;
+
+  for (const entry of raw) {
+    const record = toRecord(entry);
+    const appId = typeof record.appId === "string" ? record.appId : "";
+    if (!appId || appId === "00000000-0000-0000-0000-000000000000") continue;
+    if (servicePrincipals.has(appId.toLowerCase())) continue;
+
+    const str = (...keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === "string" && value.length > 0) return value;
+      }
+      return undefined;
+    };
+
+    const lastSeen = str("lastSeen", "createdDateTime", "firstSignInDateTime");
+    if (!lastSeen) evidenceCapped += 1;
+
+    const appliedRaw = record.appliedPolicies ?? record.appliedConditionalAccessPolicies;
+    const appliedPolicies = Array.isArray(appliedRaw)
+      ? appliedRaw.map((p) => {
+          const policy = toRecord(p);
+          return {
+            id: typeof policy.id === "string" ? policy.id : "",
+            displayName:
+              typeof policy.displayName === "string"
+                ? policy.displayName
+                : "(unnamed policy)",
+            result: typeof policy.result === "string" ? policy.result : "unknown",
+            enforcedGrantControls: asStringArray(policy.enforcedGrantControls),
+            enforcedSessionControls: asStringArray(policy.enforcedSessionControls),
+            conditionsSatisfied:
+              typeof policy.conditionsSatisfied === "string"
+                ? policy.conditionsSatisfied
+                : undefined,
+            conditionsNotSatisfied:
+              typeof policy.conditionsNotSatisfied === "string"
+                ? policy.conditionsNotSatisfied
+                : undefined,
+          };
+        })
+      : undefined;
+
+    const userPrincipalName = str("userPrincipalName", "userDisplayName");
+    const seenIn = str("seenIn");
+    const eventType = resolveSignInEventType(str("signInEventType") ?? seenIn);
+
+    apps.push({
+      appId,
+      signInCount:
+        typeof record.signInCount === "number" ? record.signInCount : 0,
+      displayName: str("displayName", "appDisplayName"),
+      seenIn: seenIn ?? (eventType ? SIGNIN_EVENT_TYPE_LABELS[eventType] : undefined),
+      lastSeen,
+      requestId: str("requestId", "id"),
+      userPrincipalName,
+      ipAddress: str("ipAddress"),
+      clientAppUsed: str("clientAppUsed"),
+      resourceDisplayName: str("resourceDisplayName"),
+      conditionalAccessStatus: str("conditionalAccessStatus"),
+      appliedPolicies: appliedPolicies?.length ? appliedPolicies : undefined,
+      isWorkloadIdentity:
+        eventType === "servicePrincipal" ||
+        eventType === "managedIdentity" ||
+        (Boolean(lastSeen) && !userPrincipalName),
+      signInEventType: eventType,
+      logQueryUrl:
+        str("logQueryUrl") ?? buildSignInLogQueryUrl(appId, windowStart, eventType),
+    });
+  }
+
+  // An empty result is a valid scan outcome. Only a missing `signInApps`
+  // property means "not scanned", and the caller already handles that.
+  apps.sort((a, b) => b.signInCount - a.signInCount);
+  return { apps, truncated, evidenceCapped, windowStart };
+}
+
 export function buildTenantContextFromOfflineExport(
   payload: OfflineExportPayload
 ): TenantContext {
@@ -429,6 +547,15 @@ export function buildTenantContextFromOfflineExport(
       ? inferLicensesFromSubscribedSkus(unwrapCollection(normalized.subscribedSkus))
       : inferLicensesFromPolicies(policies);
 
+  const signInAppsRaw = normalized.signInApps;
+  const unregisteredSignInApps = Array.isArray(signInAppsRaw)
+    ? normalizeSignInApps(
+        unwrapCollection(signInAppsRaw),
+        servicePrincipals,
+        Boolean(normalized.signInAppsTruncated)
+      )
+    : undefined;
+
   return {
     tenantDisplayName,
     tenantId,
@@ -438,5 +565,6 @@ export function buildTenantContextFromOfflineExport(
     directoryObjects,
     licenses,
     authStrengthPolicies,
+    unregisteredSignInApps,
   };
 }

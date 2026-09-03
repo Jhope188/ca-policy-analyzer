@@ -62,16 +62,39 @@ export const graphScopes = {
   applicationRead: "Application.Read.All",
   /** Read directory objects (groups, roles, users referenced in policies) */
   directoryRead: "Directory.Read.All",
+  /** Read sign-in logs, to find apps with no service principal */
+  auditLogRead: "AuditLog.Read.All",
 };
 
-export const loginRequest: RedirectRequest = {
-  scopes: [
-    graphScopes.policyRead,
-    graphScopes.applicationRead,
-    graphScopes.directoryRead,
-  ],
-};
+/**
+ * AuditLog.Read.All is deliberately absent: it needs admin consent and Entra ID
+ * P1, so asking up front blocks the whole analysis in tenants that can't grant
+ * it. Requested incrementally when the scan is switched on.
+ */
+const baseScopes = [
+  graphScopes.policyRead,
+  graphScopes.applicationRead,
+  graphScopes.directoryRead,
+];
+
+export function scopesFor(includeSignInLogs: boolean): string[] {
+  return includeSignInLogs ? [...baseScopes, graphScopes.auditLogRead] : [...baseScopes];
+}
+
+export const loginRequest: RedirectRequest = { scopes: [...baseScopes] };
 
 export const graphTokenRequest = {
   scopes: ["https://graph.microsoft.com/.default"],
 };
+
+/**
+ * A response MSAL didn't consume makes its `isInPopup()` preflight true, after
+ * which every `acquireTokenSilent` fails with `block_nested_popups` for the
+ * session. Both hash and query - MSAL supports a hybrid response format.
+ */
+export function hasAuthResponseInUrl(hash: string, search: string): boolean {
+  const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
+  if (hashParams.has("state")) return true;
+  const queryParams = new URLSearchParams(search.replace(/^\?/, ""));
+  return queryParams.has("state");
+}
