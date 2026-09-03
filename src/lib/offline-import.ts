@@ -487,8 +487,8 @@ function normalizeSignInApps(
     });
   }
 
-  if (apps.length === 0 && raw.length === 0) return undefined;
-
+  // An empty result is a valid scan outcome. Only a missing `signInApps`
+  // property means "not scanned", and the caller already handles that.
   apps.sort((a, b) => b.signInCount - a.signInCount);
   return { apps, truncated, evidenceCapped, windowStart };
 }

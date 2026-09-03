@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { loadTenantContext, TenantContext } from "@/lib/graph-client";
-import { analyzeAllPolicies, AnalysisResult, calculateCompositeScore, CompositeScoreResult } from "@/lib/analyzer";
+import { analyzeAllPolicies, AnalysisResult, calculateCompositeScore, CompositeScoreResult, withExtraFindings } from "@/lib/analyzer";
 import { analyzeTemplates, TemplateAnalysisResult } from "@/lib/template-matcher";
 import { fetchGitHubTemplates, fetchLayeredGitHubTemplates } from "@/lib/github-templates";
 import { runCISAlignment, CISAlignmentResult } from "@/data/cis-benchmarks";
@@ -170,18 +170,16 @@ export default function Home() {
 
     const signInGap = analyzeSignInAppGap(ctx, activeTemplates);
 
-    // Merge into the main list so they surface in the Findings tab and exports
-    const extraFindings = [...persona.findings, ...signInGap.findings];
-    const mergedResult: AnalysisResult =
-      extraFindings.length > 0
-        ? {
-            ...analysisResult,
-            findings: [...analysisResult.findings, ...extraFindings],
-          }
-        : analysisResult;
-    if (extraFindings.length > 0) setResult(mergedResult);
+    // Merge into the main list so they surface in the Findings tab and exports.
+    // withExtraFindings re-derives the summary and score, so the dashboard,
+    // completion panel and export can't disagree with the Findings tab.
+    const mergedResult = withExtraFindings(ctx, analysisResult, [
+      ...persona.findings,
+      ...signInGap.findings,
+    ]);
+    if (mergedResult !== analysisResult) setResult(mergedResult);
 
-    const composite = calculateCompositeScore(analysisResult, cis, activeTemplates);
+    const composite = calculateCompositeScore(mergedResult, cis, activeTemplates);
     setCompositeScore(composite);
 
     const zt = buildZeroTrustScorecard(ctx, mergedResult, persona);

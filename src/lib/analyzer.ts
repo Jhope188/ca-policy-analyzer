@@ -3383,6 +3383,28 @@ function buildSummary(context: TenantContext, findings: Finding[]): TenantSummar
   };
 }
 
+/**
+ * Merge tenant-wide findings in and re-derive the summary and score from the
+ * result. Without this the Findings tab shows them but every severity count,
+ * the overall score and the composite score's configuration component are all
+ * computed from the pre-merge list.
+ */
+export function withExtraFindings(
+  context: TenantContext,
+  analysis: AnalysisResult,
+  extra: Finding[]
+): AnalysisResult {
+  if (extra.length === 0) return analysis;
+  const findings = [...analysis.findings, ...extra];
+  const tenantSummary = buildSummary(context, findings);
+  return {
+    ...analysis,
+    findings,
+    tenantSummary,
+    overallScore: calculateScore(tenantSummary),
+  };
+}
+
 function calculateScore(summary: TenantSummary): number {
   let score = 100;
   score -= summary.criticalFindings * 15;

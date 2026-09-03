@@ -72,7 +72,7 @@ const CATEGORY_META: Record<string, { icon: React.ElementType; color: string }> 
   "Identity Protection": { icon: ShieldAlert, color: "text-red-400" },
   "Application Coverage": { icon: ShieldAlert, color: "text-red-400" },
   "Low-Privilege Scope Enforcement": { icon: AlertTriangle, color: "text-yellow-400" },
-  "Found missing service principals that bypasses your security gate": { icon: PlugZap, color: "text-red-400" },
+  "Missing Service Principals": { icon: PlugZap, color: "text-red-400" },
 };
 
 // ─── Deduplicated finding group ─────────────────────────────────────────────

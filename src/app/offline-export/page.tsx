@@ -143,7 +143,7 @@ $export | ConvertTo-Json -Depth 25 | Out-File ".\\ca-offline-export.json" -Encod
           and Entra ID P1 or higher. It makes one small request per unregistered
           app, so on a large tenant this is the slowest part of the export. An
           export created before this block existed still imports fine - the
-          &quot;Found missing service principals that bypasses your security gate&quot; category simply
+          &quot;Missing Service Principals&quot; category simply
           reports itself as unavailable.
         </p>
       </div>

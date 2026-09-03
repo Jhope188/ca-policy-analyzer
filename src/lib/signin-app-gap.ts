@@ -18,8 +18,7 @@ import { CA_BYPASS_APPS, WELL_KNOWN_APP_MAP } from "@/data/ca-bypass-database";
 import { getFociApp, getFociFamily } from "@/data/foci-families";
 import { getFirstPartyAppName } from "@/data/first-party-apps";
 
-export const SIGNIN_APP_GAP_CATEGORY =
-  "Found missing service principals that bypasses your security gate";
+export const SIGNIN_APP_GAP_CATEGORY = "Missing Service Principals";
 
 export interface SignInAppGapSummary {
   total: number;
