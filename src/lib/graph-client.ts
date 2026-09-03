@@ -124,9 +124,8 @@ export interface DirectoryObject {
 }
 
 /**
- * One CA policy as the sign-in log recorded it - Entra's own verdict, not our
- * prediction. `conditionsNotSatisfied` containing "application" is the bypass,
- * evidenced.
+ * As the sign-in log recorded it - Entra's verdict, not our prediction.
+ * `conditionsNotSatisfied` containing "application" is the bypass, evidenced.
  */
 export interface AppliedCaPolicy {
   id: string;
@@ -140,7 +139,6 @@ export interface AppliedCaPolicy {
   conditionsNotSatisfied?: string;
 }
 
-/** An app in the sign-in logs with no service principal in the tenant. */
 export interface UnregisteredSignInApp {
   appId: string;
   signInCount: number;
@@ -163,7 +161,7 @@ export interface UnregisteredSignInAppsResult {
   apps: UnregisteredSignInApp[];
   /** Hit the endpoint's 1000-row ceiling - the list may be incomplete. */
   truncated: boolean;
-  /** Apps beyond the enrichment cap: listed, but without an evidence row. */
+  /** Beyond the enrichment cap: listed, but without an evidence row. */
   evidenceCapped: number;
   windowStart: string;
 }
@@ -354,7 +352,7 @@ export async function fetchAuthenticationStrengthPolicies(
 
 // ─── Unregistered Sign-In Apps ───────────────────────────────────────────────
 
-/** The all-zero GUID stands for "unknown app" in the sign-in logs. */
+/** All-zero GUID means "unknown app" in the sign-in logs. */
 const NULL_GUID = "00000000-0000-0000-0000-000000000000";
 
 /** signInEventsAppSummary tops out at 1000 rows and covers a fixed 30 days. */
@@ -384,7 +382,7 @@ export const SIGNIN_EVENT_TYPE_LABELS: Record<SignInEventType, string> = {
   managedIdentity: "Managed identity",
 };
 
-/** Interactive first: cheapest and most common, and needs no filter clause. */
+/** Interactive first: most common, and needs no filter clause. */
 const EVIDENCE_PROBE_ORDER: SignInEventType[] = [
   "interactiveUser",
   "nonInteractiveUser",
@@ -423,11 +421,9 @@ export function buildSignInLogQueryUrl(
 }
 
 /**
- * Captured from a live page - Microsoft documents no deep link, and a fragment
- * can't be verified automatically because the part after `#` never reaches the
- * server, so a wrong blade looks fine from the outside. `SignInEventsV3.ReactView`
- * and `ActiveDirectoryMenuBlade/~/SignIns` both fail to resolve on this host.
- * scripts/check-links.ts pins this.
+ * Captured from a live page; Microsoft documents no deep link. A fragment never
+ * reaches the server, so a wrong blade looks fine from the outside - hence
+ * scripts/check-links.ts pins this one.
  */
 export const ENTRA_SIGNIN_LOGS_URL =
   "https://entra.microsoft.com/#view/Microsoft_AAD_IAM/SignInLogsList.ReactView" +
@@ -515,7 +511,7 @@ async function fetchAppEvidence(
         logQueryUrl: buildSignInLogQueryUrl(appId, windowStart, eventType),
       };
     } catch {
-      // Not fatal - the app still gets listed, without evidence
+      // Not fatal - the app is still listed, without evidence
     }
   }
 
@@ -855,8 +851,7 @@ export async function loadTenantContext(
     // expose this preview endpoint - degrade gracefully to null.
   }
 
-  // Skipped when the caller turned the scan off: it is the heaviest step of the
-  // run and the only one needing AuditLog.Read.All. Everything downstream
+  // The heaviest step, and the only one needing AuditLog.Read.All. Downstream
   // already treats an absent result as "not scanned".
   let unregisteredSignInApps: UnregisteredSignInAppsResult | undefined;
   if (includeSignInLogs) {

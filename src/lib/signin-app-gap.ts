@@ -1,9 +1,5 @@
-/**
- * Turns the apps discovered in the sign-in logs that have no service principal
- * into findings plus a PowerShell script to register them.
- *
- * Pure and synchronous - every Graph call already happened during context load.
- */
+// Discovered apps -> findings + a PowerShell script to register them. Pure and
+// synchronous; every Graph call already happened during context load.
 
 import { TenantContext, UnregisteredSignInApp } from "./graph-client";
 import { DiscoveredAppDetail, Finding, Severity } from "./analyzer";
@@ -58,7 +54,6 @@ function nextGapFindingId(): string {
 
 // ─── Name resolution ─────────────────────────────────────────────────────────
 
-/** Graph can't name these apps - there is no service principal to read from. */
 function resolveDisplayName(app: UnregisteredSignInApp): string {
   if (app.displayName) return app.displayName;
   const id = app.appId.toLowerCase();

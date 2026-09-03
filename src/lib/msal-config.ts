@@ -67,10 +67,9 @@ export const graphScopes = {
 };
 
 /**
- * Everything except the sign-in log scan runs on these three. AuditLog.Read.All
- * is deliberately not in here: it needs admin consent and Entra ID P1, so
- * asking for it up front blocks the whole analysis in tenants that can't grant
- * it. It is requested incrementally when the scan is switched on.
+ * AuditLog.Read.All is deliberately absent: it needs admin consent and Entra ID
+ * P1, so asking up front blocks the whole analysis in tenants that can't grant
+ * it. Requested incrementally when the scan is switched on.
  */
 const baseScopes = [
   graphScopes.policyRead,
@@ -89,10 +88,9 @@ export const graphTokenRequest = {
 };
 
 /**
- * True when the URL still carries an MSAL auth response. One MSAL didn't consume
- * makes its `isInPopup()` preflight true, after which every
- * `acquireTokenSilent` fails with `block_nested_popups` for the whole session.
- * Both hash and query - MSAL supports a hybrid response format.
+ * A response MSAL didn't consume makes its `isInPopup()` preflight true, after
+ * which every `acquireTokenSilent` fails with `block_nested_popups` for the
+ * session. Both hash and query - MSAL supports a hybrid response format.
  */
 export function hasAuthResponseInUrl(hash: string, search: string): boolean {
   const hashParams = new URLSearchParams(hash.replace(/^#/, ""));

@@ -1,9 +1,5 @@
 /**
- * The run-progress and scan-complete panels, rendered. Covers what typecheck
- * cannot: that the wording matches the numbers, that the tone follows the
- * result instead of congratulating a broken tenant, and that the progress list
- * carries no per-step annotations.
- *
+ * The run-progress and scan-complete panels, rendered.
  * Run: npx tsx scripts/check-scan-complete.tsx
  */
 
@@ -15,8 +11,7 @@ import { ScanComplete } from "../src/components/scan-complete";
 import { liveStepList } from "../src/lib/run-steps";
 import type { TenantSummary } from "../src/lib/analyzer";
 
-/** renderToString inserts `<!-- -->` between adjacent nodes; normalize so
- * assertions match the text a user reads. */
+/** renderToString splits adjacent nodes with `<!-- -->`. */
 function text(node: React.ReactElement): string {
   return renderToString(node)
     .replace(/<!--\s*-->/g, "")

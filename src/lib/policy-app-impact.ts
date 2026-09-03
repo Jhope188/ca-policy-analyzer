@@ -1,13 +1,7 @@
-/**
- * Which Conditional Access policies would hit an app once its service principal
- * exists? An app with no service principal isn't in the CA app picker, so it can
- * be neither included nor excluded - only "All resources" reaches it.
- * learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps
- *
- * The verdict is three-valued on purpose: whether a policy fires also depends on
- * the signing-in user, device, platform, location and risk, none of which follow
- * from an appId.
- */
+// Which policies would hit an app once its service principal exists. Verdict is
+// three-valued because firing also depends on user, device, platform, location
+// and risk, none of which follow from an appId.
+// learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-cloud-apps
 
 import { ConditionalAccessPolicy, TenantContext } from "./graph-client";
 
@@ -27,18 +21,16 @@ export interface PolicyAppImpact {
   policyName: string;
   state: ConditionalAccessPolicy["state"];
   verdict: ImpactVerdict;
-  /** Why this verdict - most decisive reason first. */
+  /** Most decisive reason first. */
   reasons: string[];
-  /** Conditions that must also match at sign-in time; not verdict-changing. */
+  /** Must also match at sign-in time; not verdict-changing. */
   gatedBy: string[];
   blocks: boolean;
-  /** Policy excludes this app by ID - but the app doesn't exist to exclude. */
   phantomExclusion: boolean;
 }
 
 // ─── Client app types ────────────────────────────────────────────────────────
 
-/** Entra sign-in log `clientAppUsed` → CA `clientAppTypes` enum member. */
 const CLIENT_APP_USED_TO_TYPE: Record<string, string> = {
   "browser": "browser",
   "mobile apps and desktop clients": "mobileAppsAndDesktopClients",
@@ -94,7 +86,6 @@ function describeUserTargets(
   return `${label}: ${names.join(", ")}${rest}`;
 }
 
-/** Conditions we cannot evaluate from an appId - they must also match at sign-in. */
 function collectGates(
   policy: ConditionalAccessPolicy,
   context: TenantContext
@@ -153,7 +144,7 @@ function collectGates(
 
 // ─── Main evaluator ──────────────────────────────────────────────────────────
 
-/** Evaluate one policy against one app. The first decisive rule wins. */
+/** First decisive rule wins. */
 export function evaluatePolicyImpact(
   policy: ConditionalAccessPolicy,
   app: ObservedAppSignIn,
@@ -182,7 +173,6 @@ export function evaluatePolicyImpact(
     ...extra,
   });
 
-  // In Graph these are mutually exclusive with applications, so this is safe.
   if ((apps.includeUserActions?.length ?? 0) > 0) {
     return notApplied(
       `Policy targets the user action "${apps.includeUserActions.join(", ")}", not a cloud app.`
@@ -344,7 +334,6 @@ export function evaluateAppImpact(
   return context.policies.map((p) => evaluatePolicyImpact(p, app, context));
 }
 
-/** An enabled block policy that would definitely apply is the dangerous case. */
 export function wouldBlock(impact: PolicyAppImpact): boolean {
   return impact.state === "enabled" && impact.blocks && impact.verdict === "willApply";
 }

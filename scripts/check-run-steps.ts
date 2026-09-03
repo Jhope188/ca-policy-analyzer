@@ -1,9 +1,6 @@
 /**
- * The optional sign-in log scan. Two things have to stay in sync or the UI
- * lies: the scope set consent asks for, and the step list the progress panel
- * renders. A regression here means either a step that never completes, or
- * AuditLog.Read.All being requested for a run that never uses it.
- *
+ * The scope set and the step list must agree, or the UI shows a step that never
+ * completes - or asks for AuditLog.Read.All on a run that never uses it.
  * Run: npx tsx scripts/check-run-steps.ts
  */
 

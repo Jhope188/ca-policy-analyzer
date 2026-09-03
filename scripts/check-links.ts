@@ -30,7 +30,6 @@ const checks: Array<[string, () => void]> = [
       const u = new URL(interactive);
       assert.equal(u.protocol, "https:");
       assert.equal(u.host, "developer.microsoft.com");
-      // No hardcoded locale - that would force English on every visitor
       assert.equal(u.pathname, "/graph/graph-explorer");
     },
   ],
@@ -56,7 +55,7 @@ const checks: Array<[string, () => void]> = [
       );
       assert.ok(request.includes(`createdDateTime ge ${WINDOW_START}`));
       assert.ok(request.includes("$top=50"));
-      // A single decode must be enough - double-encoding was a real bug here
+      // Double-encoding was a real bug here
       assert.ok(!request.includes("%27"), "app ID quotes must not be double-encoded");
       assert.ok(!request.includes("%24"), "$ must not be double-encoded");
     },
@@ -93,9 +92,8 @@ const checks: Array<[string, () => void]> = [
     () => {
       const req = (url: string) => new URL(url).searchParams.get("request")!;
       assert.ok(!req(interactive).includes("signInEventTypes"));
-      // An unknown event type must behave the same rather than guess a type.
-      // This is the link used for apps that got no evidence row, and asserting
-      // "interactive" there is what made those links return an empty result.
+      // Used for apps with no evidence row; asserting "interactive" there is
+      // what made those links come back empty.
       assert.equal(req(unqualified), req(interactive));
     },
   ],
@@ -104,9 +102,8 @@ const checks: Array<[string, () => void]> = [
     () => {
       const u = new URL(ENTRA_SIGNIN_LOGS_URL);
       assert.equal(u.host, "entra.microsoft.com");
-      // Three blades were tried before this one landed. A fragment can never be
-      // verified automatically - the part after # is not sent to the server —
-      // so pin the one captured from a live page and fail loudly on a swap.
+      // A fragment is never sent to the server, so it can't be verified
+      // automatically. Pin the live-captured blade and fail loudly on a swap.
       assert.ok(u.hash.startsWith("#view/Microsoft_AAD_IAM/SignInLogsList.ReactView"));
       assert.ok(u.hash.includes("showApplicationSignIns~/true"));
 
@@ -116,7 +113,7 @@ const checks: Array<[string, () => void]> = [
           `${dead} does not resolve and must not come back`
         );
       }
-      // No portal preview flags: the link must not change the reader's session
+      // The link must not change the reader's portal session
       assert.equal(u.search, "", "no feature.* query flags");
 
       const source = fs.readFileSync(
@@ -125,7 +122,6 @@ const checks: Array<[string, () => void]> = [
       );
       assert.ok(!source.includes("SignInEventsV3"));
       assert.ok(!source.includes("portal.azure.com"));
-      // Kept as fallback wording for anyone who navigates instead of clicking
       assert.ok(ENTRA_SIGNIN_LOGS_PATH.includes("Sign-in logs"));
     },
   ],
@@ -148,13 +144,11 @@ async function probeHosts(): Promise<number> {
   let networkFailures = 0;
   for (const url of [
     "https://developer.microsoft.com/graph/graph-explorer",
-    // Only the origin is probeable; the fragment is client-side
     new URL(ENTRA_SIGNIN_LOGS_URL).origin,
   ]) {
     try {
       const res = await fetch(url, { redirect: "follow" });
-      // entra.microsoft.com answers 403 to an unauthenticated fetch - that is
-      // the host responding, which is all this can establish.
+      // A 403 is the host responding, which is all this can establish
       const ok = res.status < 500;
       console.log(`  ${ok ? "ok  " : "FAIL"} ${url} -> ${res.status}`);
       if (!ok) networkFailures += 1;

@@ -1,9 +1,5 @@
 /**
- * The "missing service principals" finding end to end: offline export JSON ->
- * TenantContext -> findings -> rendered HTML. Covers what typecheck cannot —
- * that the analyzer's numbers and the rendered UI agree, and that a long list
- * folds instead of dumping every row.
- *
+ * Offline export JSON -> context -> findings -> rendered HTML.
  * Run: npx tsx scripts/check-findings-render.tsx
  */
 
@@ -34,8 +30,7 @@ import {
   type Finding,
 } from "../src/lib/analyzer";
 
-/** renderToString inserts `<!-- -->` between adjacent nodes and escapes
- * quotes; normalize both so assertions match the text a user reads. */
+/** renderToString splits adjacent nodes with `<!-- -->` and escapes quotes. */
 function text(html: string): string {
   return html
     .replace(/<!--\s*-->/g, "")
@@ -74,7 +69,6 @@ const blockHtml = renderToString(
 );
 const blockText = text(blockHtml);
 
-// 30 apps, to exercise the row fold
 const manyApps: DiscoveredAppDetail[] = Array.from({ length: 30 }, (_, i) => ({
   ...gap.apps[i % gap.apps.length],
   appId: `aaaaaaaa-0000-0000-0000-${String(i).padStart(12, "0")}`,
@@ -106,7 +100,6 @@ const checks: Array<[string, () => void]> = [
       const byName = Object.fromEntries(gap.apps.map((a) => [a.displayName, a]));
       assert.equal(byName["Microsoft Azure CLI"].severity, "critical");
       assert.equal(byName["Microsoft Office"].severity, "critical");
-      // Signs in as a service principal, so user-scoped policies never reach it
       assert.equal(byName["Unknown app"].severity, "info");
       assert.equal(byName["Unknown app"].isWorkloadIdentity, true);
       assert.equal(byName["Unknown app"].seenIn, "Service principal");
@@ -119,7 +112,6 @@ const checks: Array<[string, () => void]> = [
         gap.apps.find((a) => a.appId.startsWith("99999999"))?.displayName,
         "Unknown app"
       );
-      // Resolved from the first-party name list, not from Graph
       assert.equal(
         gap.apps.find((a) => a.appId.startsWith("d3590ed6"))?.displayName,
         "Microsoft Office"
@@ -164,7 +156,6 @@ const checks: Array<[string, () => void]> = [
       assert.match(blockText, /1 could be blocked/);
       assert.equal(gap.summary.stillUncovered, 1);
       assert.match(blockText, /1 still unreached/);
-      // Only blocks are shown; an enforced control breaks nobody
       assert.ok(!blockText.includes("controls enforced"));
     },
   ],
@@ -210,7 +201,6 @@ const checks: Array<[string, () => void]> = [
         words(finding.recommendation) < 30,
         `recommendation is ${words(finding.recommendation)} words`
       );
-      // "create in waves" belongs next to the buttons, not the finding text
       for (const text of [finding.description, finding.recommendation]) {
         assert.ok(!/in waves/.test(text));
         assert.ok(!/report-only first/.test(text));
@@ -225,12 +215,10 @@ const checks: Array<[string, () => void]> = [
       assert.ok(!script.includes("$blockedAppIds"));
       assert.ok(!blockText.includes("IncludeBlocked"));
 
-      // No silent partial run
       const entries = script.match(/^\s+@\{ AppId = .*$/gm) ?? [];
       assert.equal(entries.length, gap.apps.length);
       assert.ok(!/continue\s*$/m.test(script.split("foreach")[0] ?? ""));
 
-      // …and the blocked one is flagged where you would delete it
       const blockedEntry = entries.find((e) => e.includes("Azure CLI"));
       assert.match(blockedEntry ?? "", /# BLOCKED BY: Fixture - Block legacy auth/);
       assert.equal(
@@ -246,13 +234,11 @@ const checks: Array<[string, () => void]> = [
     () => {
       const byName = Object.fromEntries(gap.apps.map((a) => [a.displayName, a]));
 
-      // Azure CLI: one enabled block policy plus an applying MFA policy
       const cli = blockingPolicies(byName["Microsoft Azure CLI"].predictedImpact);
       assert.equal(cli.length, 1);
       assert.equal(cli[0].policyName, "Fixture - Block legacy auth");
       assert.ok(cli[0].blocks);
 
-      // Microsoft Office: two applying MFA policies, no block
       assert.equal(
         blockingPolicies(byName["Microsoft Office"].predictedImpact).length,
         0
@@ -264,7 +250,6 @@ const checks: Array<[string, () => void]> = [
         "…yet policies do apply - proving the filter is by blocking, not by applying"
       );
 
-      // Report-only and disabled policies never count as blocking
       for (const app of gap.apps) {
         for (const i of blockingPolicies(app.predictedImpact)) {
           assert.equal(i.state, "enabled");
@@ -281,9 +266,7 @@ const checks: Array<[string, () => void]> = [
       const observed = summarizeObserved(cli.observedPolicies);
       assert.ok(observed);
       assert.equal(observed.total, 1);
-      // The fixture's row is notApplied because of the application condition
       assert.equal(observed.outsideTargetResources, 1);
-      // …and notApplied rows are not rendered individually
       assert.equal(observed.applied.length, 0);
       assert.equal(summarizeObserved(undefined), null);
       assert.equal(summarizeObserved([]), null);
@@ -319,12 +302,10 @@ const checks: Array<[string, () => void]> = [
         );
       const byName = Object.fromEntries(gap.apps.map((a) => [a.displayName, a]));
 
-      // Interactive is the endpoint default, so no clause is correct
       assert.ok(
         !request(byName["Microsoft Azure CLI"]).includes("signInEventTypes")
       );
-      // A service-principal sign-in is invisible without its clause - an
-      // unqualified query returns an empty result for this app
+      // Without its clause the query returns an empty result for this app
       assert.ok(
         request(byName["Unknown app"]).includes(
           "signInEventTypes/any(t: t eq 'servicePrincipal')"
@@ -356,7 +337,6 @@ const checks: Array<[string, () => void]> = [
           /^\s+@\{ AppId = '[^']+'; Name = '.*' \}(   # BLOCKED BY: .+)?$/
         );
       }
-      // Block safety lives in a trailing comment, so the array stays complete
       assert.match(script, /# BLOCKED BY: /);
     },
   ],
@@ -387,8 +367,7 @@ const checks: Array<[string, () => void]> = [
   [
     "generated script carries no author or organization attribution",
     () => {
-      // Match the pattern ("Created by:"), not the bare words - "409 - created
-      // by a parallel run" is a legitimate code comment.
+      // The pattern, not bare words: "409 - created by a parallel run" is code
       const attribution = /^\s*#?\s*(created by|author|organization|company)\s*:/im;
       const match = script.match(attribution);
       assert.equal(
@@ -402,8 +381,7 @@ const checks: Array<[string, () => void]> = [
   [
     "an empty signInApps export means scanned-and-clean, not unavailable",
     () => {
-      // Regression: normalizeSignInApps used to return undefined for an empty
-      // array, so a tenant with nothing to fix was told the scan never ran.
+      // Regression: an empty array used to read as "never scanned"
       const clean = buildTenantContextFromOfflineExport({
         ...payload,
         signInApps: [],
@@ -415,7 +393,6 @@ const checks: Array<[string, () => void]> = [
       assert.equal(cleanGap.scanUnavailable, false);
       assert.ok(!cleanGap.findings.some((f) => /not available/i.test(f.title)));
 
-      // A missing property still reports unavailable.
       const rest = { ...payload };
       delete (rest as { signInApps?: unknown }).signInApps;
       const absent = buildTenantContextFromOfflineExport(rest);
@@ -426,8 +403,7 @@ const checks: Array<[string, () => void]> = [
   [
     "merging tenant-wide findings re-derives the summary and score",
     () => {
-      // Regression: the Findings tab counted merged findings but the summary,
-      // overall score and composite score were all built pre-merge.
+      // Regression: summary and scores were built from the pre-merge list
       const base = analyzeAllPolicies(ctx);
       const extra: Finding[] = [
         {
@@ -451,7 +427,6 @@ const checks: Array<[string, () => void]> = [
       assert.equal(merged.tenantSummary.totalFindings, merged.findings.length);
       assert.ok(merged.overallScore <= base.overallScore);
 
-      // No extras is a no-op, returning the same object.
       assert.equal(withExtraFindings(ctx, base, []), base);
     },
   ],

@@ -1,18 +1,10 @@
 "use client";
 
-/**
- * Step-by-step progress for an analysis run. Replaces the single progress line
- * that used to sit inside the Run Analysis button - a long run is a lot easier
- * to wait through when you can see which step is holding it up.
- */
-
 import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RunProgressProps {
-  /** Ordered labels for this run, from liveStepList() or offlineStepList. */
   steps: string[];
-  /** The label currently being worked on. */
   current: string;
   /** Optional line under the bar, e.g. which step was skipped and why. */
   note?: string;
@@ -20,8 +12,8 @@ interface RunProgressProps {
 
 export function RunProgress({ steps, current, note }: RunProgressProps) {
   const activeIndex = steps.indexOf(current);
-  // A label that isn't in the list would otherwise render as "nothing running".
-  // ponytail: show it as its own trailing line rather than reconciling lists.
+  // ponytail: an unlisted label gets its own trailing line rather than us
+  // reconciling the two lists.
   const unlisted = current !== "" && activeIndex === -1;
   const done = activeIndex < 0 ? 0 : activeIndex;
   const percent = Math.round((done / steps.length) * 100);

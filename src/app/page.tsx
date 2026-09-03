@@ -35,19 +35,16 @@ import { cn } from "@/lib/utils";
 type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "baseline" | "cis" | "locations" | "personas" | "ms-learn";
 const MAX_OFFLINE_IMPORT_BYTES = 20 * 1024 * 1024; // 20MB
 
-/** Opt-out, not opt-in: the scan runs unless the user turns it off. */
 const SIGNIN_SCAN_KEY = "includeSignInLogs";
 
-/** The steps this run will walk through, plus an optional footnote. */
 interface RunPlan {
   steps: string[];
   note?: string;
 }
 
-/** How long the completion panel holds before the dashboard takes over. */
 const COMPLETION_HOLD_MS = 3200;
 
-/** Never reports 0s - a run that fast still took a moment worth naming. */
+/** Never 0s - a run that fast still took a moment worth naming. */
 function elapsedSeconds(startedAt: number): number {
   return Math.max(1, Math.round((Date.now() - startedAt) / 1000));
 }
@@ -55,9 +52,8 @@ function elapsedSeconds(startedAt: number): number {
 interface Completion {
   steps: number;
   seconds: number;
-  /** True for a first run, where the panel replaces the centered progress it
-   * followed. A re-scan renders it in place of the progress card instead, so
-   * the results view doesn't get yanked away for three seconds. */
+  /** First run: panel takes over full-screen. Re-scan: renders as a card, so
+   * the results view isn't yanked away for three seconds. */
   takeover: boolean;
 }
 
@@ -85,15 +81,14 @@ export default function Home() {
   const [runPlan, setRunPlan] = useState<RunPlan | null>(null);
   const [completion, setCompletion] = useState<Completion | null>(null);
 
-  // Auto-advance: the panel marks the moment, it doesn't ask to be dismissed.
   useEffect(() => {
     if (!completion) return;
     const timer = setTimeout(() => setCompletion(null), COMPLETION_HOLD_MS);
     return () => clearTimeout(timer);
   }, [completion]);
 
-  // Read on the client only - this page is statically exported, so localStorage
-  // isn't available while it prerenders.
+  // Client only: this page is statically exported, so there is no localStorage
+  // while it prerenders.
   useEffect(() => {
     setIncludeSignInLogs(localStorage.getItem(SIGNIN_SCAN_KEY) !== "false");
   }, []);
@@ -127,8 +122,7 @@ export default function Home() {
     let activeTemplates = analyzeTemplates(ctx);
     setTemplateResult(activeTemplates);
 
-    // Restore custom repo from previous session if saved. Stays inside the
-    // template step - it is template work, and it only happens for some users.
+    // Stays inside the template step - it is template work.
     const savedRepoUrl = localStorage.getItem("customRepoUrl");
     if (savedRepoUrl) {
       // Saved value is either a plain URL string (legacy) or a JSON
@@ -156,8 +150,7 @@ export default function Home() {
       }
     }
 
-    // One step from here on: all of it is local computation over data that is
-    // already in hand, so splitting it further only makes labels flicker.
+    // One step from here on: local computation, so finer labels only flicker.
     setProgress(RUN_STEPS.posture);
     const cis = runCISAlignment(ctx);
     setCisResult(cis);
@@ -170,8 +163,7 @@ export default function Home() {
 
     const signInGap = analyzeSignInAppGap(ctx, activeTemplates);
 
-    // Merge into the main list so they surface in the Findings tab and exports.
-    // withExtraFindings re-derives the summary and score, so the dashboard,
+    // withExtraFindings re-derives summary and score, so the dashboard,
     // completion panel and export can't disagree with the Findings tab.
     const mergedResult = withExtraFindings(ctx, analysisResult, [
       ...persona.findings,
@@ -226,8 +218,8 @@ export default function Home() {
     localStorage.removeItem("customRepoUrl");
   }, [context]);
 
-  /** `withSignInLogs` is explicit so "Re-scan with sign-in logs" can override
-   * the saved preference for a single run. */
+  /** Explicit, so "Re-scan with sign-in logs" can override the saved
+   * preference for a single run. */
   const runAnalysis = useCallback(async (withSignInLogs: boolean) => {
     if (!accounts[0]) return;
     const steps = liveStepList(withSignInLogs);
@@ -264,8 +256,8 @@ export default function Home() {
 
   const handleLogin = useCallback(() => {
     setAppMode("live");
-    // Consent covers the scan only when it is switched on. Turning it on later
-    // triggers an incremental consent redirect from the Graph auth provider.
+    // Turning the scan on later triggers incremental consent from the auth
+    // provider.
     instance.loginRedirect({ scopes: scopesFor(includeSignInLogs) }).catch((e) => {
       console.error("Login failed:", e);
     });
@@ -333,8 +325,6 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }, [result, compositeScore]);
 
-  // Built once, rendered either full-screen (first run) or as a card in the
-  // results view (re-scan).
   const completionPanel =
     completion && result ? (
       <ScanComplete
@@ -524,8 +514,6 @@ export default function Home() {
   }
 
   // ── Run just finished, first result ──────────────────────────────────
-  // Full-screen, following the centered progress it replaces. Re-scans get the
-  // card version further down instead.
   if (completionPanel && completion?.takeover) {
     return (
       <div className="flex flex-col items-center justify-center py-24">
@@ -668,14 +656,12 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Re-scan in progress - same step list as the first run */}
       {loading && runPlan && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-5">
           <RunProgress steps={runPlan.steps} current={progress} note={runPlan.note} />
         </div>
       )}
 
-      {/* Re-scan finished - same panel, in the slot the progress just left */}
       {!loading && completionPanel && (
         <div className="rounded-xl border border-gray-800 bg-gray-900 px-5 py-8">
           {completionPanel}
@@ -724,11 +710,8 @@ export default function Home() {
   );
 }
 
-/**
- * The one control for the sign-in log scan. Shown before connecting (it decides
- * which scopes consent covers) and before running (it decides whether the scan
- * happens at all).
- */
+// Shown before connecting (decides which scopes consent covers) and before
+// running (decides whether the scan happens).
 function SignInScanToggle({
   checked,
   onChange,

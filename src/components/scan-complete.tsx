@@ -1,14 +1,7 @@
 "use client";
 
-/**
- * The moment a run finishes. Holds for a couple of seconds, then page.tsx drops
- * it and the dashboard takes over - so nothing has to be dismissed on a
- * re-scan.
- *
- * It marks finishing the scan, not the tenant's score: with critical findings
- * open, the accent goes amber and the wording stays flat. Congratulating
- * someone on a broken tenant is worse than saying nothing.
- */
+// Marks finishing the scan, not the tenant's score: with critical findings open
+// the accent goes amber and the wording stays flat.
 
 import { TenantSummary } from "@/lib/analyzer";
 import { ScoreRing, StatCard } from "./ui-primitives";
@@ -25,13 +18,10 @@ import { cn } from "@/lib/utils";
 interface ScanCompleteProps {
   summary: TenantSummary;
   score: number;
-  /** Letter grade from the composite score. Absent for offline imports. */
+  /** Absent for offline imports. */
   grade?: string;
-  /** How many steps this run walked through. */
   steps: number;
-  /** Wall-clock duration of the run, in seconds. */
   seconds: number;
-  /** False when the sign-in log scan did not run. */
   signInScanRan: boolean;
   /** Null hides the offer - an offline import has no live tenant to scan. */
   onRescanWithSignInLogs: (() => void) | null;
@@ -72,8 +62,8 @@ export function ScanComplete({
         {steps} steps complete
       </span>
 
-      {/* ponytail: ScoreRing renders at its final value - the arc doesn't sweep
-          in. Add an `animate` prop there if the reveal ever needs more. */}
+      {/* ponytail: ScoreRing renders at its final value; add an `animate` prop
+          there if the reveal ever needs the arc to sweep in. */}
       <div className="rk-rise mt-5" style={{ animationDelay: "80ms" }}>
         <ScoreRing score={score} size={132} />
       </div>

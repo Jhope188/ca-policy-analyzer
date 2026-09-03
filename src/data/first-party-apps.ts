@@ -1,9 +1,5 @@
-/**
- * appId → display name, so a GUID with no service principal is never shown
- * without a label. Last-resort fallback: `app-descriptions.ts`,
- * `ca-bypass-database.ts` and `foci-families.ts` are richer and checked first.
- * Name-only by design - risk and rationale live in `app-descriptions.ts`.
- */
+// Last-resort name lookup, so a GUID with no service principal is never shown
+// bare. app-descriptions / ca-bypass-database / foci-families are checked first.
 
 const MICROSOFT_FIRST_PARTY_APPS: Record<string, string> = {
   // ─── Identity, directory & API ─────────────────────────────────────────────
@@ -101,7 +97,7 @@ const MICROSOFT_FIRST_PARTY_APPS: Record<string, string> = {
   "aebc6443-996d-45c2-90f0-388ff96faa56": "Visual Studio Code",
 };
 
-/** Keys above are lowercase; sign-in logs are inconsistent about GUID casing. */
+/** Keys are lowercase; sign-in logs are inconsistent about GUID casing. */
 export function getFirstPartyAppName(appId: string): string | undefined {
   return MICROSOFT_FIRST_PARTY_APPS[appId.toLowerCase()];
 }
