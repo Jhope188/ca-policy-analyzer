@@ -434,19 +434,22 @@ export const ENTRA_SIGNIN_LOGS_URL =
 export const ENTRA_SIGNIN_LOGS_PATH =
   "Entra ID > Monitoring & health > Sign-in logs";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeAppliedPolicies(raw: any): AppliedCaPolicy[] | undefined {
+function normalizeAppliedPolicies(
+  raw: unknown
+): AppliedCaPolicy[] | undefined {
   if (!Array.isArray(raw) || raw.length === 0) return undefined;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return raw.map((p: any) => ({
-    id: p.id ?? "",
-    displayName: p.displayName ?? "(unnamed policy)",
-    result: p.result ?? "unknown",
-    enforcedGrantControls: p.enforcedGrantControls ?? [],
-    enforcedSessionControls: p.enforcedSessionControls ?? [],
-    conditionsSatisfied: p.conditionsSatisfied,
-    conditionsNotSatisfied: p.conditionsNotSatisfied,
-  }));
+  return raw.map((entry) => {
+    const p = (entry ?? {}) as Partial<AppliedCaPolicy>;
+    return {
+      id: p.id ?? "",
+      displayName: p.displayName ?? "(unnamed policy)",
+      result: p.result ?? "unknown",
+      enforcedGrantControls: p.enforcedGrantControls ?? [],
+      enforcedSessionControls: p.enforcedSessionControls ?? [],
+      conditionsSatisfied: p.conditionsSatisfied,
+      conditionsNotSatisfied: p.conditionsNotSatisfied,
+    };
+  });
 }
 
 const EVIDENCE_SELECT = [
