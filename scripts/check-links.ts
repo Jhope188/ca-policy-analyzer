@@ -8,6 +8,7 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ENTRA_SIGNIN_LOGS_URL,
   ENTRA_SIGNIN_LOGS_PATH,
@@ -117,7 +118,7 @@ const checks: Array<[string, () => void]> = [
       assert.equal(u.search, "", "no feature.* query flags");
 
       const source = fs.readFileSync(
-        new URL("../src/components/findings-list.tsx", import.meta.url).pathname,
+        fileURLToPath(new URL("../src/components/findings-list.tsx", import.meta.url)),
         "utf8"
       );
       assert.ok(!source.includes("SignInEventsV3"));

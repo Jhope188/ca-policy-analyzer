@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import React from "react";
 import { renderToString } from "react-dom/server";
 import {
@@ -42,7 +43,7 @@ function text(html: string): string {
 }
 
 const fixturePath = path.join(
-  path.dirname(new URL(import.meta.url).pathname),
+  path.dirname(fileURLToPath(import.meta.url)),
   "../docs/fixtures/offline-export-with-signin-apps.json"
 );
 const payload = JSON.parse(
@@ -276,7 +277,7 @@ const checks: Array<[string, () => void]> = [
     "the removed impact sections stay removed",
     () => {
       const source = fs.readFileSync(
-        new URL("../src/components/findings-list.tsx", import.meta.url).pathname,
+        fileURLToPath(new URL("../src/components/findings-list.tsx", import.meta.url)),
         "utf8"
       );
       for (const gone of [
