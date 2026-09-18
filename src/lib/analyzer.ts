@@ -251,7 +251,7 @@ export function analyzeAllPolicies(context: TenantContext): AnalysisResult {
 
   // MS Learn documented exclusion checks
   const exclusionFindings: ExclusionFinding[] = context.policies.flatMap((p) =>
-    checkPolicyExclusions(p, context.authStrengthPolicies)
+    checkPolicyExclusions(p, context.authStrengthPolicies, context.eamState)
   );
 
   // Convert critical/high exclusion findings into the main findings list AND

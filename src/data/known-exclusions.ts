@@ -9,7 +9,7 @@
  * exclusion or misconfigured, the analyzer flags it as a potential impact.
  */
 
-import { ConditionalAccessPolicy, AuthenticationStrengthPolicy } from "@/lib/graph-client";
+import { ConditionalAccessPolicy, AuthenticationStrengthPolicy, EamTenantState } from "@/lib/graph-client";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -25,7 +25,11 @@ export interface DocumentedExclusion {
   /** What is documented as required */
   requirement: string;
   /** How to detect the issue */
-  detect: (policy: ConditionalAccessPolicy, authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>) => ExclusionCheckResult | null;
+  detect: (
+    policy: ConditionalAccessPolicy,
+    authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>,
+    eamState?: EamTenantState
+  ) => ExclusionCheckResult | null;
   /** Severity when the exclusion is missing */
   severity: ImpactSeverity;
   /** Official MS Learn documentation URL */
@@ -1102,7 +1106,7 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       "cannot satisfy the auth strength requirement - EAM is not supported in authentication strength objects. " +
       "A companion policy targeting the EAM group using the built-in 'Require MFA' control instead of " +
       "an auth strength must exist to allow EAM users to complete risk remediation.",
-    detect: (policy) => {
+    detect: (policy, _authStrengthPolicies, eamState) => {
       if (!isActivePolicy(policy)) return null;
 
       const userRiskLevels = policy.conditions.userRiskLevels ?? [];
@@ -1118,12 +1122,36 @@ export const DOCUMENTED_EXCLUSIONS: DocumentedExclusion[] = [
       const hasAuthStrength = grant.authenticationStrength != null;
       if (!hasAuthStrength) return null;
 
+      // Gate on real tenant EAM state (see issue #36): this limitation only
+      // strands someone if the tenant actually has an EAM configured. A
+      // tenant with none can't have EAM-enrolled users, so the finding would
+      // be unactionable noise there.
+      if (eamState?.state === "none") return null;
+
+      const enabledProviders = eamState?.providers.filter((p) => p.state === "enabled") ?? [];
+      const unverified = eamState === undefined || eamState.state === "unknown";
+
+      const scopeNote = unverified
+        ? "This tenant's External Authentication Method configuration could not be verified " +
+          "(missing a supporting role such as Global Reader/Authentication Policy Administrator, " +
+          "or this is an offline export - EAM state isn't captured there). This finding is shown " +
+          "as a precaution and may not apply if the tenant has no EAM configured."
+        : enabledProviders.length > 0
+        ? `This tenant has ${enabledProviders.length} enabled EAM provider(s): ` +
+          `${enabledProviders.map((p) => p.appDisplayName || "(unnamed provider)").join(", ")}. ` +
+          (enabledProviders.some((p) => p.targetsAllUsers)
+            ? "At least one targets all users, so this policy's audience is affected."
+            : "Check whether this policy's user scope overlaps the EAM provider's target group(s) " +
+              "before treating this as confirmed impact.")
+        : "";
+
       return {
         detail:
           `Policy "${policy.displayName}" combines 'Require risk remediation' with an authentication strength object. ` +
           "Authentication strength objects do NOT support External Authentication Methods (EAM) such as Duo, Okta Verify, or Ping. " +
           "Users enrolled in EAM who are flagged as high risk will be unable to complete the remediation challenge and will remain blocked indefinitely. " +
-          "A companion policy targeting only EAM-enrolled users - using the built-in 'Require MFA' control instead of an auth strength - is required to close this gap.",
+          "A companion policy targeting only EAM-enrolled users - using the built-in 'Require MFA' control instead of an auth strength - is required to close this gap. " +
+          scopeNote,
         impactedResources: [
           "Users enrolled in External Authentication Methods (Duo, Okta Verify, Ping, etc.)",
           "Any tenant using a third-party MFA provider as EAM",
@@ -1156,12 +1184,13 @@ export interface ExclusionFinding {
 
 export function checkPolicyExclusions(
   policy: ConditionalAccessPolicy,
-  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>
+  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>,
+  eamState?: EamTenantState
 ): ExclusionFinding[] {
   const findings: ExclusionFinding[] = [];
 
   for (const exclusion of DOCUMENTED_EXCLUSIONS) {
-    const result = exclusion.detect(policy, authStrengthPolicies);
+    const result = exclusion.detect(policy, authStrengthPolicies, eamState);
     if (result) {
       findings.push({
         exclusion,
@@ -1177,7 +1206,8 @@ export function checkPolicyExclusions(
 
 export function checkAllPoliciesExclusions(
   policies: ConditionalAccessPolicy[],
-  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>
+  authStrengthPolicies?: Map<string, AuthenticationStrengthPolicy>,
+  eamState?: EamTenantState
 ): ExclusionFinding[] {
-  return policies.flatMap((p) => checkPolicyExclusions(p, authStrengthPolicies));
+  return policies.flatMap((p) => checkPolicyExclusions(p, authStrengthPolicies, eamState));
 }

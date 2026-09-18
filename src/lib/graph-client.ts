@@ -274,6 +274,13 @@ export interface TenantContext {
   licenses: TenantLicenses;
   /** Authentication strength policies (built-in + custom) - used to detect EAM usage */
   authStrengthPolicies: Map<string, AuthenticationStrengthPolicy>;
+  /**
+   * Tenant-wide External Authentication Method (EAM) configuration state -
+   * used to gate the user-risk-remediation-no-eam-companion exclusion check
+   * so it doesn't fire in tenants with no EAM provider configured. Undefined
+   * for offline exports predating this dataset - treat the same as "unknown".
+   */
+  eamState?: EamTenantState;
   /** Undefined when the scan was skipped - no AuditLog.Read.All, no P1, or an
    * offline export that predates this dataset. */
   unregisteredSignInApps?: UnregisteredSignInAppsResult;
@@ -415,6 +422,80 @@ export async function fetchAuthenticationStrengthPolicies(
     "/policies/authenticationStrengthPolicies?$select=id,displayName,description,policyType,allowedCombinations,requirementsSatisfied",
     "beta"
   );
+}
+
+/** One configured External Authentication Method provider (Duo, Okta, Ping, etc.). */
+export interface ExternalAuthMethodConfig {
+  id: string;
+  appDisplayName?: string;
+  state: "enabled" | "disabled";
+  /** true when includeTargets contains the "all users" group. */
+  targetsAllUsers: boolean;
+  includeGroupIds: string[];
+}
+
+export interface EamTenantState {
+  /** "enabled" if at least one EAM provider is enabled in the tenant, "none"
+   * if the tenant has zero EAM providers (or all are disabled), "unknown" if
+   * the policy couldn't be read (missing permission/role, or an offline
+   * export - which carries no EAM data at all). "unknown" must never be
+   * treated the same as "none": that would silently suppress a real gap. */
+  state: "enabled" | "none" | "unknown";
+  providers: ExternalAuthMethodConfig[];
+}
+
+/**
+ * GET /policies/authenticationMethodsPolicy (v1.0) - returns
+ * authenticationMethodConfigurations, including entries of type
+ * #microsoft.graph.externalAuthenticationMethodConfiguration for EAM
+ * providers (Duo, Okta Verify, Ping, etc.).
+ * https://learn.microsoft.com/en-us/graph/api/authenticationmethodspolicy-get
+ *
+ * Least-privileged scope is Policy.Read.AuthenticationMethod; Policy.Read.All
+ * (already requested by this app) is documented as a higher-privileged
+ * alternative that also works - no new consent needed. Still requires a
+ * supporting directory role (Global Reader or Authentication Policy
+ * Administrator) beyond the scope, so this can fail even with the right
+ * consent - callers must treat a failure as "unknown", not "none".
+ */
+export async function fetchEamTenantState(client: Client): Promise<EamTenantState> {
+  try {
+    const response = await client
+      .api("/policies/authenticationMethodsPolicy")
+      .version("v1.0")
+      .get();
+    const configs: Array<Record<string, unknown>> =
+      response?.authenticationMethodConfigurations ?? [];
+
+    const providers: ExternalAuthMethodConfig[] = configs
+      .filter(
+        (c) =>
+          c["@odata.type"] === "#microsoft.graph.externalAuthenticationMethodConfiguration"
+      )
+      .map((c) => {
+        const includeTargets = (c.includeTargets as Array<Record<string, unknown>>) ?? [];
+        const targetsAllUsers = includeTargets.some(
+          (t) => t.id === "all_users" || t.targetType === "group" && t.id === "all_users"
+        );
+        const includeGroupIds = includeTargets
+          .filter((t) => t.id !== "all_users")
+          .map((t) => String(t.id))
+          .filter(Boolean);
+        return {
+          id: String(c.id ?? ""),
+          appDisplayName: (c.appDisplayName as string) || undefined,
+          state: c.state === "enabled" ? "enabled" : "disabled",
+          targetsAllUsers,
+          includeGroupIds,
+        };
+      });
+
+    const anyEnabled = providers.some((p) => p.state === "enabled");
+    return { state: anyEnabled ? "enabled" : "none", providers };
+  } catch (error) {
+    console.warn("[fetchEamTenantState] could not read authenticationMethodsPolicy:", error);
+    return { state: "unknown", providers: [] };
+  }
 }
 
 // ─── Unregistered Sign-In Apps ───────────────────────────────────────────────
@@ -1383,6 +1464,11 @@ export async function loadTenantContext(
     // expose this preview endpoint - degrade gracefully to null.
   }
 
+  onProgress?.(RUN_STEPS.eamState);
+  // fetchEamTenantState already catches its own errors and returns
+  // { state: "unknown" } rather than throwing - no try/catch needed here.
+  const eamState = await fetchEamTenantState(client);
+
   // The heaviest step, and the only one needing AuditLog.Read.All. Downstream
   // already treats an absent result as "not scanned".
   //
@@ -1453,5 +1539,5 @@ export async function loadTenantContext(
     if (domain) tenantDisplayName = domain;
   }
 
-  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, unregisteredSignInApps, policySignInMatches, conditionalAccessSettings };
+  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, eamState, unregisteredSignInApps, policySignInMatches, conditionalAccessSettings };
 }
