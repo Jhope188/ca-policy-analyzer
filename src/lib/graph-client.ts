@@ -757,14 +757,22 @@ export async function fetchUnregisteredSignInApps(
 /** Cap on total sign-in rows scanned per run - bounds request volume for tenants
  * with heavy sign-in traffic. Surfaced as `scanTruncated`. */
 const POLICY_SIGNIN_SCAN_ROW_CAP = 500;
-/** Reverted back to the original, known-good size. A larger page (200) was
- * tried as a perf optimization, but `appliedConditionalAccessPolicies` is a
- * documented-expensive field to populate per row, and a 200-row page of it
- * can exceed the per-request timeout below before the first page even
- * returns - silently producing a scan that looks like "zero matches
- * everywhere" instead of "the request took too long". 100 rows reliably
- * finishes within the timeout on tenants tested so far. */
-const POLICY_SIGNIN_PAGE_SIZE = 100;
+/**
+ * `appliedConditionalAccessPolicies` is documented-expensive to populate per
+ * row - Graph evaluates every applicable policy against the sign-in to fill
+ * it in. That cost scales with how many CA policies the tenant has, not just
+ * the page size: a tenant with 50+ policies can blow past the per-request
+ * timeout on the very first page even at 100 rows (observed in production -
+ * "Request timed out after 15000ms" on row 1, 0 rows scanned). 100 was only
+ * ever validated against tenants with far fewer policies. Dropped to 50 and
+ * paired with a per-request retry (see fetchWithRetry below) that halves the
+ * page size on a timeout instead of giving up outright, so heavier tenants
+ * degrade to smaller/slower pages rather than reporting zero matches.
+ */
+const POLICY_SIGNIN_PAGE_SIZE = 50;
+/** Floor for the retry-with-smaller-page-size fallback - below this it's not
+ * worth halving again, just let the timeout end the scan. */
+const POLICY_SIGNIN_MIN_PAGE_SIZE = 10;
 /** Cap on matches kept per policy - the UI only needs a representative sample. */
 const POLICY_SIGNIN_MATCHES_PER_POLICY_CAP = 25;
 /**
@@ -772,9 +780,13 @@ const POLICY_SIGNIN_MATCHES_PER_POLICY_CAP = 25;
  * tenant (this endpoint's `appliedConditionalAccessPolicies` select is
  * documented-expensive) can't leave the run stuck on this step indefinitely.
  * Either limit hitting ends the scan early with `scanTruncated: true`.
+ * Both raised alongside the smaller page size above - a tenant with enough
+ * policies to make 50 rows expensive needs more per-request headroom than
+ * 15s, and the retry-on-timeout fallback needs room in the overall budget
+ * to actually get a second attempt in before giving up.
  */
-const POLICY_SIGNIN_SCAN_TIME_BUDGET_MS = 25_000;
-const POLICY_SIGNIN_REQUEST_TIMEOUT_MS = 15_000;
+const POLICY_SIGNIN_SCAN_TIME_BUDGET_MS = 45_000;
+const POLICY_SIGNIN_REQUEST_TIMEOUT_MS = 25_000;
 
 /** Rejects if `promise` hasn't settled within `ms` - bounds a single Graph call. */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -794,6 +806,71 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       }
     );
   });
+}
+
+/** True for the specific timeout error `withTimeout` throws (not a real Graph
+ * error/400) - only this case is worth retrying with a smaller page. */
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && /timed out after \d+ms/.test(error.message);
+}
+
+/** Rewrites (or adds) `$top=N` on a request URL - used to retry a page at a
+ * smaller size. Works on both the initial hand-built URL and a Graph
+ * `@odata.nextLink` (which already carries its own `$top` alongside an
+ * opaque `$skiptoken` that must be left untouched). */
+function withPageSize(url: string, pageSize: number): string {
+  if (/([?&])\$top=\d+/.test(url)) {
+    return url.replace(/([?&])\$top=\d+/, `$1$top=${pageSize}`);
+  }
+  return `${url}${url.includes("?") ? "&" : "?"}$top=${pageSize}`;
+}
+
+interface SignInPageResponse {
+  value?: Array<Record<string, unknown>>;
+  "@odata.nextLink"?: string;
+}
+
+/**
+ * Fetches one page of sign-ins, halving `pageSize` and retrying on a timeout
+ * instead of giving up immediately. `appliedConditionalAccessPolicies` cost
+ * scales with how many CA policies a tenant has, so a page size tuned for
+ * most tenants can still be too slow for a heavier one - this lets that case
+ * degrade to smaller/slower pages rather than reporting zero matches.
+ * `urlForPageSize` rebuilds the request URL for a given page size (needed
+ * because a `nextLink` from Graph already has its own `$top` baked in).
+ */
+async function fetchSignInPageWithRetry(
+  client: Client,
+  urlForPageSize: (pageSize: number) => string,
+  pageSize: number
+): Promise<{ response: SignInPageResponse; pageSizeUsed: number }> {
+  let currentPageSize = pageSize;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      const request = client
+        .api(urlForPageSize(currentPageSize))
+        .version("beta")
+        .header("Prefer", "include-unknown-enum-members")
+        .get();
+      const response = await withTimeout(request, POLICY_SIGNIN_REQUEST_TIMEOUT_MS);
+      return { response, pageSizeUsed: currentPageSize };
+    } catch (error) {
+      if (isTimeoutError(error) && currentPageSize > POLICY_SIGNIN_MIN_PAGE_SIZE) {
+        const halved = Math.max(
+          POLICY_SIGNIN_MIN_PAGE_SIZE,
+          Math.floor(currentPageSize / 2)
+        );
+        console.warn(
+          `[fetchPolicySignInMatches] page of ${currentPageSize} timed out after ` +
+            `${POLICY_SIGNIN_REQUEST_TIMEOUT_MS}ms - retrying at ${halved} rows`
+        );
+        currentPageSize = halved;
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 const POLICY_SIGNIN_SELECT = [
@@ -902,20 +979,22 @@ export async function fetchPolicySignInMatches(
     rowsScanned < POLICY_SIGNIN_SCAN_ROW_CAP &&
     Date.now() - scanStart < POLICY_SIGNIN_SCAN_TIME_BUDGET_MS
   ) {
-    let response;
+    let response: SignInPageResponse | undefined;
     try {
-      const request = client
-        .api(nextLink)
-        .version("beta")
-        .header("Prefer", "include-unknown-enum-members")
-        .get();
-      response = await withTimeout(request, POLICY_SIGNIN_REQUEST_TIMEOUT_MS);
+      const currentLink = nextLink;
+      const result = await fetchSignInPageWithRetry(
+        client,
+        (pageSize) => withPageSize(currentLink, pageSize),
+        POLICY_SIGNIN_PAGE_SIZE
+      );
+      response = result.response;
     } catch (error) {
-      // A single stalled/slow page or a real error - stop rather than hang
-      // or retry indefinitely; whatever was collected so far is still valid.
-      // Logged (not swallowed) so a bad request (e.g. an unsupported $filter
-      // clause returning 400) is visible in the console instead of silently
-      // producing a scan that looks like "zero matches everywhere".
+      // Either a real error (e.g. an unsupported $filter clause returning
+      // 400) or a timeout that persisted even after retrying at the minimum
+      // page size - stop rather than hang or retry indefinitely; whatever
+      // was collected so far is still valid. Logged (not swallowed) so this
+      // is visible in the console instead of silently producing a scan that
+      // looks like "zero matches everywhere".
       console.warn("[fetchPolicySignInMatches] request failed:", error);
       scanError = error instanceof Error ? error.message : String(error);
       scanTruncated = true;
