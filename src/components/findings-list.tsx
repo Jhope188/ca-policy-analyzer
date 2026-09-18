@@ -389,6 +389,12 @@ function DiscoveredAppRow({ app }: { app: DiscoveredAppDetail }) {
             </div>
           )}
 
+          {app.evidenceNote && (
+            <div className="rounded border border-emerald-500/20 bg-emerald-500/5 p-2">
+              <p className="text-[11px] text-emerald-300">{app.evidenceNote}</p>
+            </div>
+          )}
+
           {observed && (
             <div className="space-y-1.5">
               <span className="text-[10px] font-medium uppercase text-gray-600">

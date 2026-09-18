@@ -125,25 +125,103 @@ function buildBaselineNote(
 
 // ─── Severity ────────────────────────────────────────────────────────────────
 
+/**
+ * Splits Graph's comma-separated `conditionsNotSatisfied`/`conditionsSatisfied`
+ * enum string (e.g. "application,users") into its members.
+ */
+function splitConditions(value: string | undefined): string[] {
+  return (value ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A predicted "would block" is worst-case future-state reasoning - it says
+ * nothing about whether Conditional Access already reaches this app today.
+ * Two evidence fields, already collected for every enriched app, often
+ * contradict it:
+ *
+ *  - `conditionalAccessStatus` is Entra's own verdict for the newest sampled
+ *    sign-in. `success`/`failure` means at least one policy evaluated this
+ *    exact sign-in - the app is demonstrably in scope, whatever the
+ *    prediction says about a hypothetical future service principal.
+ *  - `observedPolicies` (from `appliedConditionalAccessPolicies`) records,
+ *    per policy, which conditions were NOT satisfied. If a policy came close
+ *    only on the `users` condition (the sampled sign-in's account was
+ *    excluded) and never on `application`, that's an excluded user, not an
+ *    app-targeting gap - a materially smaller finding than "this app sits
+ *    outside every policy".
+ *
+ * Only consulted for a *predicted* block - if nothing predicts a block, this
+ * is never called, and no other severity tier is affected.
+ * See: https://github.com/Jhope188/ca-policy-analyzer/issues/35
+ */
+function evidenceOverrideForPredictedBlock(
+  app: UnregisteredSignInApp
+): { severity: Severity; note: string } | undefined {
+  if (app.conditionalAccessStatus === "success" || app.conditionalAccessStatus === "failure") {
+    return {
+      severity: "info",
+      note:
+        `This app's own evidence contradicts the prediction: the sampled sign-in recorded ` +
+        `conditionalAccessStatus "${app.conditionalAccessStatus}", meaning Conditional Access ` +
+        "already evaluated it and reached a verdict. The app is in scope today, regardless of " +
+        "what a hypothetical future service principal would predict.",
+    };
+  }
+
+  const applied = app.appliedPolicies;
+  if (!applied || applied.length === 0) {
+    // No evidence row at all - can't say anything about coverage either way,
+    // so the prediction stands unchanged.
+    return undefined;
+  }
+
+  const matchedAppExcludedUser = applied.some((p) => {
+    const notSatisfied = splitConditions(p.conditionsNotSatisfied);
+    return notSatisfied.includes("users") && !notSatisfied.includes("application");
+  });
+  if (matchedAppExcludedUser) {
+    return {
+      severity: "low",
+      note:
+        "This app's evidence shows at least one policy's application/resource condition was " +
+        "satisfied on the sampled sign-in - only the user condition was not, meaning that " +
+        "specific account was excluded. That's a narrower gap than an app unreachable by any " +
+        "policy; review the exclusion rather than treating this as a full app-targeting gap.",
+    };
+  }
+
+  // Every policy that evaluated this app missed on the application condition
+  // itself (or there's no conflicting evidence) - the prediction stands.
+  return undefined;
+}
+
 function gradeApp(
   app: UnregisteredSignInApp,
   impact: PolicyAppImpact[],
   bypassNote: string | undefined,
   phantomExclusionPolicies: string[]
-): Severity {
-  if (bypassNote) return "critical";
-  if (phantomExclusionPolicies.length > 0) return "critical";
-  if (impact.some(wouldBlock)) return "critical";
+): { severity: Severity; evidenceNote?: string } {
+  if (bypassNote) return { severity: "critical" };
+  if (phantomExclusionPolicies.length > 0) return { severity: "critical" };
+
+  if (impact.some(wouldBlock)) {
+    const override = evidenceOverrideForPredictedBlock(app);
+    if (override) return { severity: override.severity, evidenceNote: override.note };
+    return { severity: "critical" };
+  }
 
   const enabledWillApply = impact.some(
     (i) => i.state === "enabled" && i.verdict === "willApply"
   );
-  if (app.seenIn === "Interactive" && enabledWillApply) return "high";
-  if (enabledWillApply) return "medium";
+  if (app.seenIn === "Interactive" && enabledWillApply) return { severity: "high" };
+  if (enabledWillApply) return { severity: "medium" };
   if (impact.some((i) => i.state === "enabled" && i.verdict === "mayApply")) {
-    return "medium";
+    return { severity: "medium" };
   }
-  return "info";
+  return { severity: "info" };
 }
 
 function highestSeverity(apps: DiscoveredAppDetail[]): Severity {
@@ -218,6 +296,7 @@ export function analyzeSignInAppGap(
       .filter((i) => i.phantomExclusion)
       .map((i) => i.policyName);
     const bypassNote = buildBypassNote(app.appId);
+    const grade = gradeApp(app, impact, bypassNote, phantomExclusionPolicies);
 
     return {
       appId: app.appId,
@@ -235,7 +314,8 @@ export function analyzeSignInAppGap(
       logQueryUrl: app.logQueryUrl,
       observedPolicies: app.appliedPolicies,
       predictedImpact: impact,
-      severity: gradeApp(app, impact, bypassNote, phantomExclusionPolicies),
+      severity: grade.severity,
+      evidenceNote: grade.evidenceNote,
       bypassNote,
       baselineNote: buildBaselineNote(app.appId, templateResult),
       phantomExclusionPolicies,
