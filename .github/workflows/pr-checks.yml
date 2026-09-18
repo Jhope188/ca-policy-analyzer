@@ -1,0 +1,45 @@
+# Required status check for PRs targeting main.
+#
+# This exists because prod (GitHub Pages) deploys automatically on every push
+# to main - there is no manual gate. This workflow is the gate: it re-runs the
+# exact same checks a contributor should have already run locally
+# (npm run check + tsc + production build) so a broken change can't be merged
+# even if someone forgets to run them by hand.
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Lint (informational - not a merge gate, main has pre-existing findings)
+        run: npm run lint || true
+
+      - name: Run self-check scripts
+        run: npm run check
+
+      - name: Production build (GitHub Pages target)
+        env:
+          GITHUB_PAGES: "true"
+        run: npm run build
