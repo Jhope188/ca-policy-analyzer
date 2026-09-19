@@ -79,12 +79,38 @@ const bulkText = text(
   renderToString(React.createElement(DiscoveredAppsBlock, { apps: manyApps }))
 );
 
+/** An app the evidence override grades info: Conditional Access already reached it. */
+const coveredApp: DiscoveredAppDetail = {
+  ...gap.apps[0],
+  appId: "bbbbbbbb-0000-0000-0000-000000000001",
+  displayName: "Covered by All resources",
+  conditionalAccessStatus: "success",
+  severity: "info",
+};
+const coveredText = text(
+  renderToString(
+    React.createElement(DiscoveredAppsBlock, { apps: [coveredApp] })
+  )
+);
+
 const script = buildCreateServicePrincipalsScript(gap.apps, {
   tenantDisplayName: ctx.tenantDisplayName,
   generatedAt: "2026-09-02T00:00:00.000Z",
 });
 
 const checks: Array<[string, () => void]> = [
+  [
+    "the info tier never claims no policy reaches apps the evidence says it does",
+    () => {
+      // The evidence override grades a covered app info, so the info tier now
+      // holds both "already reached by policy" and "no policy would apply".
+      // A label asserting either one states the inverse for the other half.
+      assert.ok(
+        !/no policy would reach/i.test(coveredText),
+        "an app with conditionalAccessStatus success must not be grouped under a label denying coverage"
+      );
+    },
+  ],
   [
     "an app that already has a service principal is filtered out",
     () => {
