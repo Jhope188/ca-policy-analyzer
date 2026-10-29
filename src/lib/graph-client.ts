@@ -97,6 +97,49 @@ export interface ConditionalAccessPolicy {
   };
 }
 
+/**
+ * Conditional Access policy plans (preview) - see
+ * https://learn.microsoft.com/entra/identity/conditional-access/concept-conditional-access-policy-plans
+ *
+ * A `conditionalAccessConditionSet` has the same shape as a policy's
+ * `conditions`, but every field is optional - a plan's `sharedConditions`
+ * and a rule's `conditions` are each allowed to specify only part of it.
+ */
+export type ConditionalAccessConditionSet = Partial<ConditionalAccessPolicy["conditions"]>;
+
+export interface ConditionalAccessPolicyRuleControls {
+  grantControls?: ConditionalAccessPolicy["grantControls"];
+  sessionControls?: ConditionalAccessPolicy["sessionControls"];
+}
+
+export interface ConditionalAccessPolicyRule {
+  id: string;
+  displayName: string;
+  description?: string | null;
+  state: "enabled" | "disabled" | "enabledForReportingButNotEnforced";
+  conditions?: ConditionalAccessConditionSet;
+  controls?: ConditionalAccessPolicyRuleControls;
+}
+
+export interface ConditionalAccessPolicyPlan {
+  id: string;
+  displayName: string;
+  description?: string | null;
+  owners?: string[];
+  tags?: string[];
+  version?: number;
+  /** ID of the Microsoft-managed template the plan was created from, null for custom plans */
+  templateId?: string | null;
+  createdDateTime?: string;
+  modifiedDateTime?: string;
+  sharedConditions?: ConditionalAccessConditionSet;
+}
+
+/** A plan plus its rules, fetched via the plan's `rules` navigation property. */
+export interface ConditionalAccessPolicyPlanWithRules extends ConditionalAccessPolicyPlan {
+  rules: ConditionalAccessPolicyRule[];
+}
+
 export interface NamedLocation {
   id: string;
   displayName: string;
@@ -293,6 +336,13 @@ export interface TenantContext {
    * failed/was not permitted (e.g. missing Policy.Read.All).
    */
   conditionalAccessSettings?: ConditionalAccessSettings | null;
+  /**
+   * Conditional Access policy plans (preview), each with its rules.
+   * Undefined when the fetch failed (preview not enabled for the tenant,
+   * missing permission, or an offline export predating this dataset) -
+   * treat the same as "not scanned", not "zero plans".
+   */
+  policyPlans?: ConditionalAccessPolicyPlanWithRules[];
 }
 
 /**
@@ -403,6 +453,49 @@ export async function fetchNamedLocations(
     client,
     "/identity/conditionalAccess/namedLocations"
   );
+}
+
+/**
+ * Conditional Access policy plans (preview). Covered by the same
+ * `Policy.Read.ConditionalAccess` / `Policy.Read.All` delegated scope already
+ * requested for policies - no additional consent needed. Tenants where the
+ * preview isn't enabled, or that have no plans, simply return an empty list;
+ * callers should still expect a 404/400 in tenants where the endpoint itself
+ * isn't available yet and degrade gracefully (see loadTenantContext).
+ */
+export async function fetchConditionalAccessPolicyPlans(
+  client: Client
+): Promise<ConditionalAccessPolicyPlan[]> {
+  return fetchAllPages<ConditionalAccessPolicyPlan>(
+    client,
+    "/identity/conditionalAccess/plans",
+    "beta"
+  );
+}
+
+export async function fetchConditionalAccessPolicyPlanRules(
+  client: Client,
+  planId: string
+): Promise<ConditionalAccessPolicyRule[]> {
+  return fetchAllPages<ConditionalAccessPolicyRule>(
+    client,
+    `/identity/conditionalAccess/plans/${planId}/rules`,
+    "beta"
+  );
+}
+
+/** Fetches every plan and, for each, its rules - one request per plan for rules, run concurrently. */
+export async function fetchConditionalAccessPolicyPlansWithRules(
+  client: Client
+): Promise<ConditionalAccessPolicyPlanWithRules[]> {
+  const plans = await fetchConditionalAccessPolicyPlans(client);
+  const withRules = await Promise.all(
+    plans.map(async (plan) => ({
+      ...plan,
+      rules: await fetchConditionalAccessPolicyPlanRules(client, plan.id),
+    }))
+  );
+  return withRules;
 }
 
 export async function fetchServicePrincipals(
@@ -1244,9 +1337,16 @@ function collectObjectIds(policies: ConditionalAccessPolicy[]): Set<string> {
 
 export async function resolveDirectoryObjects(
   client: Client,
-  policies: ConditionalAccessPolicy[]
+  policies: ConditionalAccessPolicy[],
+  extraIds?: Iterable<string>
 ): Promise<Map<string, DirectoryObject>> {
   const objectIds = collectObjectIds(policies);
+  if (extraIds) {
+    const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const id of extraIds) {
+      if (guidPattern.test(id)) objectIds.add(id);
+    }
+  }
   const map = new Map<string, DirectoryObject>();
 
   // Resolve in batches of 20
@@ -1464,6 +1564,16 @@ export async function loadTenantContext(
     // expose this preview endpoint - degrade gracefully to null.
   }
 
+  onProgress?.(RUN_STEPS.policyPlans);
+  let policyPlans: ConditionalAccessPolicyPlanWithRules[] | undefined;
+  try {
+    policyPlans = await fetchConditionalAccessPolicyPlansWithRules(client);
+  } catch {
+    // Preview feature - 404/400 in tenants where it isn't enabled yet, or
+    // missing permission. Degrade to "not scanned" rather than fail the run.
+    policyPlans = undefined;
+  }
+
   onProgress?.(RUN_STEPS.eamState);
   // fetchEamTenantState already catches its own errors and returns
   // { state: "unknown" } rather than throwing - no try/catch needed here.
@@ -1512,7 +1622,8 @@ export async function loadTenantContext(
   }
 
   onProgress?.(RUN_STEPS.directoryObjects);
-  const directoryObjects = await resolveDirectoryObjects(client, policies);
+  const planOwnerIds = (policyPlans ?? []).flatMap((p) => p.owners ?? []);
+  const directoryObjects = await resolveDirectoryObjects(client, policies, planOwnerIds);
 
   onProgress?.(RUN_STEPS.licenses);
   let licenses: TenantLicenses;
@@ -1539,5 +1650,5 @@ export async function loadTenantContext(
     if (domain) tenantDisplayName = domain;
   }
 
-  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, eamState, unregisteredSignInApps, policySignInMatches, conditionalAccessSettings };
+  return { tenantDisplayName, tenantId, policies, namedLocations, servicePrincipals, directoryObjects, licenses, authStrengthPolicies, eamState, unregisteredSignInApps, policySignInMatches, conditionalAccessSettings, policyPlans };
 }

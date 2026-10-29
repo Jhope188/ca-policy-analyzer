@@ -22,17 +22,18 @@ import { buildZeroTrustScorecard, ZeroTrustScorecard } from "@/lib/zero-trust-sc
 import { analyzeBaselineGaps, BaselineGapResult } from "@/lib/baseline-gap";
 import { TemplateCategory } from "@/data/policy-templates";
 import { BaselineGapView } from "@/components/baseline-gap-view";
+import { PolicyPlansView } from "@/components/policy-plans-view";
 import { exportToExcel, exportToPowerPoint, loadDefaultLogo } from "@/lib/export-utils";
 import { buildTenantContextFromOfflineExport, OfflineExportPayload } from "@/lib/offline-import";
 import { scopesFor } from "@/lib/msal-config";
 import { RUN_STEPS, liveStepList, offlineStepList } from "@/lib/run-steps";
 import { RunProgress } from "@/components/run-progress";
 import { ScanComplete } from "@/components/scan-complete";
-import { Shield, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation, MapPin, Users, GitCompareArrows, ScanSearch } from "lucide-react";
+import { Shield, Play, Download, RefreshCw, LayoutDashboard, FileText, AlertTriangle, Layers, CheckSquare, BookOpen, FileSpreadsheet, Presentation, MapPin, Users, GitCompareArrows, ScanSearch, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "baseline" | "cis" | "locations" | "personas" | "ms-learn";
+type ViewTab = "dashboard" | "policies" | "findings" | "templates" | "baseline" | "cis" | "locations" | "personas" | "ms-learn" | "policyPlans";
 const MAX_OFFLINE_IMPORT_BYTES = 20 * 1024 * 1024; // 20MB
 
 const SIGNIN_SCAN_KEY = "includeSignInLogs";
@@ -567,6 +568,7 @@ export default function Home() {
     { key: "locations" as const, label: "Locations", icon: MapPin },
     { key: "personas" as const, label: "Personas", icon: Users },
     { key: "ms-learn" as const, label: "MS Learn", icon: BookOpen },
+    { key: "policyPlans" as const, label: "Policy Plans (Preview)", icon: FlaskConical },
   ];
 
   // ── Results View ──────────────────────────────────────────────────────
@@ -739,6 +741,13 @@ export default function Home() {
       {activeTab === "ms-learn" && result && (
 
         <ExclusionsView findings={result.exclusionFindings} />
+      )}
+      {activeTab === "policyPlans" && context && (
+        <PolicyPlansView
+          plans={context.policyPlans}
+          context={{ namedLocations: context.namedLocations, servicePrincipals: context.servicePrincipals }}
+          resolverMaps={{ directoryObjects: context.directoryObjects, servicePrincipals: context.servicePrincipals }}
+        />
       )}
     </div>
   );

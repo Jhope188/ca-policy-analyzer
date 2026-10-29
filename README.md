@@ -16,7 +16,7 @@
 1. Click **Connect Tenant**
 2. Sign in with your Entra ID credentials
 3. Click **Run Analysis**
-4. Explore the nine analysis tabs: Dashboard, Policies, Findings, Templates, Baseline Gap, CIS, Locations, Personas, and MS Learn
+4. Explore the analysis tabs: Dashboard, Policies, Findings, Templates, Baseline Gap, CIS, Locations, Personas, MS Learn, and the experimental Policy Plans (Preview) tab
 5. Click **Export JSON** to download the full analysis results
 
 The app runs **100% in your browser** — your data never leaves your machine. It connects directly to Microsoft Graph using your own credentials (delegated permissions).
@@ -263,6 +263,12 @@ The Locations tab maps every named location (IP ranges, countries, compliant net
 
 <!-- Replace with actual screenshot: open the app → Locations tab -->
 ![Locations](docs/screenshots/Locations.png)
+
+### Policy Plans — Preview (experimental, `feature/conditional-access-policy-plans` branch)
+
+Early, read-only support for [Microsoft Entra Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) (preview) — the new Microsoft Graph beta resource that lets admins group shared targeting/exclusions and per-scenario rules under one plan. The tab lists every plan in the tenant with its shared conditions, tags, owners, and rules (each rule's own conditions and grant/session controls), using the same `Policy.Read.All` permission already requested for standalone policies — no extra consent needed.
+
+This is intentionally isolated in its own tab for now: plan rules don't yet feed the Findings, Templates, CIS, or scoring logic, and offline export/import doesn't carry plan data yet. The tenant must have the preview enabled and at least one plan configured; otherwise the tab shows a "not scanned" message rather than an error. Expect this to evolve once we decide how plans should fold into the rest of the analysis.
 
 ---
 
