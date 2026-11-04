@@ -525,7 +525,13 @@ const SEVERITY_GROUP_LABELS: Record<Severity, string> = {
   high: "Actively used, policies would apply",
   medium: "Lower impact",
   low: "Lower impact",
-  info: "No policy would reach them",
+  // Two different paths land an app here: the evidence override (Conditional
+  // Access already evaluated it, so policy DOES reach it) and the fallback for
+  // an app no enabled policy would apply to. Those are opposites, so this label
+  // has to be neutral - "No policy would reach them" states the inverse of the
+  // truth for every app graded info by the evidence override. Which case a
+  // given app is stays visible in its own detail.
+  info: "No action needed",
 };
 
 /** One severity tier: collapsed unless it is the worst, folded after a handful
