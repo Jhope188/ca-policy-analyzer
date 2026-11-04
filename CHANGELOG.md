@@ -5,6 +5,34 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.2] - 2026-11-04
+
+### Fixed
+
+- **Discovered-apps "Info" tier label contradicted its own evidence grading** ([@dermo-blast](https://github.com/dermo-blast), [PR #42](https://github.com/Jhope188/ca-policy-analyzer/pull/42)) - follow-up to v1.17.1's severity-grading change (PR #40). `evidenceOverrideForPredictedBlock()` grades an app **info** when its own sign-in shows Conditional Access already evaluated it - i.e. the app *is* in scope today - but the Info tier heading still read "No policy would reach them," the exact inverse. On a live tenant this mislabeled 8 of 10 discovered apps with the opposite of their real reason for being there. Relabeled to the neutral **"No action needed"**; which case a given app falls into stays visible in its own detail. Added a regression assertion to `check-findings-render.tsx` that fails under the old label and passes under the new one.
+- **"Scanning sign-in logs for unregistered apps" could hang indefinitely on large tenants** ([PR #51](https://github.com/Jhope188/ca-policy-analyzer/pull/51)) - `fetchUnregisteredSignInApps()` had no timeout protection at all, unlike the per-policy matches scan fixed for the same class of bug in v1.18.1 (#38). Both the `/auditLogs/signInEventsAppSummary` summary fetch and each per-app evidence lookup (`fetchAppEvidence`) were plain, unbounded `await`s - a slow Graph response on a heavy tenant just never settled, so the run sat on this step forever instead of rejecting and letting the existing `try/catch` in `loadTenantContext` degrade it to "not scanned." Added a 30s timeout on the summary fetch, a 15s timeout per evidence probe, and a 60s wall-clock budget across the whole evidence-enrichment phase (apps past that point are counted in the existing `evidenceCapped` field, same as the pre-existing per-run cap).
+
+## [1.19.0] - 2026-10-29
+
+### Added
+
+- **Read-only Conditional Access policy plans (preview) support.** Entra is rolling out [Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) - a new Microsoft Graph beta resource that groups shared targeting and exclusions across related rules. New "Policy Plans (Preview)" tab lists every plan in the tenant with its shared conditions, tags, owners, and each rule's own conditions/grant/session controls, reusing the existing `Policy.Read.All` scope - no new consent required. Tenants without the preview, or missing permission, degrade to "not scanned" rather than failing the whole run.
+  - New `src/lib/policy-plan-visualizer.ts` (display-only summarizer, mirrors `analyzer.ts`'s `buildVisualization` but tolerant of the partial fields a plan/rule is allowed to specify) and `src/components/policy-plans-view.tsx` (expand/collapse per plan and rule).
+  - Deliberately kept isolated: plan rules don't yet feed Findings, Templates, CIS, or scoring, and offline export/import doesn't carry plan data yet - this is a first pass for tenant testing, not the final integration.
+
+## [1.18.1] - 2026-09-18
+
+### Added
+
+- **Required CI on every PR targeting `main`** - `tsc --noEmit`, the full `npm run check` self-check suite, and a `GITHUB_PAGES=true` production build, so a broken change can no longer reach the auto-deployed production site unverified. `scripts/ship.sh` runs the same checks locally, pushes, opens the PR, and arms auto-merge once CI is green.
+
+### Fixed
+
+- **Per-policy "Sign-in log matches" scan timing out on tenants with many CA policies** ([PR #38](https://github.com/Jhope188/ca-policy-analyzer/pull/38)) - `appliedConditionalAccessPolicies` is documented-expensive for Graph to populate, and that cost scales with how many CA policies the tenant has; the 100-row page size and 15s timeout were only ever validated against tenants with far fewer policies, and a 57-policy tenant was hitting "Request timed out after 15000ms" on the very first page. Page size dropped 100 → 50 rows, per-request timeout raised 15s → 25s (overall scan budget 25s → 45s), and a new retry-on-timeout fallback halves the page size (down to a floor of 10 rows) instead of giving up immediately, so a heavy tenant degrades to smaller/slower pages rather than reporting zero matches.
+- **`npm run check` failed on Windows when the repo path contained a space** ([PR #34](https://github.com/Jhope188/ca-policy-analyzer/pull/34)) - `new URL(import.meta.url).pathname` returns a URL path, not a filesystem path, so a space in the repo path (e.g. a synced OneDrive folder) produced a mangled, percent-encoded path and the suite aborted with `ENOENT`. Switched to `fileURLToPath()` at the three affected call sites; no behavior change on POSIX.
+- **Missing Service Principal findings graded as a flat predicted severity regardless of evidence** ([PR #40](https://github.com/Jhope188/ca-policy-analyzer/pull/40)) - a finding is now downgraded when the sampled sign-in's own `appliedConditionalAccessPolicies`/`conditionalAccessStatus` already shows Conditional Access evaluated it (**info**), or that only the user condition failed while the app condition was satisfied (**low**). Bypass and phantom-exclusion overrides remain **critical**; findings with no contradicting evidence keep their original predicted severity.
+- **EAM companion-policy check fired even in tenants with no External Authentication Method configured** ([PR #41](https://github.com/Jhope188/ca-policy-analyzer/pull/41)) - new `fetchEamTenantState()` reads `/policies/authenticationMethodsPolicy` (reusing the existing `Policy.Read.All` consent, no new permission) to determine whether the tenant actually has an EAM provider enabled. The check now returns no finding when no EAM is configured, still fires with an unverified caveat when the state couldn't be read, and names the enabled provider(s) and scope when EAM is confirmed present.
+
 ## [1.18.0] - 2026-09-16
 
 ### Added

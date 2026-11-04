@@ -106,7 +106,24 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 ## Recent Changes
 
-> Full version history lives in [CHANGELOG.md](CHANGELOG.md).
+> Showing the last 5 major updates. Full version history lives in [CHANGELOG.md](CHANGELOG.md).
+
+### v1.19.2 - Sign-In Scan Hang Fix + Info Tier Label Fix (November 4, 2026)
+
+- **"Scanning sign-in logs for unregistered apps" could hang indefinitely on large tenants** - the summary fetch and each per-app evidence lookup had no timeout at all, so a slow Graph response on a heavy tenant just never settled instead of degrading to "not scanned." Added a 30s timeout on the summary fetch, a 15s timeout per evidence probe, and a 60s wall-clock budget across the whole evidence-enrichment phase.
+- **Discovered-apps "Info" tier label contradicted its own evidence grading** ([@dermo-blast](https://github.com/dermo-blast), [PR #42](https://github.com/Jhope188/ca-policy-analyzer/pull/42)) - an app graded info because Conditional Access *already* evaluated it was filed under a heading claiming "No policy would reach them," the exact inverse. Relabeled to the neutral "No action needed."
+
+### v1.19.0 - Conditional Access Policy Plans (Preview) (October 29, 2026)
+
+- **Read-only support for the new [Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) Graph beta resource.** New "Policy Plans (Preview)" tab lists every plan in the tenant with its shared conditions, tags, owners, and each rule's own conditions/grant/session controls - reuses the existing `Policy.Read.All` scope, no new consent required. Tenants without the preview, or missing permission, degrade to "not scanned."
+- **Deliberately kept isolated** - plan rules don't yet feed Findings, Templates, CIS, or scoring, and offline export/import doesn't carry plan data yet. First pass for tenant testing, not the final integration.
+
+### v1.18.1 - Sign-In Scan Reliability + Severity Grading Fixes (September 18, 2026)
+
+- **Per-policy "Sign-in log matches" scan timing out on tenants with many CA policies** ([PR #38](https://github.com/Jhope188/ca-policy-analyzer/pull/38)) - smaller page size, longer per-request/overall timeouts, and a new retry-on-timeout fallback that halves the page size instead of giving up immediately.
+- **Missing Service Principal findings now graded using existing sign-in evidence** ([PR #40](https://github.com/Jhope188/ca-policy-analyzer/pull/40)) - downgraded to info/low when the sampled sign-in's own Conditional Access verdict already contradicts the predicted-block severity.
+- **EAM companion-policy check gated on real tenant EAM state** ([PR #41](https://github.com/Jhope188/ca-policy-analyzer/pull/41)) - no longer fires in tenants with no External Authentication Method provider configured.
+- **Required CI on every PR targeting `main`** - `tsc --noEmit`, the full self-check suite, and a production build, so a broken change can no longer reach the auto-deployed production site unverified.
 
 ### v1.18.0 - Per-Policy Sign-In Log Matches (September 16, 2026)
 
@@ -116,66 +133,7 @@ This fixture intentionally includes edge cases that previously caused offline/li
 - **Scan is capped** (500 rows per run, 25 matches per policy) with the UI saying so when a cap is hit, rather than implying full coverage.
 - **Fixed: "Baseline Enforcement" no longer recommends a redundant policy when enforcement is already silently active.** Microsoft's Low-Privilege Scope Enforcement rollout (MC1223829) enables itself tenant-wide automatically and never records that it did, so `advancedSettings.baselineScopes` reading null/unset is ambiguous - it looks the same whether the rollout hasn't reached the tenant, or already has ([Mike Crowley](https://mikecrowley.us/2026/08/03/ca-baseline-scopes-enforcement-impact/)). The sign-in log scan now also checks, per policy, whether it's already been observed evaluating a sign-in against the Windows Azure AD Graph audience - if so, the finding is downgraded to an Info note instead of recommending a new policy.
 
-### v1.17.1 - False Positive & Offline Bug Fixes (September 3, 2026)
-
-- **Three false positives fixed** ([@dermo-blast](https://github.com/dermo-blast) report, issue #19) - country/region named locations no longer flagged as "untrusted" under "All trusted locations" (only IP-range locations can be marked trusted at all); device/app compliance requirements no longer flagged as blocking WHfB/Platform SSO setup when MFA is an accepted `OR` alternative; a grant-control `OR` spanning **both** device-trust and app-protection controls (e.g. compliant device OR app protection policy - Microsoft's MDM-or-MAM pattern for BYOD) is now recognized as equivalent-strength, not a weakest-link gap.
-- **Offline export - wrong PowerShell cmdlet** (issue #21) - named locations export used `Get-MgIdentityConditionalAccessNamedLocation`, whose module was never imported by the documented setup. Fixed to `Get-MgBetaIdentityConditionalAccessNamedLocation` in both README and the in-app guide.
-- **Offline import - missing file picker for signed-in users** (issue #23) - the Import Offline Export control only existed on the signed-out landing screen. A stale cached session (reused tab, prior sign-in) skipped straight to "Ready to Analyze," where there was no way to load a file at all. Added the offline-import control to that screen too.
-- **Offline export 404 - confirmed already fixed** (issue #22) - re-verified against the live site; the `<Link>`-based fix from v1.16.2 is working correctly.
-
-### v1.17.0 - Missing Service Principals (September 2, 2026) - *[@royklo](https://github.com/royklo), [PR #31](https://github.com/Jhope188/ca-policy-analyzer/pull/31)*
-
-- **New check: apps in your sign-in logs with no service principal.** Such an app isn't in the Conditional Access app picker, so it can be neither included nor excluded; only a policy targeting *All resources* reaches it. Discovery diffs `/beta/auditLogs/signInEventsAppSummary` against your service principals and shows the evidence from your own logs plus what Entra recorded in `appliedConditionalAccessPolicies` on that sign-in.
-- **Impact preview before you register anything** - which policies would hit the app once it exists, as will apply / may apply / will not apply, covering include/exclude by ID, the `Office365` suite, application filters on custom security attributes, client app types, user scoping and workload identities.
-- **Phantom exclusions** - a policy excluding an app that has no service principal. It protects nothing today and becomes live the moment the app is created.
-- **Generated PowerShell** - `Register-MissingServicePrincipals.ps1`, `-WhatIf`-first, with a `# BLOCKED BY` comment on any app an enabled block policy would catch.
-- **The scan is optional and its permission is incremental** - on by default, with a *Scan sign-in logs* switch that turns it off and is remembered per browser. Off means only the three base scopes are ever requested; `AuditLog.Read.All` needs admin consent and Entra ID P1, so asking for it up front would block the whole analysis in tenants that can't grant it.
-- **Step-by-step run progress and a completion panel** - the run shows its actual step list instead of one spinning label, and finishes on a summary of score, policies read, findings by severity and elapsed time.
-- **Interactive token fallback now redirects instead of opening a popup** - requesting a scope the cached token doesn't cover (i.e. switching the sign-in log scan on) triggers this fallback for the first time. `acquireTokenPopup` left a `Popup`-type response in the URL that made MSAL's `isInPopup()` true, after which every later `acquireTokenSilent` threw `block_nested_popups` for the rest of the session. Existing sessions are unaffected until the scan is switched on; doing so triggers one consent redirect for `AuditLog.Read.All`.
-
-### v1.16.5 - Baseline Enforcement Graph Check + Device Registration Template Fix (September 2, 2026)
-
-- **Tenant baseline scope enforcement is now read directly from Graph** - `GET /identity/conditionalAccess/settings` is fetched during tenant load and stored on `TenantContext.conditionalAccessSettings`. A new tenant-wide "Baseline Enforcement" finding reports whether `advancedSettings.baselineScopes.resourceAppId` is unset, disabled, targeting Windows Azure AD (Azure AD Graph), or a custom app.
-- **Per-policy finding for the March 2026 scope-enforcement gap** - any enabled policy targeting "All resources" with one or more excluded apps now triggers a finding recommending a **separate** dedicated policy targeting Windows Azure Active Directory (`00000002-0000-0000-c000-000000000000`), rather than suggesting a change to the existing broad policy. The finding is suppressed once tenant baseline enforcement already covers Azure AD Graph.
-- **Templates tab reflects tenant enforcement state** - the `GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes` template badge now shows *optional* instead of *recommended* once the Graph settings confirm baseline enforcement is already correctly scoped, so a fully-covered tenant no longer sees a false gap.
-- **Removed the flawed `INTUNE - GRANT - Device Registration from Trusted Location` template** - the Device Registration Service (`01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9`) only supports "Require multifactor authentication" as a grant control. Location, compliant-device, and hybrid-joined conditions are silently **not evaluated** for this service even though the Entra portal allows configuring them without error. This was documented and MSRC-confirmed in research published by Fabian Bader (Cloudbrothers) following joint work with Dirk-jan Mollema at TROOPERS25 (VULN-153600). The template has been replaced with `INTUNE - GRANT - Device Registration (MFA)`, which requires MFA only and no longer implies location enforcement that doesn't actually happen.
-- **Advice text cleanup** - removed all em dashes from finding titles, recommendations, and template descriptions in favor of plain hyphens for cleaner, less "AI-generated" looking output.
-
-### v1.16.4 — Template Category Fixes + Risk Remediation + WindowsAzureAD Templates (August 28, 2026)
-
-- **Two new P2 risk remediation templates** — `P2 - GLOBAL - GRANT - High-Risk Users - Risk Remediation` and companion `P2 - GLOBAL - GRANT - EAM - High-Risk Users - Risk Remediation` added to the P2 / Identity Protection category. The EAM variant targets users enrolled in External Authentication Methods who cannot satisfy a custom authentication strength object — uses built-in `mfa` + `riskRemediation` controls instead.
-- **New baseline template: `GLOBAL - GRANT - MFA - WindowsAzureAD-BaselineScopes`** — targets the Azure AD Graph app (`00000002-0000-0000-c000-000000000000`) specifically, ensuring all users satisfy MFA for the Low-Privilege Scope Enforcement audience (User.Read, openid, profile, email, offline_access scopes).
-- **Template category corrections** — `GLOBAL - BLOCK - UnsupportedDevicePlatforms` moved Foundation → Baseline (recommended hardening, not a must-have); `GLOBAL - BLOCK - Countries-NotAllowed - NoExclusions` moved Baseline → Foundation (strict geo-block with no exclusions is a critical control).
-- **Excluded apps with no alternative CA coverage** — new High severity tenant-wide gap check: detects apps excluded from "All resources" policies that have no dedicated policy covering them, leaving them completely outside the CA baseline.
-
-### v1.16.3 — Location Check Context-Aware Fix (July 22, 2026)
-
-- **Locations — "not marked as trusted" warning is now context-aware** — check #4 no longer fires for block-list locations (e.g. `_Blocked IPs`) where the `isTrusted` flag is irrelevant. Warning only fires when the tenant has at least one policy using `"All trusted locations"` — the only scenario where the flag changes user behaviour (MFA bypass, reduced sign-in frequency, risk-policy exemptions).
-
-### v1.16.2 — Offline Export Link Fix + False-Match Fingerprint Fixes (July 22, 2026)
-
-- **Offline Export Instructions link 404 fixed** — replaced plain `<a href>` with Next.js `<Link>` so `basePath` is automatically prepended on GitHub Pages. Added a **← Back to analyzer** link on the guide page.
-- **False "Present" for `APP - SESSION - O365 - TimeoutSettings`** — fingerprint now requires `sessionApplicationEnforcedRestrictions: true` and `requireSpecificApp: true`.
-- **False "Present" for `APP - BLOCK - SharePoint-OneDrive - NonTrustedLocations`** — fingerprint now sets `requireSpecificApp: true`; generic all-apps block policies no longer match.
-- **Template matcher `requireSpecificApp` flag** — when set, `includeApplications: ["All"]` does not satisfy the app requirement.
-
-### v1.16.1 — Offline Mode (July 10, 2026) — *[@chrisfriday](https://github.com/chrisfriday)*
-
-- **Import CA policies from a PowerShell JSON export** — full analysis without direct tenant connectivity. New offline import parser handles real-world `ConvertTo-Json` quirks (PascalCase, `AdditionalProperties`, UTF-16). Redesigned opening screen with two explicit paths: *Offline import* and *Direct tenant connection*. New `/offline-export` in-app guide with step-by-step PowerShell instructions. 20 MB size limit + 40-level recursion guard.
-
-### v1.16.0 — False Positive Reduction (July 10, 2026) — *[@dermo-blast](https://github.com/dermo-blast)*
-
-- **7 surgical false-positive fixes** across findings detection and persona coverage:
-  - `compliantDevice OR domainJoinedDevice` / `approvedApplication OR compliantApplication` downgrade High → Info (Microsoft-recommended equivalent-strength pattern)
-  - Agent/workload-identity policies (`includeUsers: ["None"]`) no longer flagged for missing break-glass exclusions
-  - Break-glass-aware broad-policy check — break-glass exclusions no longer counted as gaps
-  - Device Registration Bypass check is now context-aware — suppressed when a compensating MFA-for-registration policy exists
-  - Missing MFA check skips agent-identity policies and device-trust-only policies
-  - User-agent bypass downgrades to Info when a block-unknown-platforms companion policy exists
-  - Guest MFA finding: High → Info (best practice advisory, not a gap); built-in CA app groups recognised
-  - All-Users policies now credit Admins + Developers in persona coverage
-
-See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.17.1 (False Positive & Offline Bug Fixes), v1.17.0 (Missing Service Principals), v1.16.x (Baseline Enforcement, Template Fixes, Offline Mode), v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
 
 
 
@@ -264,7 +222,7 @@ The Locations tab maps every named location (IP ranges, countries, compliant net
 <!-- Replace with actual screenshot: open the app → Locations tab -->
 ![Locations](docs/screenshots/Locations.png)
 
-### Policy Plans — Preview (experimental, `feature/conditional-access-policy-plans` branch)
+### Policy Plans — Preview
 
 Early, read-only support for [Microsoft Entra Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) (preview) — the new Microsoft Graph beta resource that lets admins group shared targeting/exclusions and per-scenario rules under one plan. The tab lists every plan in the tenant with its shared conditions, tags, owners, and rules (each rule's own conditions and grant/session controls), using the same `Policy.Read.All` permission already requested for standalone policies — no extra consent needed.
 
