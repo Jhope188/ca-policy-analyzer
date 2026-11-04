@@ -413,7 +413,13 @@ function createGraphClient(
 async function fetchAllPages<T>(
   client: Client,
   url: string,
-  apiVersion?: string
+  apiVersion?: string,
+  /** Bounds each page request - unset (the default) preserves prior
+   * behavior for callers fetching cheap metadata collections. Pass this for
+   * any endpoint that can be slow enough to stall a request indefinitely
+   * (see fetchUnregisteredSignInApps) so a stalled page rejects instead of
+   * hanging the run. */
+  timeoutMs?: number
 ): Promise<T[]> {
   const results: T[] = [];
   let nextLink: string | undefined = url;
@@ -426,7 +432,9 @@ async function fetchAllPages<T>(
     if (apiVersion === "beta") {
       req = req.header("Prefer", "include-unknown-enum-members");
     }
-    const response = await req.get();
+    const response = timeoutMs
+      ? await withTimeout(req.get(), timeoutMs)
+      : await req.get();
     results.push(...(response.value ?? []));
     nextLink = response["@odata.nextLink"];
   }
@@ -813,6 +821,29 @@ const EVIDENCE_SELECT = [
 ].join(",");
 
 /**
+ * `/auditLogs/signInEventsAppSummary` aggregates every sign-in across the
+ * full 30-day window into one row per app - like appliedConditionalAccessPolicies
+ * above, this can be slow enough on a heavy tenant to stall the request with
+ * no natural ceiling. Unlike fetchPolicySignInMatches, this call had no
+ * timeout at all until now, so a stalled request left the "Scanning sign-in
+ * logs for unregistered apps" step hanging indefinitely instead of degrading
+ * to "not scanned" via the try/catch already in loadTenantContext.
+ */
+const UNREGISTERED_APPS_SUMMARY_TIMEOUT_MS = 30_000;
+
+/**
+ * Per-probe timeout for a single evidence lookup, and a wall-clock budget
+ * across the whole enrichment phase - same two-safeguard pattern as the
+ * policy-matches scan above. fetchAppEvidence already treats a probe failure
+ * as non-fatal (continues to the next event type / leaves the app listed
+ * without evidence), so a timeout here is handled identically - it just
+ * bounds how long that "non-fatal" wait can take instead of letting a
+ * stalled probe hang forever.
+ */
+const APP_EVIDENCE_REQUEST_TIMEOUT_MS = 15_000;
+const APP_EVIDENCE_TIME_BUDGET_MS = 60_000;
+
+/**
  * Newest sign-in for one app. `$top=1` with no `$orderby` relies on the
  * endpoint's default newest-first ordering - combining the two is unreliable.
  */
@@ -827,14 +858,17 @@ async function fetchAppEvidence(
       filter += ` and signInEventTypes/any(t: t eq '${eventType}')`;
     }
     try {
-      const response = await client
-        .api("/auditLogs/signIns")
-        .version("beta")
-        .header("Prefer", "include-unknown-enum-members")
-        .filter(filter)
-        .select(EVIDENCE_SELECT)
-        .top(1)
-        .get();
+      const response = await withTimeout(
+        client
+          .api("/auditLogs/signIns")
+          .version("beta")
+          .header("Prefer", "include-unknown-enum-members")
+          .filter(filter)
+          .select(EVIDENCE_SELECT)
+          .top(1)
+          .get(),
+        APP_EVIDENCE_REQUEST_TIMEOUT_MS
+      );
 
       const row = response?.value?.[0];
       if (!row) continue;
@@ -886,7 +920,8 @@ export async function fetchUnregisteredSignInApps(
   const summary = await fetchAllPages<{ appId: string; signInCount: number }>(
     client,
     "/auditLogs/signInEventsAppSummary",
-    "beta"
+    "beta",
+    UNREGISTERED_APPS_SUMMARY_TIMEOUT_MS
   );
 
   const candidates = summary
@@ -908,7 +943,22 @@ export async function fetchUnregisteredSignInApps(
   }));
 
   const toEnrich = apps.slice(0, EVIDENCE_LOOKUP_CAP);
+  const enrichmentStart = Date.now();
+  let enrichedCount = 0;
   for (let i = 0; i < toEnrich.length; i += EVIDENCE_BATCH_SIZE) {
+    // Per-probe timeouts above bound each individual request, but a heavy
+    // tenant with many distinct apps could still stack up enough slow
+    // probes across batches to make this step take minutes - this wall-clock
+    // budget stops enrichment early rather than letting that compound
+    // unbounded. Apps past this point stay listed by ID/count only, same as
+    // the existing EVIDENCE_LOOKUP_CAP cutoff.
+    if (Date.now() - enrichmentStart >= APP_EVIDENCE_TIME_BUDGET_MS) {
+      console.warn(
+        `[fetchUnregisteredSignInApps] evidence enrichment exceeded its ${APP_EVIDENCE_TIME_BUDGET_MS}ms budget ` +
+          `after ${enrichedCount}/${toEnrich.length} app(s) - stopping early.`
+      );
+      break;
+    }
     const batch = toEnrich.slice(i, i + EVIDENCE_BATCH_SIZE);
     const results = await Promise.allSettled(
       batch.map((app) => fetchAppEvidence(client, app.appId, windowStart))
@@ -918,12 +968,13 @@ export async function fetchUnregisteredSignInApps(
         Object.assign(batch[index], result.value);
       }
     });
+    enrichedCount += batch.length;
   }
 
   return {
     apps,
     truncated: summary.length >= APP_SUMMARY_MAX_ROWS,
-    evidenceCapped: Math.max(0, apps.length - toEnrich.length),
+    evidenceCapped: Math.max(0, apps.length - enrichedCount),
     windowStart,
   };
 }
