@@ -5,6 +5,12 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.4] - 2026-11-05
+
+### Fixed
+
+- **Per-policy "Sign-in log matches" scan could fail with "Invalid Skip Token, query context has changed"** - the retry-on-timeout fallback added in v1.18.1 (#38) halves the page size by rewriting `$top` on the current request URL, but on every page after the first that URL is Graph's own `@odata.nextLink`, which carries an opaque `$skiptoken` encoding the entire original query context - including `$top`. Rewriting `$top` on a nextLink breaks that contract; Graph correctly rejects the retry with exactly this error, which the scan then surfaced verbatim as a confusing "scan hit an error and stopped early" message instead of simply stopping cleanly. `fetchSignInPageWithRetry()` now only attempts the page-halving retry on the first page (the one request this function built itself with no skiptoken yet); every later page times out and ends the scan the same way an unrecoverable error always has - with whatever matches were already collected, rather than attempting a retry that was guaranteed to fail.
+
 ## [1.19.3] - 2026-11-04
 
 ### Fixed

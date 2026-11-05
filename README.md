@@ -108,6 +108,10 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Showing the last 5 major updates. Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.19.4 - Sign-In Scan Skip Token Fix (November 5, 2026)
+
+- **Per-policy "Sign-in log matches" scan could fail with "Invalid Skip Token, query context has changed"** - the v1.18.1 retry-on-timeout fallback rewrote `$top` on Graph's own `@odata.nextLink` to shrink the page size, but a nextLink carries an opaque `$skiptoken` that encodes the entire original query - changing `$top` on it breaks Graph's pagination contract. The page-halving retry now only runs on the first page (the one URL this scan builds itself, before any skiptoken exists); every later page that times out ends the scan cleanly with whatever matches were already collected, instead of a doomed retry that always failed with this error.
+
 ### v1.19.3 - Break-Glass Name Detection Fix (November 4, 2026)
 
 - **Break-glass detection now recognizes a named group, not just the most-frequently-excluded one** (issue #44) - previously picked whichever user/group was excluded from the most "All users" policies, with no regard for naming. A tenant whose actual break-glass group was excluded from fewer policies than some other, unrelated group (e.g. a broad "GlobalExclusions" group) would have that other group incorrectly reported as break-glass. Now prefers any excluded candidate whose directory display name matches "Breakglass" / "Break-glass" / "Break glass" over pure exclusion frequency.
@@ -129,15 +133,7 @@ This fixture intentionally includes edge cases that previously caused offline/li
 - **EAM companion-policy check gated on real tenant EAM state** ([PR #41](https://github.com/Jhope188/ca-policy-analyzer/pull/41)) - no longer fires in tenants with no External Authentication Method provider configured.
 - **Required CI on every PR targeting `main`** - `tsc --noEmit`, the full self-check suite, and a production build, so a broken change can no longer reach the auto-deployed production site unverified.
 
-### v1.18.0 - Per-Policy Sign-In Log Matches (September 16, 2026)
-
-- **New on the Policies tab: a collapsible "Sign-in log matches" section under each policy's Findings.** Shows real sign-ins from the last 30 days that this policy blocked, or would have blocked in report-only mode, attributed via `appliedConditionalAccessPolicies` on your own `/auditLogs/signIns` events - Entra's recorded verdict, not a prediction.
-- **Table shows User, Date/Time, Location, Client App, Status, and Failure Reason** for every match, with a count badge (red "N blocked", amber "N would be blocked", or green "0 in last 30 days").
-- **Uses the existing sign-in log scan toggle and permission gate** - no new consent prompt. When the scan hasn't been run, the section shows a "not scanned" notice instead.
-- **Scan is capped** (500 rows per run, 25 matches per policy) with the UI saying so when a cap is hit, rather than implying full coverage.
-- **Fixed: "Baseline Enforcement" no longer recommends a redundant policy when enforcement is already silently active.** Microsoft's Low-Privilege Scope Enforcement rollout (MC1223829) enables itself tenant-wide automatically and never records that it did, so `advancedSettings.baselineScopes` reading null/unset is ambiguous - it looks the same whether the rollout hasn't reached the tenant, or already has ([Mike Crowley](https://mikecrowley.us/2026/08/03/ca-baseline-scopes-enforcement-impact/)). The sign-in log scan now also checks, per policy, whether it's already been observed evaluating a sign-in against the Windows Azure AD Graph audience - if so, the finding is downgraded to an Info note instead of recommending a new policy.
-
-See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.17.1 (False Positive & Offline Bug Fixes), v1.17.0 (Missing Service Principals), v1.16.x (Baseline Enforcement, Template Fixes, Offline Mode), v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.18.0 (Per-Policy Sign-In Log Matches), v1.17.1 (False Positive & Offline Bug Fixes), v1.17.0 (Missing Service Principals), v1.16.x (Baseline Enforcement, Template Fixes, Offline Mode), v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
 
 
 

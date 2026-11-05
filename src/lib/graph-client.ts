@@ -1063,11 +1063,20 @@ interface SignInPageResponse {
  * degrade to smaller/slower pages rather than reporting zero matches.
  * `urlForPageSize` rebuilds the request URL for a given page size (needed
  * because a `nextLink` from Graph already has its own `$top` baked in).
+ *
+ * `allowRetry` must be false for every page after the first. A `nextLink`
+ * Graph hands back carries an opaque `$skiptoken` that encodes the entire
+ * original query context - including `$top` - and Graph rejects any request
+ * that changes a query parameter while continuing from one with
+ * "Invalid Skip Token, query context has changed" (observed in production).
+ * Only the first page's URL is one this function built itself with no
+ * skiptoken yet, so only it is safe to retry at a smaller page size.
  */
 async function fetchSignInPageWithRetry(
   client: Client,
   urlForPageSize: (pageSize: number) => string,
-  pageSize: number
+  pageSize: number,
+  allowRetry: boolean
 ): Promise<{ response: SignInPageResponse; pageSizeUsed: number }> {
   let currentPageSize = pageSize;
   // eslint-disable-next-line no-constant-condition
@@ -1081,7 +1090,11 @@ async function fetchSignInPageWithRetry(
       const response = await withTimeout(request, POLICY_SIGNIN_REQUEST_TIMEOUT_MS);
       return { response, pageSizeUsed: currentPageSize };
     } catch (error) {
-      if (isTimeoutError(error) && currentPageSize > POLICY_SIGNIN_MIN_PAGE_SIZE) {
+      if (
+        allowRetry &&
+        isTimeoutError(error) &&
+        currentPageSize > POLICY_SIGNIN_MIN_PAGE_SIZE
+      ) {
         const halved = Math.max(
           POLICY_SIGNIN_MIN_PAGE_SIZE,
           Math.floor(currentPageSize / 2)
@@ -1198,6 +1211,10 @@ export async function fetchPolicySignInMatches(
     `/auditLogs/signIns?$filter=${encodeURIComponent(
       `createdDateTime ge ${windowStart}`
     )}&$select=${POLICY_SIGNIN_SELECT}&$top=${POLICY_SIGNIN_PAGE_SIZE}`;
+  // Only the first page's URL is hand-built with no skiptoken - see
+  // fetchSignInPageWithRetry's allowRetry doc comment for why every page
+  // after that must not attempt the page-halving retry.
+  let isFirstPage = true;
 
   while (
     nextLink &&
@@ -1210,7 +1227,8 @@ export async function fetchPolicySignInMatches(
       const result = await fetchSignInPageWithRetry(
         client,
         (pageSize) => withPageSize(currentLink, pageSize),
-        POLICY_SIGNIN_PAGE_SIZE
+        POLICY_SIGNIN_PAGE_SIZE,
+        isFirstPage
       );
       response = result.response;
     } catch (error) {
@@ -1293,6 +1311,7 @@ export async function fetchPolicySignInMatches(
     }
 
     nextLink = response?.["@odata.nextLink"];
+    isFirstPage = false;
     if (rowsScanned >= POLICY_SIGNIN_SCAN_ROW_CAP && nextLink) {
       scanTruncated = true;
     }
