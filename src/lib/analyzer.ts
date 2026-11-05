@@ -2231,9 +2231,22 @@ interface BreakGlassCandidate {
   type: "user" | "group";
 }
 
+/** Matches "Breakglass", "Break-glass", "Break glass" (case-insensitive) in a
+ * directory object's display name - see issue #44. A deliberately-named
+ * break-glass group is a far stronger signal than exclusion frequency alone. */
+const BREAK_GLASS_NAME_PATTERN = /break[\s-]?glass/i;
+
 /**
  * Identifies the most likely break-glass account or group by analyzing exclusion
  * patterns across all enabled "All Users" policies.
+ *
+ * Prefers a candidate whose directory display name matches the break-glass
+ * naming convention over pure exclusion frequency (issue #44). Frequency alone
+ * can pick the wrong candidate: a broad, unrelated group (e.g. a general
+ * "GlobalExclusions" group) excluded from more policies than the tenant's
+ * actual, deliberately-named break-glass group would otherwise win by count.
+ * Falls back to the frequency heuristic when no excluded candidate's name
+ * matches.
  */
 function identifyBreakGlass(context: TenantContext): BreakGlassCandidate | null {
   const enabled = context.policies.filter(
@@ -2264,6 +2277,17 @@ function identifyBreakGlass(context: TenantContext): BreakGlassCandidate | null 
       c.policies.push(p.displayName);
     }
   }
+
+  let namedMatch: BreakGlassCandidate | null = null;
+  for (const [id, data] of candidates.entries()) {
+    const displayName = context.directoryObjects.get(id)?.displayName;
+    if (displayName && BREAK_GLASS_NAME_PATTERN.test(displayName)) {
+      if (!namedMatch || data.count > namedMatch.count) {
+        namedMatch = { id, ...data };
+      }
+    }
+  }
+  if (namedMatch) return namedMatch;
 
   let primary: BreakGlassCandidate | null = null;
   for (const [id, data] of candidates.entries()) {

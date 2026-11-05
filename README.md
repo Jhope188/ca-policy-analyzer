@@ -108,6 +108,10 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Showing the last 5 major updates. Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.19.3 - Break-Glass Name Detection Fix (November 4, 2026)
+
+- **Break-glass detection now recognizes a named group, not just the most-frequently-excluded one** (issue #44) - previously picked whichever user/group was excluded from the most "All users" policies, with no regard for naming. A tenant whose actual break-glass group was excluded from fewer policies than some other, unrelated group (e.g. a broad "GlobalExclusions" group) would have that other group incorrectly reported as break-glass. Now prefers any excluded candidate whose directory display name matches "Breakglass" / "Break-glass" / "Break glass" over pure exclusion frequency.
+
 ### v1.19.2 - Sign-In Scan Hang Fix + Info Tier Label Fix (November 4, 2026)
 
 - **"Scanning sign-in logs for unregistered apps" could hang indefinitely on large tenants** - the summary fetch and each per-app evidence lookup had no timeout at all, so a slow Graph response on a heavy tenant just never settled instead of degrading to "not scanned." Added a 30s timeout on the summary fetch, a 15s timeout per evidence probe, and a 60s wall-clock budget across the whole evidence-enrichment phase.
