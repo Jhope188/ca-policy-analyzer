@@ -98,6 +98,27 @@ const script = buildCreateServicePrincipalsScript(gap.apps, {
   generatedAt: "2026-09-02T00:00:00.000Z",
 });
 
+/**
+ * Issue #44: a named break-glass group (e.g. containing "Breakglass") must be
+ * recognized by name, not just by being the single most-frequently-excluded
+ * entity across "All users" policies - the latter alone can pick the wrong
+ * group when some other group (e.g. a broad "GlobalExclusions" group) is
+ * excluded from more policies than the tenant's actual, deliberately-named
+ * break-glass group.
+ */
+const breakGlassFixturePath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../docs/fixtures/breakglass-named-group-not-most-excluded.json"
+);
+const breakGlassPayload = JSON.parse(
+  fs.readFileSync(breakGlassFixturePath, "utf8")
+) as OfflineExportPayload;
+const breakGlassCtx = buildTenantContextFromOfflineExport(breakGlassPayload);
+const breakGlassResult = analyzeAllPolicies(breakGlassCtx);
+const breakGlassFindings = breakGlassResult.findings.filter(
+  (f) => f.category === "Break-Glass"
+);
+
 const checks: Array<[string, () => void]> = [
   [
     "the info tier never claims no policy reaches apps the evidence says it does",
@@ -461,6 +482,32 @@ const checks: Array<[string, () => void]> = [
     "no placeholder values leak into the UI",
     () => {
       assert.ok(!/NaN|>undefined<|>null</.test(blockHtml + findingsHtml));
+    },
+  ],
+  [
+    "a named break-glass group is identified by name, not just exclusion frequency",
+    () => {
+      assert.ok(
+        breakGlassFindings.length > 0,
+        "expected at least one Break-Glass finding from the fixture"
+      );
+      const mentionsBreakglassGroup = breakGlassFindings.some((f) =>
+        f.description.includes("SG-Entra-CAP-BreakglassAccounts")
+      );
+      const mentionsGlobalExclusionsAsBreakGlass = breakGlassFindings.some(
+        (f) =>
+          /\*\*Break-glass group:\*\* SG-Entra-CAP-GlobalExclusions/.test(
+            f.description
+          )
+      );
+      assert.ok(
+        mentionsBreakglassGroup,
+        "the named 'SG-Entra-CAP-BreakglassAccounts' group must be identified as break-glass even though it's excluded from fewer policies than 'SG-Entra-CAP-GlobalExclusions'"
+      );
+      assert.ok(
+        !mentionsGlobalExclusionsAsBreakGlass,
+        "the more-frequently-excluded but unnamed 'SG-Entra-CAP-GlobalExclusions' group must not be picked over the named break-glass group"
+      );
     },
   ],
 ];

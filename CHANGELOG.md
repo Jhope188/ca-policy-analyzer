@@ -5,6 +5,12 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.3] - 2026-11-04
+
+### Fixed
+
+- **Break-glass detection now recognizes a named group, not just the most-frequently-excluded one** (issue #44) - `identifyBreakGlass()` previously picked the single user/group excluded from the most enabled "All users" policies, with no regard for naming. A tenant whose actual break-glass group (e.g. `SG-Entra-CAP-BreakglassAccounts`) was excluded from fewer policies than some other, unrelated group (e.g. a broad `GlobalExclusions` group) would have that other group incorrectly reported as break-glass in both the per-policy and tenant-wide findings. Now prefers any excluded candidate whose directory display name matches "Breakglass" / "Break-glass" / "Break glass" (case-insensitive) over pure exclusion frequency, falling back to the frequency heuristic only when no name match exists. Added a regression fixture (`docs/fixtures/breakglass-named-group-not-most-excluded.json`) and assertion to `check-findings-render.tsx` reproducing the exact scenario reported in the issue.
+
 ## [1.19.2] - 2026-11-04
 
 ### Fixed

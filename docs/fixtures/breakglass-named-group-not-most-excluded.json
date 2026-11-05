@@ -1,0 +1,121 @@
+{
+  "tenantId": "00000000-0000-0000-0000-000000000000",
+  "tenantDisplayName": "Break-Glass Naming Fixture Tenant",
+  "conditionalAccessPolicies": [
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "DisplayName": "GLOBAL - GRANT - MFA - AllUsers",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": ["All"],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": ["all"],
+        "Users": {
+          "IncludeUsers": ["All"],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": ["bbbbbbbb-0000-0000-0000-000000000001"],
+          "IncludeRoles": [],
+          "ExcludeRoles": []
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": ["mfa"],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": []
+      }
+    },
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000002",
+      "DisplayName": "GLOBAL - BLOCK - Legacy Authentication",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": ["All"],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": ["exchangeActiveSync", "other"],
+        "Users": {
+          "IncludeUsers": ["All"],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": ["bbbbbbbb-0000-0000-0000-000000000001"],
+          "IncludeRoles": [],
+          "ExcludeRoles": []
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": ["block"],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": []
+      }
+    },
+    {
+      "Id": "aaaaaaaa-0000-0000-0000-000000000003",
+      "DisplayName": "GLOBAL - GRANT - MFA - AllAdmins",
+      "State": "enabled",
+      "CreatedDateTime": "2026-01-01T00:00:00Z",
+      "ModifiedDateTime": null,
+      "Conditions": {
+        "Applications": {
+          "IncludeApplications": ["All"],
+          "ExcludeApplications": [],
+          "IncludeUserActions": [],
+          "IncludeAuthenticationContextClassReferences": []
+        },
+        "ClientAppTypes": ["all"],
+        "Users": {
+          "IncludeUsers": ["All"],
+          "ExcludeUsers": [],
+          "IncludeGroups": [],
+          "ExcludeGroups": [
+            "bbbbbbbb-0000-0000-0000-000000000001",
+            "bbbbbbbb-0000-0000-0000-000000000002"
+          ],
+          "IncludeRoles": [],
+          "ExcludeRoles": []
+        },
+        "SignInRiskLevels": [],
+        "UserRiskLevels": []
+      },
+      "GrantControls": {
+        "Operator": "OR",
+        "BuiltInControls": ["mfa"],
+        "CustomAuthenticationFactors": [],
+        "TermsOfUse": []
+      }
+    }
+  ],
+  "directoryObjects": [
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000001",
+      "AdditionalProperties": {
+        "@odata.type": "#microsoft.graph.group",
+        "displayName": "SG-Entra-CAP-GlobalExclusions"
+      }
+    },
+    {
+      "Id": "bbbbbbbb-0000-0000-0000-000000000002",
+      "AdditionalProperties": {
+        "@odata.type": "#microsoft.graph.group",
+        "displayName": "SG-Entra-CAP-BreakglassAccounts"
+      }
+    }
+  ]
+}
