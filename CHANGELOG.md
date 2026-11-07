@@ -5,6 +5,12 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **JSON export now includes the data used by the PowerPoint export** - `Export JSON` previously serialised only the `AnalysisResult` plus `compositeScore`, although the README lists CIS results, persona coverage, scorecard and baseline gaps. The export now adds `cisResult`, `scorecard`, `personaResult`, `baselineGap`, tenant metadata (`tenant`, `exportedAt`, `exportSchemaVersion: 2`) and `guidNames`, a flat `guid -> displayName` map built with the same resolver as the PowerPoint/Excel exports (the resolver maps are `Map` instances and are lost by `JSON.stringify`). Existing top-level keys are unchanged, so current consumers keep working. New helper: `buildGuidNameMap()` in `src/lib/role-names.ts`.
+
 ## [1.19.4] - 2026-11-05
 
 ### Fixed

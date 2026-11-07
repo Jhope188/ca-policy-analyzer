@@ -563,6 +563,21 @@ The **Export JSON** button downloads the full analysis. The JSON follows this st
 }
 ```
 
+Since export schema version 2, the JSON also carries the data used by the PowerPoint export. Existing keys are unchanged.
+
+| Key | Content |
+|---|---|
+| `exportSchemaVersion` | `2` |
+| `exportedAt` | ISO 8601 timestamp of the export |
+| `tenant` | `{ displayName, id }` |
+| `cisResult` | CIS alignment results |
+| `scorecard` | Zero Trust scorecard |
+| `personaResult` | Persona x control coverage |
+| `baselineGap` | Baseline gap analysis (when a baseline is loaded) |
+| `guidNames` | Flat `guid -> displayName` map for users, groups, roles and apps referenced by the policies |
+
+> `guidNames` contains display names of users and groups (including exclusion groups). Treat the export as sensitive tenant data.
+
 ---
 
 ## Privacy & Security
