@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  ConditionalAccessPolicy,
   ConditionalAccessPolicyPlanWithRules,
   ConditionalAccessPolicyRule,
 } from "@/lib/graph-client";
@@ -11,6 +12,12 @@ import {
   PLAN_RULE_STATE_LABEL,
   type PlanVisualizerContext,
 } from "@/lib/policy-plan-visualizer";
+import {
+  detectPlanRulePolicyConflicts,
+  DECOMMISSION_DOC_URL,
+  type PlanRulePolicyConflict,
+} from "@/lib/policy-plan-conflict-detector";
+import { SeverityBadge } from "@/components/ui-primitives";
 import { resolveGuidList, type GuidResolverMaps } from "@/lib/role-names";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +30,8 @@ import {
   Clock,
   Tags,
   FlaskConical,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 
 function SummaryRow({
@@ -58,12 +67,41 @@ function SummaryRow({
   );
 }
 
+const CONFLICT_BOX_CLASS: Record<PlanRulePolicyConflict["severity"], string> = {
+  critical: "border-red-500/30 bg-red-500/5",
+  high: "border-orange-500/30 bg-orange-500/5",
+  medium: "border-yellow-500/30 bg-yellow-500/5",
+  low: "border-blue-500/30 bg-blue-500/5",
+  info: "border-gray-700 bg-gray-800/30",
+};
+
+/** Flags that this rule's likely source policy is still active and needs to be turned off to avoid conflicting enforcement. */
+function ConflictNotice({ conflict }: { conflict: PlanRulePolicyConflict }) {
+  return (
+    <div className={cn("mt-3 rounded-lg border p-3", CONFLICT_BOX_CLASS[conflict.severity])}>
+      <div className="flex flex-wrap items-center gap-2">
+        <SeverityBadge severity={conflict.severity} />
+        <span className="text-sm font-medium text-white">{conflict.title}</span>
+      </div>
+      <p className="mt-2 text-xs text-gray-300">{conflict.description}</p>
+      <p className="mt-2 text-xs font-medium text-gray-100">{conflict.recommendation}</p>
+      <p className="mt-2 text-xs text-gray-500">
+        Matched policy: <span className="font-mono text-gray-400">{conflict.matchedPolicyDisplayName}</span> (
+        {PLAN_RULE_STATE_LABEL[conflict.matchedPolicyState] ?? conflict.matchedPolicyState}) ·{" "}
+        {conflict.matchType === "exact-name" ? "same name" : `~${conflict.confidence}% field match`}
+      </p>
+    </div>
+  );
+}
+
 function RuleCard({
   rule,
   context,
+  conflict,
 }: {
   rule: ConditionalAccessPolicyRule;
   context: PlanVisualizerContext;
+  conflict?: PlanRulePolicyConflict;
 }) {
   const [expanded, setExpanded] = useState(false);
   const conditionSummary = summarizeConditionSet(rule.conditions, context);
@@ -97,6 +135,11 @@ function RuleCard({
             <h4 className="text-sm font-semibold text-white truncate">
               {rule.displayName}
             </h4>
+            {conflict && (
+              <span title={conflict.title}>
+                <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
+              </span>
+            )}
           </div>
           <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
             <span>{conditionSummary.targetUsers ?? "Inherited from plan"}</span>
@@ -124,7 +167,13 @@ function RuleCard({
             <SummaryRow icon={ShieldCheck} label="Grant Controls" value={controlsSummary.grantControls} emptyText="No grant controls" />
             <SummaryRow icon={Clock} label="Session Controls" value={controlsSummary.sessionControls} emptyText="No session controls" />
           </div>
+          {conflict && <ConflictNotice conflict={conflict} />}
           <p className="mt-3 text-xs text-gray-700 font-mono">ID: {rule.id}</p>
+        </div>
+      )}
+      {!expanded && conflict && (
+        <div className="border-t border-gray-800 p-3">
+          <ConflictNotice conflict={conflict} />
         </div>
       )}
     </div>
@@ -135,13 +184,16 @@ function PlanCard({
   plan,
   context,
   resolverMaps,
+  conflictsByRuleId,
 }: {
   plan: ConditionalAccessPolicyPlanWithRules;
   context: PlanVisualizerContext;
   resolverMaps?: GuidResolverMaps;
+  conflictsByRuleId: Map<string, PlanRulePolicyConflict>;
 }) {
   const [expanded, setExpanded] = useState(true);
   const sharedSummary = summarizeConditionSet(plan.sharedConditions, context);
+  const planConflictCount = plan.rules.filter((r) => conflictsByRuleId.has(r.id)).length;
 
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900">
@@ -162,6 +214,12 @@ function PlanCard({
             <span className="text-xs text-gray-500">
               {plan.rules.length} rule{plan.rules.length !== 1 ? "s" : ""}
             </span>
+            {planConflictCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400">
+                <AlertTriangle className="h-3 w-3" />
+                {planConflictCount} {planConflictCount === 1 ? "rule needs" : "rules need"} the original policy turned off
+              </span>
+            )}
           </div>
           {plan.description && (
             <p className="mt-1 text-xs text-gray-500">{plan.description}</p>
@@ -210,7 +268,7 @@ function PlanCard({
                 <p className="text-sm text-gray-600">This plan has no rules yet.</p>
               ) : (
                 plan.rules.map((rule) => (
-                  <RuleCard key={rule.id} rule={rule} context={context} />
+                  <RuleCard key={rule.id} rule={rule} context={context} conflict={conflictsByRuleId.get(rule.id)} />
                 ))
               )}
             </div>
@@ -229,14 +287,26 @@ function PlanCard({
 
 export function PolicyPlansView({
   plans,
+  policies,
   context,
   resolverMaps,
 }: {
   /** Undefined when the scan was skipped or the tenant doesn't expose the preview endpoint. */
   plans: ConditionalAccessPolicyPlanWithRules[] | undefined;
+  /** Standalone CA policies for this tenant - used to flag plan rules whose likely source policy is still active. */
+  policies: ConditionalAccessPolicy[];
   context: PlanVisualizerContext;
   resolverMaps?: GuidResolverMaps;
 }) {
+  const conflicts = useMemo(
+    () => (plans ? detectPlanRulePolicyConflicts(plans, policies) : []),
+    [plans, policies]
+  );
+  const conflictsByRuleId = useMemo(
+    () => new Map(conflicts.map((c) => [c.ruleId, c])),
+    [conflicts]
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4">
@@ -260,6 +330,33 @@ export function PolicyPlansView({
         </div>
       </div>
 
+      {conflicts.length > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-orange-500/30 bg-orange-500/5 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
+          <div className="text-sm text-gray-300">
+            <p className="font-medium text-white">
+              {conflicts.length} plan rule{conflicts.length !== 1 ? "s" : ""} likely{" "}
+              {conflicts.length !== 1 ? "still have" : "still has"} their original policy active
+            </p>
+            <p className="mt-1 text-gray-400">
+              The biggest hurdle when migrating to policy plans: the original standalone policies
+              aren&apos;t changed or removed by migration. They keep evaluating independently
+              alongside their plan rule, which can mean redundant - or conflicting - enforcement.
+              Decommission (turn off, then delete per your retention policy) each original policy
+              once you&apos;ve validated and turned on its matching rule.{" "}
+              <a
+                href={DECOMMISSION_DOC_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 underline hover:text-white"
+              >
+                Learn more <ExternalLink className="h-3 w-3" />
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
       {plans === undefined ? (
         <div className="rounded-xl border border-gray-800 bg-gray-900 p-6 text-sm text-gray-400">
           No policy plan data was collected for this tenant. This can mean the preview feature
@@ -274,7 +371,13 @@ export function PolicyPlansView({
       ) : (
         <div className="space-y-3">
           {plans.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} context={context} resolverMaps={resolverMaps} />
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              context={context}
+              resolverMaps={resolverMaps}
+              conflictsByRuleId={conflictsByRuleId}
+            />
           ))}
         </div>
       )}

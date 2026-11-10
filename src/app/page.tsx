@@ -745,6 +745,7 @@ export default function Home() {
       {activeTab === "policyPlans" && context && (
         <PolicyPlansView
           plans={context.policyPlans}
+          policies={context.policies}
           context={{ namedLocations: context.namedLocations, servicePrincipals: context.servicePrincipals }}
           resolverMaps={{ directoryObjects: context.directoryObjects, servicePrincipals: context.servicePrincipals }}
         />
