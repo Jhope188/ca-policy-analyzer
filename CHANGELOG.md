@@ -5,7 +5,16 @@ All notable changes to the CA Policy Analyzer will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.19.4] - 2026-11-05
+## [1.19.5] - 2026-11-10
+
+### Added
+
+- **Plan-rule / original-policy conflict detection for the Policy Plans (Preview) tab.** Per [Microsoft's own migration guide](https://learn.microsoft.com/entra/identity/conditional-access/how-to-migrate-conditional-access-policy-plan#decommission-the-original-policies), migrating a Conditional Access policy into a policy plan doesn't change or remove the original standalone policy - "they remain in their previous state ... and continue to evaluate independently" until an admin explicitly decommissions them. Since every applicable policy *and* every applicable plan rule must be satisfied for access to be granted, leaving the original on after its rule is turned on means redundant - or genuinely conflicting - enforcement, and this is the biggest real-world hurdle teams hit when adopting plans.
+  - New `src/lib/policy-plan-conflict-detector.ts`: `detectPlanRulePolicyConflicts()` matches each `conditionalAccessPolicyRule` back to the standalone `conditionalAccessPolicy` it was most likely migrated from. The Graph beta resource has no `sourcePolicyId`-style link, so matching is heuristic: an exact (normalized) display-name match is treated as strong evidence (the migration UI maps one selected policy to one rule, and admins typically keep the name for traceability); otherwise a structural similarity score across targeted users/groups/roles, targeted apps, grant controls, and locations (the plan's shared conditions merged field-by-field with the rule's own conditions) must clear a high threshold.
+  - A conflict is only reported when the matched policy is still **enabled** or **enabledForReportingButNotEnforced** - a policy already **disabled** is treated as decommissioned and isn't flagged. Severity scales with how "live" both sides are: both enforcing (`enabled`/`enabled`) is **high**, one side report-only is **medium**, both report-only is **low**, and a match against a currently-Off rule is **info**.
+  - `src/components/policy-plans-view.tsx`: each affected `RuleCard` now shows a severity-badged notice naming the matched policy, its state, and a recommendation to turn it off; each `PlanCard` header shows a count of its rules needing attention; and the tab gets a top-level summary banner (with a link to the "Decommission the original policies" doc) whenever any conflicts exist. `PolicyPlansView` now also takes the tenant's standalone `policies` array as a prop.
+
+
 
 ### Fixed
 

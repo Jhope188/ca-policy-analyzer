@@ -108,6 +108,10 @@ This fixture intentionally includes edge cases that previously caused offline/li
 
 > Showing the last 5 major updates. Full version history lives in [CHANGELOG.md](CHANGELOG.md).
 
+### v1.19.5 - Policy Plan Rule / Original Policy Conflict Detection (November 10, 2026)
+
+- **Flags plan rules whose migrated-from standalone policy is still active.** The biggest real-world hurdle teams hit migrating to policy plans: migration doesn't touch the original standalone policy, so it keeps evaluating independently alongside its new plan rule until someone turns it off (per [Microsoft's migration guide](https://learn.microsoft.com/entra/identity/conditional-access/how-to-migrate-conditional-access-policy-plan#decommission-the-original-policies)). The Policy Plans tab now matches each rule back to its likely source policy (exact name, or a structural match on users/apps/grant controls) and reports it - with a severity that scales by how "live" the overlap is - whenever that original policy is still On or Report-only instead of Off, along with a recommendation to decommission it. New `src/lib/policy-plan-conflict-detector.ts`.
+
 ### v1.19.4 - Sign-In Scan Skip Token Fix (November 5, 2026)
 
 - **Per-policy "Sign-in log matches" scan could fail with "Invalid Skip Token, query context has changed"** - the v1.18.1 retry-on-timeout fallback rewrote `$top` on Graph's own `@odata.nextLink` to shrink the page size, but a nextLink carries an opaque `$skiptoken` that encodes the entire original query - changing `$top` on it breaks Graph's pagination contract. The page-halving retry now only runs on the first page (the one URL this scan builds itself, before any skiptoken exists); every later page that times out ends the scan cleanly with whatever matches were already collected, instead of a doomed retry that always failed with this error.
@@ -126,12 +130,6 @@ This fixture intentionally includes edge cases that previously caused offline/li
 - **Read-only support for the new [Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) Graph beta resource.** New "Policy Plans (Preview)" tab lists every plan in the tenant with its shared conditions, tags, owners, and each rule's own conditions/grant/session controls - reuses the existing `Policy.Read.All` scope, no new consent required. Tenants without the preview, or missing permission, degrade to "not scanned."
 - **Deliberately kept isolated** - plan rules don't yet feed Findings, Templates, CIS, or scoring, and offline export/import doesn't carry plan data yet. First pass for tenant testing, not the final integration.
 
-### v1.18.1 - Sign-In Scan Reliability + Severity Grading Fixes (September 18, 2026)
-
-- **Per-policy "Sign-in log matches" scan timing out on tenants with many CA policies** ([PR #38](https://github.com/Jhope188/ca-policy-analyzer/pull/38)) - smaller page size, longer per-request/overall timeouts, and a new retry-on-timeout fallback that halves the page size instead of giving up immediately.
-- **Missing Service Principal findings now graded using existing sign-in evidence** ([PR #40](https://github.com/Jhope188/ca-policy-analyzer/pull/40)) - downgraded to info/low when the sampled sign-in's own Conditional Access verdict already contradicts the predicted-block severity.
-- **EAM companion-policy check gated on real tenant EAM state** ([PR #41](https://github.com/Jhope188/ca-policy-analyzer/pull/41)) - no longer fires in tenants with no External Authentication Method provider configured.
-- **Required CI on every PR targeting `main`** - `tsc --noEmit`, the full self-check suite, and a production build, so a broken change can no longer reach the auto-deployed production site unverified.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full version history including v1.18.0 (Per-Policy Sign-In Log Matches), v1.17.1 (False Positive & Offline Bug Fixes), v1.17.0 (Missing Service Principals), v1.16.x (Baseline Enforcement, Template Fixes, Offline Mode), v1.15.21 (Joey Verlinden 2026.6.1), v1.15 (Lewis Barry baseline), v1.14.7 (layered GitHub baselines), v1.14.0 (Deployment Plans), v1.13.0 (Baseline Gap Analysis), v1.12.0 (Zero Trust Scorecard) and earlier.
 
@@ -227,6 +225,8 @@ The Locations tab maps every named location (IP ranges, countries, compliant net
 Early, read-only support for [Microsoft Entra Conditional Access policy plans](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-conditional-access-policy-plans) (preview) — the new Microsoft Graph beta resource that lets admins group shared targeting/exclusions and per-scenario rules under one plan. The tab lists every plan in the tenant with its shared conditions, tags, owners, and rules (each rule's own conditions and grant/session controls), using the same `Policy.Read.All` permission already requested for standalone policies — no extra consent needed.
 
 This is intentionally isolated in its own tab for now: plan rules don't yet feed the Findings, Templates, CIS, or scoring logic, and offline export/import doesn't carry plan data yet. The tenant must have the preview enabled and at least one plan configured; otherwise the tab shows a "not scanned" message rather than an error. Expect this to evolve once we decide how plans should fold into the rest of the analysis.
+
+**Original-policy conflict detection.** The single biggest migration hurdle per [Microsoft's own migration guide](https://learn.microsoft.com/entra/identity/conditional-access/how-to-migrate-conditional-access-policy-plan#decommission-the-original-policies): migrating a policy into a plan doesn't touch the original standalone policy — it keeps evaluating independently unless and until someone turns it off. The tab now matches each plan rule back to the standalone policy it was most likely migrated from (by exact display name, falling back to a structural match on targeted users/apps/grant controls) and flags it when that original policy is still **On** or **Report-only** instead of **Off**. Each flagged rule shows which policy it matches, their states, and a recommendation to decommission the original policy — the severity scales with how "live" the overlap is (both enforcing = high, one report-only = medium, both report-only = low). Policies already turned off are treated as decommissioned and aren't flagged.
 
 ---
 
