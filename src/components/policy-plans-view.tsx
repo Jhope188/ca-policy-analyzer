@@ -75,21 +75,43 @@ const CONFLICT_BOX_CLASS: Record<PlanRulePolicyConflict["severity"], string> = {
   info: "border-gray-700 bg-gray-800/30",
 };
 
-/** Flags that this rule's likely source policy is still active and needs to be turned off to avoid conflicting enforcement. */
+/**
+ * Flags that this rule's likely source policy is still active and needs to be turned off to
+ * avoid conflicting enforcement. Collapsed to a single line by default - with this on every rule
+ * that has a match, the full explanation for each one made it hard to scan a plan at a glance.
+ */
 function ConflictNotice({ conflict }: { conflict: PlanRulePolicyConflict }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className={cn("mt-3 rounded-lg border p-3", CONFLICT_BOX_CLASS[conflict.severity])}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={cn("mt-3 rounded-lg border", CONFLICT_BOX_CLASS[conflict.severity])}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 p-2.5 text-left"
+      >
+        {open ? (
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-500" />
+        )}
         <SeverityBadge severity={conflict.severity} />
-        <span className="text-sm font-medium text-white">{conflict.title}</span>
-      </div>
-      <p className="mt-2 text-xs text-gray-300">{conflict.description}</p>
-      <p className="mt-2 text-xs font-medium text-gray-100">{conflict.recommendation}</p>
-      <p className="mt-2 text-xs text-gray-500">
-        Matched policy: <span className="font-mono text-gray-400">{conflict.matchedPolicyDisplayName}</span> (
-        {PLAN_RULE_STATE_LABEL[conflict.matchedPolicyState] ?? conflict.matchedPolicyState}) ·{" "}
-        {conflict.matchType === "exact-name" ? "same name" : `~${conflict.confidence}% field match`}
-      </p>
+        <span className="truncate text-xs font-medium text-white">{conflict.title}</span>
+        <span className="ml-auto shrink-0 truncate pl-2 text-xs text-gray-500">
+          {conflict.matchedPolicyDisplayName}
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-800/60 p-3 pt-2">
+          <p className="text-xs text-gray-300">{conflict.description}</p>
+          <p className="mt-2 text-xs font-medium text-gray-100">{conflict.recommendation}</p>
+          <p className="mt-2 text-xs text-gray-500">
+            Matched policy: <span className="font-mono text-gray-400">{conflict.matchedPolicyDisplayName}</span> (
+            {PLAN_RULE_STATE_LABEL[conflict.matchedPolicyState] ?? conflict.matchedPolicyState}) ·{" "}
+            {conflict.matchType === "exact-name" ? "same name" : `~${conflict.confidence}% field match`}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
