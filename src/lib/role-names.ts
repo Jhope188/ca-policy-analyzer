@@ -121,3 +121,46 @@ export function resolveAppList(
     })
     .join(", ");
 }
+
+// ─── GUID Name Map (for JSON export) ─────────────────────────────────────────
+
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Build a flat `guid -> displayName` map for every GUID referenced in the
+ * given objects (typically CA policies) that can be resolved.
+ *
+ * The resolver maps are `Map` instances, which `JSON.stringify` serialises
+ * as `{}`. This helper produces a plain object so JSON consumers can resolve
+ * users, groups, roles and apps without calling Graph again.
+ * Unresolved GUIDs are omitted.
+ */
+export function buildGuidNameMap(
+  source: unknown,
+  maps?: GuidResolverMaps,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  const seen = new Set<string>();
+
+  const visit = (value: unknown): void => {
+    if (typeof value === "string") {
+      if (!GUID_RE.test(value)) return;
+      const lower = value.toLowerCase();
+      if (seen.has(lower)) return;
+      seen.add(lower);
+      const name = resolveGuid(value, maps);
+      if (name !== value) out[lower] = name;
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value && typeof value === "object") {
+      Object.values(value as Record<string, unknown>).forEach(visit);
+    }
+  };
+
+  visit(source);
+  return out;
+}

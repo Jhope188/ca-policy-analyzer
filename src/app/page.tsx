@@ -26,6 +26,7 @@ import { PolicyPlansView } from "@/components/policy-plans-view";
 import { exportToExcel, exportToPowerPoint, loadDefaultLogo } from "@/lib/export-utils";
 import { buildTenantContextFromOfflineExport, OfflineExportPayload } from "@/lib/offline-import";
 import { scopesFor } from "@/lib/msal-config";
+import { buildGuidNameMap } from "@/lib/role-names";
 import { RUN_STEPS, liveStepList, offlineStepList } from "@/lib/run-steps";
 import { RunProgress } from "@/components/run-progress";
 import { ScanComplete } from "@/components/scan-complete";
@@ -314,7 +315,26 @@ export default function Home() {
 
   const exportResults = useCallback(() => {
     if (!result) return;
-    const exportData = { ...result, compositeScore: compositeScore ?? undefined };
+    // Existing top-level keys are kept unchanged for backward compatibility.
+    // The additional keys expose the same data the PowerPoint export uses.
+    const resolverMaps = context
+      ? { directoryObjects: context.directoryObjects, servicePrincipals: context.servicePrincipals }
+      : undefined;
+    const exportData = {
+      ...result,
+      compositeScore: compositeScore ?? undefined,
+      exportSchemaVersion: 2,
+      exportedAt: new Date().toISOString(),
+      tenant: {
+        displayName: context?.tenantDisplayName ?? accounts[0]?.username?.split("@")[1] ?? undefined,
+        id: context?.tenantId ?? accounts[0]?.tenantId ?? undefined,
+      },
+      cisResult: cisResult ?? undefined,
+      scorecard: scorecard ?? undefined,
+      personaResult: personaResult ?? undefined,
+      baselineGap: baselineGapResult ?? undefined,
+      guidNames: buildGuidNameMap(result.policyResults.map((pr) => pr.policy), resolverMaps),
+    };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
     });
@@ -324,7 +344,7 @@ export default function Home() {
     a.download = `ca-analysis-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [result, compositeScore]);
+  }, [result, compositeScore, context, accounts, cisResult, scorecard, personaResult, baselineGapResult]);
 
   const completionPanel =
     completion && result ? (
